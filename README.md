@@ -55,6 +55,7 @@ navegar los documentos con grafo y backlinks, o léelos como markdown normal.
 | `Salida 5 - Modulo de reportes y visualizacion.md` | Esquema de notas, formato YAML, seguridad del vault |
 | `Salida 4 - Modulo de limpieza y optimizacion.md` | Los 6 submódulos, rutas de Windows, guardia de rutas |
 | `Prompt *.md` | Los prompts que generaron cada salida |
+| `CONTINUAR-EN-WINDOWS.md` | Traspaso: qué está verificado, qué no, y el siguiente paso |
 
 ---
 
