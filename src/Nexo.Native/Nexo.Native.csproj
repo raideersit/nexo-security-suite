@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Todo el P/Invoke del proyecto vive aqui (convencion de Salida 0).
+         net8.0-windows para que el analizador de plataforma valide las llamadas
+         Win32 en tiempo de compilacion en vez de fallar en ejecucion. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <RootNamespace>Nexo.Native</RootNamespace>
+  </PropertyGroup>
+
+</Project>

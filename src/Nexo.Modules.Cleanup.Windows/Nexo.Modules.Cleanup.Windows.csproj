@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Lo especifico de Windows del modulo de limpieza vive aparte para que
+         Nexo.Modules.Cleanup siga compilando y probandose fuera de Windows. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Modules.Cleanup.Windows</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Modules.Cleanup\Nexo.Modules.Cleanup.csproj" />
+    <ProjectReference Include="..\Nexo.Native\Nexo.Native.csproj" />
+  </ItemGroup>
+
+</Project>
