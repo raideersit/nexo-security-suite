@@ -1,0 +1,27 @@
+# Artefactos de compilacion .NET
+bin/
+obj/
+artifacts/
+
+# Vault generado por el arnes de aceptacion de Nexo.Reports.
+# Ver "99 Sistema/ADVERTENCIA DE SEGURIDAD.md" dentro del vault:
+# un vault real contiene datos sensibles en texto plano y NUNCA debe versionarse.
+vault/
+vault-demo/
+
+# Visual Studio
+.vs/
+*.user
+
+# Salida de los arneses de aceptacion
+nexo-cleanup-demo/
+corpus/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Estado de la interfaz de Obsidian: es local de cada equipo y genera
+# conflictos constantes al sincronizar entre maquinas.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json

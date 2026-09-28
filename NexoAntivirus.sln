@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6362A81F-1984-4FCC-852D-F7A94D9C5971}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Reports", "src\Nexo.Reports\Nexo.Reports.csproj", "{8FE0A3A2-377F-4096-B9AA-D505F61AA14A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Native", "src\Nexo.Native\Nexo.Native.csproj", "{E3489772-FAED-48AB-99FB-F4EA1AD01A7A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Modules.Cleanup", "src\Nexo.Modules.Cleanup\Nexo.Modules.Cleanup.csproj", "{93A25B09-7506-414C-9820-910AFE736E78}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Modules.Cleanup.Windows", "src\Nexo.Modules.Cleanup.Windows\Nexo.Modules.Cleanup.Windows.csproj", "{5E683518-72EA-433E-8CB9-F62452C32211}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{97791DAB-2749-453A-AD04-B1DE33916ADF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Reports.Demo", "tools\Nexo.Reports.Demo\Nexo.Reports.Demo.csproj", "{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nexo.Cleanup.Demo", "tools\Nexo.Cleanup.Demo\Nexo.Cleanup.Demo.csproj", "{0FFF2956-4EF8-4A16-848A-A423E5907C0D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8FE0A3A2-377F-4096-B9AA-D505F61AA14A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FE0A3A2-377F-4096-B9AA-D505F61AA14A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FE0A3A2-377F-4096-B9AA-D505F61AA14A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FE0A3A2-377F-4096-B9AA-D505F61AA14A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3489772-FAED-48AB-99FB-F4EA1AD01A7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3489772-FAED-48AB-99FB-F4EA1AD01A7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3489772-FAED-48AB-99FB-F4EA1AD01A7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3489772-FAED-48AB-99FB-F4EA1AD01A7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93A25B09-7506-414C-9820-910AFE736E78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93A25B09-7506-414C-9820-910AFE736E78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93A25B09-7506-414C-9820-910AFE736E78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93A25B09-7506-414C-9820-910AFE736E78}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E683518-72EA-433E-8CB9-F62452C32211}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E683518-72EA-433E-8CB9-F62452C32211}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E683518-72EA-433E-8CB9-F62452C32211}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E683518-72EA-433E-8CB9-F62452C32211}.Release|Any CPU.Build.0 = Release|Any CPU
+		{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0FFF2956-4EF8-4A16-848A-A423E5907C0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0FFF2956-4EF8-4A16-848A-A423E5907C0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0FFF2956-4EF8-4A16-848A-A423E5907C0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0FFF2956-4EF8-4A16-848A-A423E5907C0D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8FE0A3A2-377F-4096-B9AA-D505F61AA14A} = {6362A81F-1984-4FCC-852D-F7A94D9C5971}
+		{E3489772-FAED-48AB-99FB-F4EA1AD01A7A} = {6362A81F-1984-4FCC-852D-F7A94D9C5971}
+		{93A25B09-7506-414C-9820-910AFE736E78} = {6362A81F-1984-4FCC-852D-F7A94D9C5971}
+		{5E683518-72EA-433E-8CB9-F62452C32211} = {6362A81F-1984-4FCC-852D-F7A94D9C5971}
+		{54EBD2D6-82D9-4CBE-BC08-2749BBEBE340} = {97791DAB-2749-453A-AD04-B1DE33916ADF}
+		{0FFF2956-4EF8-4A16-848A-A423E5907C0D} = {97791DAB-2749-453A-AD04-B1DE33916ADF}
+	EndGlobalSection
+EndGlobal
