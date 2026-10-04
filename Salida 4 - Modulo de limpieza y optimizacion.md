@@ -95,7 +95,7 @@ El problema es **"sin uso"**, y es de fondo:
 
 Ninguna señal es fiable por sí sola, y recomendar desinstalar algo en uso destruye la confianza en toda la herramienta. **Coincide con la recomendación de [[Salida 6 - Analisis de viabilidad del proyecto]] de dejarlo fuera del MVP.** Si se construye, debe presentarse como "no lo he visto ejecutarse desde X", nunca como "sin uso".
 
-### 1.4 Optimización de inicio — **diseño**
+### 1.4 Optimización de inicio — **implementado** (falta medir el impacto de arranque, servicios y tareas programadas)
 
 Fuentes a enumerar:
 
@@ -135,7 +135,7 @@ Aplicación: `PowerSetActiveScheme` con los GUID estándar — Equilibrado `381b
 1. **El perfil "Wi-Fi público" no es de rendimiento, es de seguridad.** No debe cambiar el plan de energía: debe poner el firewall en perfil Público, desactivar la detección de redes y sugerir la VPN. Está en este módulo solo porque la señal se detecta aquí; la acción pertenece a M1 y M2.
 2. **En portátiles modernos con Modern Standby, forzar planes de energía suele empeorar las cosas.** Windows gestiona la frecuencia mejor que una heurística nuestra. El valor real está en el perfil de juego (subir prioridad, posponer tareas de Nexo) y en el de batería (posponer escaneos), no en pelearse con el gobernador de energía.
 
-### 1.6 Monitoreo de salud del disco (S.M.A.R.T.) — **diseño**
+### 1.6 Monitoreo de salud del disco (S.M.A.R.T.) — **implementado** (lectura con datos reales pendiente de probar como administrador)
 
 Dos fuentes WMI, ambas con admin:
 
@@ -159,7 +159,7 @@ Dos fuentes WMI, ambas con admin:
 
 Ninguna métrica se inventa: todo sale de estas clases, tal como pide la regla del prompt.
 
-### 1.7 Triturador de archivos — **diseño**
+### 1.7 Triturador de archivos — **implementado**
 
 **Método:** abrir con `FileShare.None`, sobrescribir el largo completo con un patrón, `FlushFileBuffers`, renombrar a un nombre aleatorio varias veces, truncar a 0 y borrar.
 

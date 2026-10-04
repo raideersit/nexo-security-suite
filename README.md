@@ -31,15 +31,25 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 |---|---|
 | `Nexo.Reports` — notas markdown + vault de Obsidian | ✅ Implementado y verificado |
 | `Nexo.Modules.Cleanup` — limpieza y duplicados | ✅ Implementado y verificado |
-| `Nexo.Modules.Cleanup` — inicio, S.M.A.R.T., triturador | 📐 Diseñado |
+| `Nexo.Modules.Cleanup` — triturador, inicio, S.M.A.R.T. | ✅ Implementado; verificado en Windows salvo lo listado abajo |
 | `Nexo.Modules.Threats` — firewall, escaneo bajo demanda | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**Verificado hasta ahora en Linux, no en Windows.** La lógica portable
-—guardia de rutas, catálogo, token de confirmación, duplicados, reportes— pasa
-41 comprobaciones automatizadas. Las rutas reales de Windows, la Papelera de
-reciclaje y el comportamiento con archivos bloqueados **están sin probar**.
+**127 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 86 de
+la lógica portable de limpieza y 28 que solo tienen sentido en Windows
+(registro, Papelera, archivos bloqueados, tipo de disco, discos reales).
+
+**Todavía sin verificar:**
+
+- S.M.A.R.T. con datos reales: exige administrador y hasta ahora solo se
+  comprobó sin él, donde reporta honestamente «sin datos suficientes».
+- Escritura en `HKLM` y reglas del catálogo que piden administrador.
+- El flujo completo con `BorradorPapelera` sobre un perfil limpio, y todo lo
+  que implique borrado permanente: requiere una VM.
+- Enlaces simbólicos de *archivo* (piden modo desarrollador; las uniones NTFS
+  de carpeta sí están cubiertas).
+- Obsidian: el vault de demostración se abrió a mano y se vio correcto.
 
 ---
 
@@ -55,7 +65,8 @@ navegar los documentos con grafo y backlinks, o léelos como markdown normal.
 | `Salida 5 - Modulo de reportes y visualizacion.md` | Esquema de notas, formato YAML, seguridad del vault |
 | `Salida 4 - Modulo de limpieza y optimizacion.md` | Los 6 submódulos, rutas de Windows, guardia de rutas |
 | `Prompt *.md` | Los prompts que generaron cada salida |
-| `CONTINUAR-EN-WINDOWS.md` | Traspaso: qué está verificado, qué no, y el siguiente paso |
+| `CONTINUAR-EN-OTRO-EQUIPO.md` | **Traspaso vigente**: qué está hecho, qué falta y cómo montar la VM |
+| `CONTINUAR-EN-WINDOWS.md` | Traspaso anterior (Linux → Windows), conservado como historia |
 
 ---
 
@@ -74,20 +85,39 @@ Arneses de aceptación — generan datos sintéticos y verifican el comportamien
 # Genera un vault de ejemplo; ábrelo con Obsidian para ver el resultado
 dotnet run --project tools/Nexo.Reports.Demo -- ./vault-demo
 
-# Corpus sintético + guardia de rutas + duplicados (28 comprobaciones)
+# Corpus sintético: guardia, limpieza, duplicados, triturador, inicio y
+# S.M.A.R.T. Corre en cualquier sistema (86 comprobaciones)
 dotnet run --project tools/Nexo.Cleanup.Demo
+
+# Solo Windows: tipo de disco, registro de inicio (en una subclave temporal),
+# Papelera, archivos bloqueados y lectura real de discos (28 comprobaciones)
+dotnet run --project tools/Nexo.Cleanup.Windows.Demo
 ```
 
-Ambos devuelven código de salida 0 solo si todas las comprobaciones pasan.
+Los tres devuelven código de salida 0 solo si todas las comprobaciones pasan.
+El arnés de Windows deja unos pocos archivos sintéticos `nexo-demo-*` en la
+Papelera; son inofensivos y puedes vaciarla.
+
+### El limpiador contra el equipo real: `nexo-cleanup`
+
+```powershell
+dotnet run --project tools/Nexo.Cleanup.Run                    # simulado: no toca nada
+dotnet run --project tools/Nexo.Cleanup.Run -- --modo papelera # reversible; pide escribir BORRAR
+dotnet run --project tools/Nexo.Cleanup.Run -- --ayuda
+```
+
+El modo `real` (borrado permanente) **se niega a ejecutarse fuera de una
+máquina virtual**: lo hace cumplir el código, no una advertencia. Dentro de una
+VM además exige `NEXO_PERMITIR_BORRADO_REAL=1`.
 
 ### ⚠ Antes de ejecutar el módulo de limpieza en un equipo real
 
-1. Usa una **máquina virtual con snapshot**, no tu equipo principal.
-2. Empieza con `BorradorSimulado`: recorre el flujo completo y registra qué
-   *habría* borrado, sin tocar un solo archivo.
-3. Solo cuando la lista sea la esperada varias veces seguidas, cambia a
-   `BorradorPapelera` (envía a la Papelera, reversible).
-4. `BorradorReal` borra de forma permanente. Es una elección explícita.
+1. Empieza siempre con el modo `simulado`: recorre el flujo completo y registra
+   qué *habría* borrado, sin tocar un solo archivo.
+2. Solo cuando la lista sea la esperada varias veces seguidas, usa `papelera`
+   (reversible).
+3. El borrado permanente, y cualquier prueba destructiva, va en una
+   **máquina virtual con snapshot**.
 
 ---
 
@@ -97,11 +127,14 @@ Ambos devuelven código de salida 0 solo si todas las comprobaciones pasan.
 src/
   Nexo.Reports/                 Librería de notas markdown. Cero dependencias NuGet.
   Nexo.Native/                  Todo el P/Invoke del proyecto vive aquí.
-  Nexo.Modules.Cleanup/         Lógica portable: guardia, catálogo, duplicados.
-  Nexo.Modules.Cleanup.Windows/ Papelera de reciclaje (SHFileOperation).
+  Nexo.Modules.Cleanup/         Lógica portable: guardia, catálogo, duplicados,
+                                triturador, inicio, S.M.A.R.T.
+  Nexo.Modules.Cleanup.Windows/ Papelera, registro de inicio, WMI, detección de VM.
 tools/
   Nexo.Reports.Demo/            Arnés de aceptación de reportes.
-  Nexo.Cleanup.Demo/            Arnés de aceptación de limpieza.
+  Nexo.Cleanup.Demo/            Arnés portable de limpieza.
+  Nexo.Cleanup.Windows.Demo/    Arnés de lo que solo tiene sentido en Windows.
+  Nexo.Cleanup.Run/             `nexo-cleanup`: el limpiador contra el equipo real.
 ```
 
 ---

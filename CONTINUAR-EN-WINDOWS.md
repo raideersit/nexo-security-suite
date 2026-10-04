@@ -1,8 +1,11 @@
 # Continuar en Windows
 
-> Documento de traspaso. El trabajo hasta aquí se hizo en Linux; **nada se ha
-> ejecutado nunca en Windows.** Si abres una sesión nueva de Claude Code en este
-> repositorio, empieza por leer este archivo.
+> **Documento histórico.** Describe el paso de Linux a Windows, que ya ocurrió: lo
+> que aquí figura como «sin verificar» se verificó casi por completo en Windows 10.
+> El traspaso vigente es [[CONTINUAR-EN-OTRO-EQUIPO]].
+>
+> Texto original: el trabajo hasta aquí se hizo en Linux; nada se había ejecutado
+> nunca en Windows.
 
 ---
 
