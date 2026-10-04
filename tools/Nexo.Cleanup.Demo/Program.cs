@@ -37,7 +37,16 @@ namespace Nexo.Cleanup.Demo
             string corpus = Path.Combine(raiz, "corpus");
             string vault = Path.Combine(raiz, "vault");
 
-            if (Directory.Exists(raiz)) Directory.Delete(raiz, recursive: true);
+            if (Directory.Exists(raiz))
+            {
+                // Una corrida anterior puede haber dejado uniones NTFS. Se quitan
+                // primero (sin recursion: borra solo la union, no su destino).
+                foreach (string d in Directory.EnumerateDirectories(raiz, "*", SearchOption.AllDirectories)
+                             .Where(d => (new DirectoryInfo(d).Attributes & FileAttributes.ReparsePoint) != 0)
+                             .ToList())
+                    Directory.Delete(d, recursive: false);
+                Directory.Delete(raiz, recursive: true);
+            }
             ConstruirCorpus(corpus);
 
             var opciones = new VaultOptions
@@ -152,6 +161,20 @@ namespace Nexo.Cleanup.Demo
             }
         }
 
+        private static bool CrearUnion(string union, string destino)
+        {
+            if (!OperatingSystem.IsWindows()) return false;
+            var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe",
+                $"/c mklink /J \"{union}\" \"{destino}\"")
+            { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true };
+            using var p = System.Diagnostics.Process.Start(psi)!;
+            p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            if (p.ExitCode == 0) return true;
+            Console.WriteLine("  [AVISO] No se pudo crear la union NTFS de prueba");
+            return false;
+        }
+
         // ============================================================
         //  1. GUARDIA DE RUTAS
         // ============================================================
@@ -186,6 +209,21 @@ namespace Nexo.Cleanup.Demo
             {
                 Check(guardia.Validar(enlace, ahora).Motivo == MotivoRechazo.EsEnlaceSimbolico,
                       "rechaza un enlace simbolico que apunta fuera");
+            }
+
+            // Union NTFS (junction): no requiere privilegios, a diferencia del
+            // enlace simbolico. Un archivo ACCEDIDO A TRAVES de la union no lleva
+            // ReparsePoint propio, pero vive fuera de la raiz permitida.
+            string fuera = Path.Combine(corpus, "fuera-de-union");
+            Directory.CreateDirectory(fuera);
+            string victima = Path.Combine(fuera, "victima.tmp");
+            File.WriteAllText(victima, "no debe borrarse");
+            string union = Path.Combine(temp, "union-peligrosa");
+            if (CrearUnion(union, fuera))
+            {
+                Check(guardia.Validar(Path.Combine(union, "victima.tmp"), ahora).Motivo
+                          == MotivoRechazo.EsEnlaceSimbolico,
+                      "rechaza un archivo alcanzado a traves de una union NTFS");
             }
 
             // Un subdirectorio DENTRO de la raiz: llega hasta la comprobacion de tipo.

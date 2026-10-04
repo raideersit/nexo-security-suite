@@ -119,6 +119,12 @@ namespace Nexo.Modules.Cleanup.Seguridad
             if (!DentroDeAlgunaRaiz(canonica))
                 return ResultadoValidacion.Rechazo(MotivoRechazo.FueraDeRaicesPermitidas, canonica);
 
+            // Un archivo alcanzado A TRAVES de una union o enlace de carpeta no lleva
+            // ReparsePoint propio y su ruta textual parece estar dentro de la raiz,
+            // pero vive en otro sitio. Se revisa cada carpeta del camino.
+            if (CaminoAtraviesaEnlace(canonica))
+                return ResultadoValidacion.Rechazo(MotivoRechazo.EsEnlaceSimbolico, canonica);
+
             if (ContieneSegmentoProhibido(canonica, out string? segmento))
                 return ResultadoValidacion.Rechazo(MotivoRechazo.EnListaNegra, canonica, segmento);
 
@@ -185,6 +191,39 @@ namespace Nexo.Modules.Cleanup.Seguridad
                 char siguiente = canonica[raiz.Length];
                 if (siguiente == Path.DirectorySeparatorChar || siguiente == Path.AltDirectorySeparatorChar)
                     return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// True si alguna carpeta entre la raiz permitida (excluida: la raiz la
+        /// eligio el llamador) y el archivo es un punto de reanalisis. Ante un
+        /// error de E/S se responde True: ante la duda, no se borra.
+        /// </summary>
+        private bool CaminoAtraviesaEnlace(string canonica)
+        {
+            string raizCoincidente = _raicesPermitidas
+                .Where(r => canonica.Length > r.Length
+                            && canonica.StartsWith(r, _comparacion)
+                            && (canonica[r.Length] == Path.DirectorySeparatorChar
+                                || canonica[r.Length] == Path.AltDirectorySeparatorChar))
+                .OrderByDescending(r => r.Length)
+                .FirstOrDefault() ?? "";
+            if (raizCoincidente.Length == 0) return false;
+
+            try
+            {
+                string? carpeta = Path.GetDirectoryName(canonica);
+                while (carpeta is not null && carpeta.Length > raizCoincidente.Length)
+                {
+                    if ((File.GetAttributes(carpeta) & FileAttributes.ReparsePoint) != 0)
+                        return true;
+                    carpeta = Path.GetDirectoryName(carpeta);
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return true;
             }
             return false;
         }

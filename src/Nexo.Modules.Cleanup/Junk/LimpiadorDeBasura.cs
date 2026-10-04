@@ -118,9 +118,19 @@ namespace Nexo.Modules.Cleanup.Junk
                 // EnumerateFiles y no GetFiles: una carpeta Temp puede tener
                 // cientos de miles de entradas y materializar el array entero
                 // duplica la memoria sin ganar nada.
-                archivos = Directory.EnumerateFiles(
-                    carpeta, regla.Patron,
-                    regla.Recursivo ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+                //
+                // AttributesToSkip = ReparsePoint: no se entra en uniones ni
+                // enlaces de carpeta, que pueden apuntar fuera de la raiz. El resto
+                // de opciones replica el comportamiento de la sobrecarga con
+                // SearchOption (que no ignora ni oculta ni inaccesible).
+                var opciones = new EnumerationOptions
+                {
+                    RecurseSubdirectories = regla.Recursivo,
+                    AttributesToSkip = FileAttributes.ReparsePoint,
+                    IgnoreInaccessible = false,
+                    MatchType = MatchType.Win32
+                };
+                archivos = Directory.EnumerateFiles(carpeta, regla.Patron, opciones);
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
             {
