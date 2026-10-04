@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace Nexo.Reports.Model
 {
@@ -336,19 +338,45 @@ namespace Nexo.Reports.Model
                 bool prediccionDeFallo,
                 int? temperaturaC,
                 int? porcentajeDesgaste,
-                long? horasEncendido)
+                long? horasEncendido,
+                IReadOnlyList<string>? alertas = null,
+                Severidad? severidadPorAlertas = null,
+                bool sinDatos = false)
             {
+                bool hayAlertas = alertas is { Count: > 0 };
+
+                // "No pude leer" no es "esta bien": sin datos, el titulo no dice "correcta".
+                bool sinLectura = sinDatos && !prediccionDeFallo && !hayAlertas;
+
                 var ev = new NexoEvent(ModuloOrigen.Limpieza, TipoEvento.SaludDisco,
-                             "Salud de " + modelo + (prediccionDeFallo ? " — FALLO PREDICHO" : " — correcta"))
+                             "Salud de " + modelo
+                             + (prediccionDeFallo ? " — FALLO PREDICHO"
+                                : hayAlertas ? " — con alertas"
+                                : sinLectura ? " — sin datos suficientes"
+                                : " — correcta"))
                 {
-                    Severidad = prediccionDeFallo ? Severidad.Critica : Severidad.Info,
+                    Severidad = prediccionDeFallo ? Severidad.Critica
+                                : hayAlertas ? (severidadPorAlertas ?? Severidad.Media)
+                                : Severidad.Info,
                     Accion = Accion.Registrada,
                     Cuerpo = prediccionDeFallo
                         ? "> [!danger] El disco reporta prediccion de fallo\n" +
                           "> Respalda tus datos **hoy**. Un disco que activa esta bandera puede\n" +
                           "> fallar en horas o durar meses; no hay forma de saber cual de las dos.\n"
-                        : null
+                        : sinLectura
+                            ? "> [!note] No se pudo evaluar este disco\n" +
+                              "> Esto NO significa que este sano: significa que no se obtuvieron datos.\n" +
+                              "> Las limitaciones concretas (permisos, puente USB, NVMe, RAID) estan en\n" +
+                              "> el campo `limitaciones` de esta nota.\n"
+                        : hayAlertas
+                            ? "> [!warning] Atributos S.M.A.R.T. fuera de lo normal\n" +
+                              string.Concat(alertas!.Select(a => "> - " + a + "\n")) +
+                              "> La bandera de prediccion de fallo aun no se ha activado, pero estos\n" +
+                              "> atributos son los que mejor anticipan un fallo real. Respalda tus datos.\n"
+                            : null
                 };
+
+                if (hayAlertas) ev.Con("alertas", alertas!.ToArray());
 
                 return ev
                     .Con("modelo", modelo)

@@ -4,12 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Nexo.Modules.Cleanup.Abstractions;
+using Nexo.Modules.Cleanup.Disco;
 using Nexo.Modules.Cleanup.Duplicados;
+using Nexo.Modules.Cleanup.Inicio;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Platform;
 using Nexo.Modules.Cleanup.Seguridad;
 using Nexo.Modules.Cleanup.Trituracion;
 using Nexo.Reports;
+using Nexo.Reports.Model;
 using Nexo.Reports.Seguridad;
 using Nexo.Reports.Vault;
 
@@ -66,6 +69,8 @@ namespace Nexo.Cleanup.Demo
             await ProbarLimpieza(corpus, reportes).ConfigureAwait(false);
             await ProbarDuplicados(corpus, reportes).ConfigureAwait(false);
             await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
+            await ProbarInicio().ConfigureAwait(false);
+            await ProbarSmart().ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0
@@ -520,6 +525,244 @@ namespace Nexo.Cleanup.Demo
                 var v2 = await triturador.PrepararVistaPreviaAsync(new[] { enRaiz }).ConfigureAwait(false);
                 Check(v2.TotalArchivos == 0, "rechaza un archivo en la raiz de un volumen");
             }
+        }
+
+        // ============================================================
+        //  5. INICIO — codec y reglas (con un registro en memoria)
+        // ============================================================
+        private sealed class Eventos_ : IReportWriter
+        {
+            public List<NexoEvent> Lista { get; } = new List<NexoEvent>();
+            public Task<NoteRef> EscribirAsync(NexoEvent evento, System.Threading.CancellationToken ct = default)
+            {
+                Lista.Add(evento);
+                return Task.FromResult(new NoteRef(evento.Id, "(memoria)", evento.Titulo, false));
+            }
+            public Task InicializarVaultAsync(System.Threading.CancellationToken ct = default) => Task.CompletedTask;
+        }
+
+        private sealed class RegistroFalso : IRegistroInicio
+        {
+            public List<EntradaDeInicio> Entradas { get; } = new List<EntradaDeInicio>();
+            public Dictionary<string, byte[]> Escrituras { get; } = new Dictionary<string, byte[]>();
+            public bool Denegar { get; set; }
+
+            public IReadOnlyList<EntradaDeInicio> Enumerar() => Entradas;
+
+            public void EscribirEstado(EntradaDeInicio entrada, byte[] datos)
+            {
+                if (Denegar) throw new UnauthorizedAccessException();
+                Escrituras[entrada.Id] = datos;
+            }
+        }
+
+        private static async Task ProbarInicio()
+        {
+            Console.WriteLine();
+            Console.WriteLine("5. Inicio: codec de StartupApproved y reglas");
+
+            Check(StartupApprovedCodec.Leer(null) == EstadoDeInicio.Habilitada,
+                  "sin valor en StartupApproved, la entrada cuenta como habilitada");
+            Check(StartupApprovedCodec.Leer(new byte[] { 0x02, 0, 0, 0 }) == EstadoDeInicio.Habilitada
+                  && StartupApprovedCodec.Leer(new byte[] { 0x06, 0, 0, 0 }) == EstadoDeInicio.Habilitada,
+                  "0x02 y 0x06 se leen como habilitada");
+            Check(StartupApprovedCodec.Leer(new byte[] { 0x03, 0, 0, 0 }) == EstadoDeInicio.Deshabilitada,
+                  "0x03 se lee como deshabilitada");
+            Check(StartupApprovedCodec.Leer(new byte[] { 0x09 }) == EstadoDeInicio.Desconocida
+                  && StartupApprovedCodec.Leer(Array.Empty<byte>()) == EstadoDeInicio.Desconocida,
+                  "un valor que no reconoce se lee como desconocido, no como habilitado");
+
+            var ahora = new DateTimeOffset(2026, 10, 4, 15, 30, 0, TimeSpan.FromHours(-3));
+            byte[] off = StartupApprovedCodec.Escribir(false, ahora);
+            byte[] on = StartupApprovedCodec.Escribir(true, ahora);
+            Check(off.Length == 12 && off[0] == 0x03 && on.Length == 12 && on[0] == 0x02
+                  && on.Skip(1).All(b => b == 0),
+                  "escribe 12 bytes: 0x03 deshabilitar, 0x02 habilitar con el resto a cero");
+            Check(StartupApprovedCodec.FechaDeshabilitado(off) == ahora,
+                  "el FILETIME de deshabilitado hace ida y vuelta exacta");
+            Check(StartupApprovedCodec.FechaDeshabilitado(on) is null, "habilitada no tiene fecha");
+
+            var registro = new RegistroFalso();
+            var normal = new EntradaDeInicio("Spotify", "x", OrigenDeInicio.RunUsuario, EstadoDeInicio.Habilitada);
+            var defender = new EntradaDeInicio("SecurityHealth", "x", OrigenDeInicio.RunMaquina, EstadoDeInicio.Habilitada);
+            var deMaquina = new EntradaDeInicio("Driver", "x", OrigenDeInicio.RunMaquina, EstadoDeInicio.Habilitada);
+            var raro = new EntradaDeInicio("Raro", "x", OrigenDeInicio.RunUsuario, EstadoDeInicio.Desconocida);
+            var apagada = new EntradaDeInicio("Vieja", "x", OrigenDeInicio.RunUsuario, EstadoDeInicio.Deshabilitada);
+            registro.Entradas.AddRange(new[] { normal, defender, deMaquina, raro, apagada });
+
+            var eventos = new Eventos_();
+            var opt = new OptimizadorDeInicio(registro, eventos, esAdministrador: true);
+
+            ResultadoCambioInicio r = await opt.CambiarEstadoAsync(normal, false).ConfigureAwait(false);
+            Check(r.Aplicado && registro.Escrituras[normal.Id][0] == 0x03, "deshabilita una entrada normal");
+
+            r = await opt.CambiarEstadoAsync(defender, false).ConfigureAwait(false);
+            Check(!r.Aplicado && !registro.Escrituras.ContainsKey(defender.Id),
+                  "SecurityHealth esta protegida: no se deshabilita ni siendo administrador");
+
+            r = await opt.CambiarEstadoAsync(defender, true).ConfigureAwait(false);
+            Check(r.Motivo is not null && r.Motivo.Contains("ya estaba", StringComparison.Ordinal),
+                  "habilitar una protegida que ya esta habilitada no hace nada");
+
+            r = await opt.CambiarEstadoAsync(raro, false).ConfigureAwait(false);
+            Check(!r.Aplicado && !registro.Escrituras.ContainsKey(raro.Id),
+                  "no toca una entrada con indicador desconocido");
+
+            r = await opt.CambiarEstadoAsync(apagada, false).ConfigureAwait(false);
+            Check(!r.Aplicado && !registro.Escrituras.ContainsKey(apagada.Id),
+                  "no reescribe lo que ya estaba deshabilitado");
+
+            var sinAdmin = new OptimizadorDeInicio(registro, eventos, esAdministrador: false);
+            r = await sinAdmin.CambiarEstadoAsync(deMaquina, false).ConfigureAwait(false);
+            Check(!r.Aplicado && !registro.Escrituras.ContainsKey(deMaquina.Id),
+                  "una entrada de maquina exige administrador");
+
+            registro.Denegar = true;
+            r = await opt.CambiarEstadoAsync(deMaquina, false).ConfigureAwait(false);
+            Check(!r.Aplicado && r.Motivo is not null && r.Motivo.Contains("denego", StringComparison.Ordinal),
+                  "un acceso denegado del registro se traduce a rechazo, no a excepcion");
+
+            Check(eventos.Lista.Count == 1 && eventos.Lista[0].Tipo == TipoEvento.InicioModificado,
+                  "solo el cambio aplicado genera evento");
+        }
+
+        // ============================================================
+        //  6. S.M.A.R.T.
+        // ============================================================
+        private sealed class FuenteFalsa : IFuenteSmart
+        {
+            private readonly IReadOnlyList<LecturaDeDisco> _l;
+            public FuenteFalsa(params LecturaDeDisco[] l) { _l = l; }
+            public IReadOnlyList<LecturaDeDisco> Leer() => _l;
+        }
+
+        /// <summary>Construye el bloque de 512 bytes de MSStorageDriver_FailurePredictData.</summary>
+        private static byte[] BloqueSmart(params (byte Id, ulong Crudo)[] atributos)
+        {
+            var b = new byte[512];
+            int i = 0;
+            foreach (var (id, crudo) in atributos)
+            {
+                int o = SmartParser.OffsetPrimerAtributo + i++ * SmartParser.LargoAtributo;
+                b[o] = id;
+                b[o + 1] = 0x33;            // flags
+                b[o + 3] = 100;             // valor
+                b[o + 4] = 99;              // peor
+                for (int k = 0; k < 6; k++) b[o + 5 + k] = (byte)((crudo >> (8 * k)) & 0xFF);
+            }
+            return b;
+        }
+
+        private static LecturaDeDisco Lectura(string modelo, bool? predice, params (byte, ulong)[] attrs)
+        {
+            SmartParser.TryAnalizar(BloqueSmart(attrs), out var lista);
+            return new LecturaDeDisco(modelo, "****1234") { PrediccionDeFallo = predice, Atributos = lista };
+        }
+
+        private static async Task ProbarSmart()
+        {
+            Console.WriteLine();
+            Console.WriteLine("6. S.M.A.R.T.: parser y evaluador");
+
+            // --- Parser ---
+            bool ok = SmartParser.TryAnalizar(
+                BloqueSmart((5, 8), (9, 0x060504030201), (197, 3)), out var attrs);
+            Check(ok && attrs.Count == 3, "el parser lee 3 atributos y se salta los huecos (id 0)");
+            Check(attrs.First(a => a.Id == 9).Crudo == 0x060504030201UL,
+                  "el crudo de 6 bytes se interpreta little-endian");
+            Check(attrs.First(a => a.Id == 5).Valor == 100 && attrs.First(a => a.Id == 5).Peor == 99
+                  && attrs.First(a => a.Id == 5).Flags == 0x33,
+                  "valor, peor y flags salen de su offset");
+            Check(!SmartParser.TryAnalizar(new byte[100], out _) && !SmartParser.TryAnalizar(null, out _),
+                  "un bloque mas corto que la estructura, o nulo, se rechaza sin excepcion");
+
+            // --- Evaluador ---
+            var sano = EvaluadorDeSalud.Evaluar(Lectura("Sano", false, (5, 0), (197, 0), (9, 5000)));
+            Check(sano.Severidad == Severidad.Info && sano.Alertas.Count == 0,
+                  "un disco con todo a cero no genera alertas");
+
+            var reasig = EvaluadorDeSalud.Evaluar(Lectura("R", false, (5, 8)));
+            Check(reasig.Severidad == Severidad.Media, "sectores reasignados > 0 sin historial: severidad media");
+
+            var reasigCrece = EvaluadorDeSalud.Evaluar(Lectura("R", false, (5, 8)), Lectura("R", false, (5, 2)));
+            Check(reasigCrece.Severidad == Severidad.Alta
+                  && reasigCrece.Alertas.Any(a => a.Contains("aumentando", StringComparison.Ordinal)),
+                  "sectores reasignados que aumentan: severidad alta");
+
+            var reasigEstable = EvaluadorDeSalud.Evaluar(Lectura("R", false, (5, 8)), Lectura("R", false, (5, 8)));
+            Check(reasigEstable.Severidad == Severidad.Media, "reasignados estables: se mantiene media");
+
+            var pend = EvaluadorDeSalud.Evaluar(Lectura("P", false, (197, 3)));
+            Check(pend.Severidad == Severidad.Alta, "sectores pendientes > 0: alta");
+
+            var pendCrece = EvaluadorDeSalud.Evaluar(Lectura("P", false, (197, 3)), Lectura("P", false, (197, 1)));
+            Check(pendCrece.Severidad == Severidad.Critica, "sectores pendientes en aumento: critica (el mas predictivo)");
+
+            Check(EvaluadorDeSalud.Evaluar(Lectura("U", false, (187, 1))).Severidad == Severidad.Alta
+                  && EvaluadorDeSalud.Evaluar(Lectura("O", false, (198, 1))).Severidad == Severidad.Alta,
+                  "187 y 198 mayores que cero: alta");
+
+            Check(EvaluadorDeSalud.Evaluar(Lectura("T", false, (188, 7))).Alertas.Count == 0,
+                  "188 sin lectura anterior no alerta: no se asume crecimiento");
+            Check(EvaluadorDeSalud.Evaluar(Lectura("T", false, (188, 9)), Lectura("T", false, (188, 7))).Severidad
+                  == Severidad.Media,
+                  "188 en aumento: media");
+
+            var predice = EvaluadorDeSalud.Evaluar(Lectura("F", true));
+            Check(predice.Severidad == Severidad.Critica && predice.Alertas.Count == 1,
+                  "la bandera PredictFailure activa lleva a critica");
+
+            // --- Monitor y evento ---
+            var eventos = new Eventos_();
+            var monitor = new MonitorDeSalud(
+                new FuenteFalsa(
+                    Lectura("Disco Sano", false, (5, 0)),
+                    Lectura("Disco Dudoso", false, (197, 4)),
+                    Lectura("Disco Muerto", true)),
+                eventos);
+
+            var res = await monitor.EvaluarAsync().ConfigureAwait(false);
+            Check(res.Count == 3 && eventos.Lista.Count == 3, "publica un evento por disco");
+
+            NexoEvent evSano = eventos.Lista.First(e => e.Titulo.Contains("Sano", StringComparison.Ordinal));
+            NexoEvent evDudoso = eventos.Lista.First(e => e.Titulo.Contains("Dudoso", StringComparison.Ordinal));
+            NexoEvent evMuerto = eventos.Lista.First(e => e.Titulo.Contains("Muerto", StringComparison.Ordinal));
+
+            Check(evSano.Severidad == Severidad.Info && evSano.Cuerpo is null, "disco sano: info y sin aviso");
+            Check(evDudoso.Severidad == Severidad.Alta
+                  && evDudoso.Cuerpo is not null && evDudoso.Cuerpo.Contains("[!warning]", StringComparison.Ordinal)
+                  && evDudoso.Titulo.Contains("con alertas", StringComparison.Ordinal),
+                  "disco con atributos malos: alta, con callout de advertencia, aunque PredictFailure sea falso");
+            Check(evMuerto.Severidad == Severidad.Critica
+                  && evMuerto.Cuerpo is not null && evMuerto.Cuerpo.Contains("[!danger]", StringComparison.Ordinal),
+                  "prediccion de fallo: critica, con callout de peligro");
+
+            // Sin datos NO es "correcta": es un estado propio, dicho con todas las letras.
+            var evSin = new Eventos_();
+            await new MonitorDeSalud(
+                    new FuenteFalsa(new LecturaDeDisco("Disco Mudo", "****0000")
+                        { Limitaciones = new[] { "Puente USB" } }),
+                    evSin)
+                .EvaluarAsync().ConfigureAwait(false);
+            Check(evSin.Lista[0].Titulo.Contains("sin datos suficientes", StringComparison.Ordinal)
+                  && !evSin.Lista[0].Titulo.Contains("correcta", StringComparison.Ordinal)
+                  && evSin.Lista[0].Cuerpo is not null && evSin.Lista[0].Cuerpo!.Contains("NO significa", StringComparison.Ordinal),
+                  "un disco que no se pudo leer se reporta 'sin datos suficientes', nunca 'correcta'");
+
+            // La firma antigua de SaludDisco sigue funcionando (compatibilidad).
+            NexoEvent antiguo = Eventos.Limpieza.SaludDisco("X", "****0000", false, 40, 3, 1000);
+            Check(antiguo.Severidad == Severidad.Info && antiguo.Cuerpo is null,
+                  "SaludDisco con la firma anterior conserva su comportamiento");
+
+            // El crecimiento se detecta a traves del monitor con lecturas anteriores.
+            var previas = new Dictionary<string, LecturaDeDisco>
+            {
+                [MonitorDeSalud.Clave(Lectura("Disco Dudoso", false))] = Lectura("Disco Dudoso", false, (197, 1))
+            };
+            var res2 = await new MonitorDeSalud(new FuenteFalsa(Lectura("Disco Dudoso", false, (197, 4))), new Eventos_())
+                .EvaluarAsync(previas).ConfigureAwait(false);
+            Check(res2[0].Evaluacion.Severidad == Severidad.Critica,
+                  "el monitor usa la lectura anterior para detectar crecimiento");
         }
 
         private static string Rel(string raiz, string ruta)

@@ -11,6 +11,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- WMI (S.M.A.R.T.). Es codigo administrado, no P/Invoke, asi que puede
+         vivir aqui y no en Nexo.Native. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexo.Modules.Cleanup\Nexo.Modules.Cleanup.csproj" />
     <ProjectReference Include="..\Nexo.Native\Nexo.Native.csproj" />
   </ItemGroup>

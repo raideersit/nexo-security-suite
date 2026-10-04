@@ -49,6 +49,7 @@ namespace Nexo.Cleanup.Windows.Demo
             ProbarMedio();
             await ProbarInicio(admin).ConfigureAwait(false);
             ProbarPapelera();
+            await ProbarSalud().ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0
@@ -210,6 +211,37 @@ namespace Nexo.Cleanup.Windows.Demo
         {
             try { hive.DeleteSubKeyTree(ruta, throwOnMissingSubKey: false); }
             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is System.Security.SecurityException) { }
+        }
+
+        // ============================================================
+        //  4. SALUD DE DISCO — solo lectura, datos reales
+        // ============================================================
+        private static async Task ProbarSalud()
+        {
+            Console.WriteLine();
+            Console.WriteLine("4. Salud de disco por WMI (solo lectura, discos reales)");
+
+            var eventos = new RegistroDeEventos();
+            var monitor = new Nexo.Modules.Cleanup.Disco.MonitorDeSalud(new FuenteSmartWmi(), eventos);
+            var resultado = await monitor.EvaluarAsync().ConfigureAwait(false);
+
+            foreach (var (l, e) in resultado)
+            {
+                Console.WriteLine($"      {l.Modelo}  [{l.SerieRedactada}]");
+                Console.WriteLine($"          prediccion de fallo : {(l.PrediccionDeFallo is null ? "no disponible" : l.PrediccionDeFallo.ToString())}");
+                Console.WriteLine($"          atributos SMART     : {l.Atributos.Count}");
+                Console.WriteLine($"          temperatura/desgaste/horas : {l.TemperaturaC?.ToString() ?? "-"} C / {l.DesgastePorcentaje?.ToString() ?? "-"} % / {l.HorasEncendido?.ToString() ?? "-"} h");
+                Console.WriteLine($"          evaluacion          : {e.Severidad}" + (e.Alertas.Count > 0 ? " — " + string.Join("; ", e.Alertas) : ""));
+                foreach (string lim in l.Limitaciones) Console.WriteLine("          limitacion: " + lim);
+            }
+
+            Check(resultado.Count > 0, "encuentra al menos un disco");
+            Check(resultado.All(r => r.Lectura.PrediccionDeFallo is not null || r.Lectura.Limitaciones.Count > 0),
+                  "todo disco sin bandera de prediccion explica por que (nada se omite en silencio)");
+            Check(resultado.All(r => !r.Lectura.SerieRedactada.Any(char.IsLower) && r.Lectura.SerieRedactada.Length <= 8),
+                  "el numero de serie sale redactado (4 ultimos caracteres)");
+            Check(eventos.Eventos.Count == resultado.Count, "publica un evento por disco");
+            Console.WriteLine();
         }
 
         // ============================================================
