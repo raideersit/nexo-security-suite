@@ -48,6 +48,23 @@ namespace Nexo.Modules.Cleanup.Seguridad
             "OneDrive", "Dropbox", "Google Drive", "iCloudDrive"
         };
 
+        /// <summary>
+        /// Subconjunto de la lista negra que protege las carpetas de DATOS del
+        /// usuario. El limpiador de basura las prohibe siempre; el triturador, en
+        /// cambio, opera sobre archivos que el usuario eligio a mano y casi siempre
+        /// viven aqui. Las carpetas del sistema siguen prohibidas en ambos casos.
+        /// </summary>
+        private static readonly string[] SegmentosDeDatosDelUsuario =
+        {
+            "Documents", "Documentos",
+            "Desktop", "Escritorio",
+            "Pictures", "Imagenes", "Imágenes",
+            "Videos", "Vídeos",
+            "Music", "Musica", "Música",
+            "Downloads", "Descargas",
+            "OneDrive", "Dropbox", "Google Drive", "iCloudDrive"
+        };
+
         /// <summary>Archivos del sistema que jamas se tocan, por nombre exacto.</summary>
         private static readonly string[] ArchivosProhibidos =
         {
@@ -58,14 +75,22 @@ namespace Nexo.Modules.Cleanup.Seguridad
         private readonly List<string> _raicesPermitidas = new List<string>();
         private readonly StringComparison _comparacion;
         private readonly TimeSpan _antiguedadMinima;
+        private readonly bool _permitirCarpetasDeUsuario;
 
         /// <param name="antiguedadMinima">
         /// Un archivo modificado hace menos que esto no se borra aunque encaje con
         /// una regla. Evita el caso clasico: borrar el temporal de un instalador
         /// que esta corriendo en ese momento.
         /// </param>
-        public GuardiaDeRutas(TimeSpan antiguedadMinima)
+        /// <param name="permitirCarpetasDeUsuario">
+        /// false (por defecto): Documents, Desktop, Downloads y similares estan
+        /// prohibidas, como corresponde a un limpiador que decide solo. true: se
+        /// permiten, para operaciones sobre archivos que el usuario eligio a mano
+        /// (el triturador). Las carpetas del sistema se prohiben en ambos casos.
+        /// </param>
+        public GuardiaDeRutas(TimeSpan antiguedadMinima, bool permitirCarpetasDeUsuario = false)
         {
+            _permitirCarpetasDeUsuario = permitirCarpetasDeUsuario;
             // En Windows las rutas no distinguen mayusculas; en Linux (pruebas) si.
             _comparacion = OperatingSystem.IsWindows()
                 ? StringComparison.OrdinalIgnoreCase
@@ -238,6 +263,10 @@ namespace Nexo.Modules.Cleanup.Seguridad
             {
                 foreach (string prohibido in SegmentosProhibidos)
                 {
+                    if (_permitirCarpetasDeUsuario
+                        && SegmentosDeDatosDelUsuario.Contains(prohibido, StringComparer.Ordinal))
+                        continue;
+
                     if (string.Equals(segmento, prohibido, _comparacion))
                     {
                         segmentoEncontrado = prohibido;

@@ -8,6 +8,7 @@ using Nexo.Modules.Cleanup.Duplicados;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Platform;
 using Nexo.Modules.Cleanup.Seguridad;
+using Nexo.Modules.Cleanup.Trituracion;
 using Nexo.Reports;
 using Nexo.Reports.Seguridad;
 using Nexo.Reports.Vault;
@@ -64,6 +65,7 @@ namespace Nexo.Cleanup.Demo
             await ProbarGuardia(corpus).ConfigureAwait(false);
             await ProbarLimpieza(corpus, reportes).ConfigureAwait(false);
             await ProbarDuplicados(corpus, reportes).ConfigureAwait(false);
+            await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0
@@ -377,6 +379,147 @@ namespace Nexo.Cleanup.Demo
 
             Check(r.Grupos.All(g => g.Rutas.Count == g.Rutas.Distinct().Count()),
                   "ningun grupo repite la misma ruta");
+        }
+
+        // ============================================================
+        //  4. TRITURADOR
+        // ============================================================
+        private sealed class MedioFalso : IDetectorDeMedio
+        {
+            private readonly MedioDeAlmacenamiento _m;
+            public MedioFalso(MedioDeAlmacenamiento m) { _m = m; }
+            public MedioDeAlmacenamiento Detectar(string ruta) => _m;
+        }
+
+        private static async Task ProbarTrituracion(string corpus, IReportWriter reportes)
+        {
+            Console.WriteLine();
+            Console.WriteLine("4. Triturador: sobrescritura, vista previa y token");
+
+            // --- Sobrescritor, aislado ---
+            string pruebaSobre = Path.Combine(corpus, "triturar-unitario.bin");
+            byte[] original = Patron('A', 100_000);
+            File.WriteAllBytes(pruebaSobre, original);
+            using (var f = new FileStream(pruebaSobre, FileMode.Open, FileAccess.Write, FileShare.None))
+                Sobrescritor.Sobrescribir(f);
+            byte[] tras = File.ReadAllBytes(pruebaSobre);
+            Check(tras.Length == original.Length, "sobrescribir conserva el largo del archivo");
+            Check(tras.Count(b => b == (byte)'A') < original.Length / 100,
+                  "sobrescribir destruye el contenido original",
+                  "bytes 'A' que sobreviven: " + tras.Count(b => b == (byte)'A') + " de " + tras.Length);
+
+            string renombrado = Sobrescritor.Renombrar(pruebaSobre, 3);
+            Check(!File.Exists(pruebaSobre) && File.Exists(renombrado)
+                  && !Path.GetFileName(renombrado).Contains("triturar", StringComparison.Ordinal),
+                  "renombrar quita el nombre original del directorio");
+            File.Delete(renombrado);
+
+            // --- Corpus del triturador ---
+            string carpeta = Path.Combine(corpus, "triturar", "Documents");   // carpeta de usuario a proposito
+            Directory.CreateDirectory(carpeta);
+
+            string normal    = Path.Combine(carpeta, "contrato.pdf");
+            string pequeno   = Path.Combine(carpeta, "nota.txt");
+            string soloLect  = Path.Combine(carpeta, "solo-lectura.dat");
+            string bloqueado = Path.Combine(carpeta, "en-uso.dat");
+            string cambiado  = Path.Combine(carpeta, "cambia.dat");
+            File.WriteAllBytes(normal, Patron('N', 20_000));
+            File.WriteAllBytes(pequeno, Patron('p', 100));
+            File.WriteAllBytes(soloLect, Patron('R', 5_000));
+            File.SetAttributes(soloLect, FileAttributes.ReadOnly);
+            File.WriteAllBytes(bloqueado, Patron('B', 5_000));
+            File.WriteAllBytes(cambiado, Patron('C', 5_000));
+
+            var elegidos = new[] { normal, pequeno, soloLect, bloqueado, cambiado, normal /* duplicada */,
+                                   carpeta /* directorio */, Path.Combine(carpeta, "no-existe.bin") };
+
+            var triturador = new Triturador(reportes, new MedioFalso(MedioDeAlmacenamiento.Ssd));
+            VistaPreviaTrituracion vista = await triturador.PrepararVistaPreviaAsync(elegidos).ConfigureAwait(false);
+
+            Console.WriteLine();
+            Console.WriteLine(Sangrar(vista.Describir()));
+
+            Check(vista.TotalArchivos == 5, "la vista previa acepta 5 archivos (sin duplicar la repetida)",
+                  "aceptados: " + vista.TotalArchivos);
+            Check(vista.RutasOmitidas.Count == 2, "la vista previa omite el directorio y el inexistente",
+                  "omitidos: " + vista.RutasOmitidas.Count);
+            Check(new[] { normal, pequeno, soloLect, bloqueado, cambiado }.All(File.Exists),
+                  "la vista previa no borra nada");
+            Check(vista.Advertencias.Any(a => a.Contains("SSD", StringComparison.Ordinal)),
+                  "avisa de que en SSD la sobrescritura no garantiza el borrado");
+            Check(vista.Advertencias.Any(a => a.Contains("$MFT", StringComparison.Ordinal)),
+                  "avisa de los archivos residentes en la $MFT");
+
+            var vistaHdd = await new Triturador(reportes, new MedioFalso(MedioDeAlmacenamiento.Hdd))
+                .PrepararVistaPreviaAsync(new[] { normal }).ConfigureAwait(false);
+            Check(!vistaHdd.Advertencias.Any(a => a.Contains("SSD", StringComparison.Ordinal)),
+                  "en disco magnetico no muestra la advertencia de SSD");
+
+            var vistaDesc = await new Triturador(reportes)
+                .PrepararVistaPreviaAsync(new[] { normal }).ConfigureAwait(false);
+            Check(vistaDesc.Medio == MedioDeAlmacenamiento.Desconocido
+                  && vistaDesc.Advertencias.Any(a => a.Contains("caso peor", StringComparison.Ordinal)),
+                  "medio desconocido se trata como el caso peor");
+
+            // --- El token no es decorativo ---
+            var ajeno = TokenConfirmacion.Emitir(new[] { ("/otra/cosa", 1L, DateTimeOffset.Now) }, DateTimeOffset.Now);
+            bool rechazado = false;
+            try { await triturador.EjecutarAsync(vista, ajeno).ConfigureAwait(false); }
+            catch (InvalidOperationException) { rechazado = true; }
+            Check(rechazado && File.Exists(normal), "rechaza un token ajeno y no toca ningun archivo");
+
+            // --- Trampas entre la vista previa y la ejecucion ---
+            File.AppendAllText(cambiado, "cambio posterior a la vista previa");
+            using var cerrojo = new FileStream(bloqueado, FileMode.Open, FileAccess.Read, FileShare.None);
+
+            ResultadoBorrado r = await triturador.EjecutarAsync(vista, vista.Token).ConfigureAwait(false);
+
+            Console.WriteLine();
+            foreach (string o in r.Omitidos) Console.WriteLine("    omitido: " + Path.GetFileName(o.Split(" — ")[0]) + " — " + o.Split(" — ").Last());
+            Console.WriteLine();
+
+            Check(r.Eliminados == 3, "tritura los 3 archivos validos (normal, pequeno, solo lectura)",
+                  "triturados: " + r.Eliminados);
+            Check(!File.Exists(normal) && !File.Exists(pequeno) && !File.Exists(soloLect),
+                  "los triturados ya no existen con su nombre");
+            Check(Directory.GetFiles(carpeta).Length == 2,
+                  "no quedan archivos renombrados de sobra en la carpeta",
+                  "archivos en la carpeta: " + string.Join(", ", Directory.GetFiles(carpeta).Select(Path.GetFileName)));
+            Check(File.Exists(cambiado), "no tritura un archivo que cambio despues de la vista previa");
+            Check(File.Exists(bloqueado), "no tritura un archivo abierto por otro proceso");
+            cerrojo.Dispose();
+            Check(File.ReadAllBytes(bloqueado).AsSpan().SequenceEqual(Patron('B', 5_000)),
+                  "el archivo bloqueado conserva su contenido: nunca se sobrescribio");
+
+            // --- Guardia: la opcion de carpetas de usuario ---
+            var ahora = DateTimeOffset.Now;
+            string docs = Path.Combine(corpus, "triturar", "Documents", "cambia.dat");
+            Check(new GuardiaDeRutas(TimeSpan.Zero).PermitirRaiz(carpeta).Validar(docs, ahora).Motivo
+                      == MotivoRechazo.EnListaNegra,
+                  "el guardia del limpiador SIGUE prohibiendo 'Documents' (valor por defecto intacto)");
+            Check(new GuardiaDeRutas(TimeSpan.Zero, permitirCarpetasDeUsuario: true)
+                      .PermitirRaiz(carpeta).Validar(docs, ahora).Aceptada,
+                  "con la opcion del triturador, 'Documents' se permite");
+
+            string sys = Path.Combine(corpus, "triturar", "System32");
+            Directory.CreateDirectory(sys);
+            string enSys = Path.Combine(sys, "x.dll");
+            File.WriteAllText(enSys, "x");
+            Check(new GuardiaDeRutas(TimeSpan.Zero, permitirCarpetasDeUsuario: true)
+                      .PermitirRaiz(sys).Validar(enSys, ahora).Motivo == MotivoRechazo.EnListaNegra,
+                  "con la opcion del triturador, 'System32' sigue prohibido");
+
+            if (OperatingSystem.IsWindows())
+            {
+                string win = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp", "x.tmp");
+                var v = await triturador.PrepararVistaPreviaAsync(new[] { win }).ConfigureAwait(false);
+                Check(v.TotalArchivos == 0 && v.RutasOmitidas.Any(o => o.Contains("Windows", StringComparison.Ordinal)),
+                      "rechaza triturar dentro de la carpeta de Windows");
+
+                string enRaiz = Path.Combine(Path.GetPathRoot(corpus)!, "nexo-no-existe.tmp");
+                var v2 = await triturador.PrepararVistaPreviaAsync(new[] { enRaiz }).ConfigureAwait(false);
+                Check(v2.TotalArchivos == 0, "rechaza un archivo en la raiz de un volumen");
+            }
         }
 
         private static string Rel(string raiz, string ruta)
