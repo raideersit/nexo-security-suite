@@ -361,6 +361,32 @@ namespace Nexo.Reports.Model
                     .EnlazaA(EntidadRef.Dispositivo(modelo, numeroSerieRedactado));
             }
 
+            /// <summary>
+            /// Un programa de inicio se habilito o se deshabilito. Nunca se borra la
+            /// entrada original: se cambia el mismo indicador que usa la pestana
+            /// "Inicio" del Administrador de tareas, asi que es reversible y visible.
+            /// </summary>
+            public static NexoEvent InicioModificado(string nombre, string origen, bool habilitada)
+            {
+                var ev = new NexoEvent(ModuloOrigen.Limpieza, TipoEvento.InicioModificado,
+                             (habilitada ? "Inicio habilitado: " : "Inicio deshabilitado: ") + nombre)
+                {
+                    Severidad = Severidad.Info,
+                    Accion = Accion.Registrada,
+                    Cuerpo = habilitada
+                        ? null
+                        : "No se borro nada. Para revertirlo: Administrador de tareas > Inicio >\n" +
+                          "clic derecho sobre el programa > Habilitar.\n"
+                };
+
+                return ev
+                    .Con("programa", nombre)
+                    .Con("origen", origen)
+                    .Con("estado_nuevo", habilitada ? "habilitado" : "deshabilitado")
+                    .Con("reversible", true)
+                    .EnlazaA(EntidadRef.Aplicacion(nombre));
+            }
+
             public static NexoEvent Triturado(string rutaArchivo, long bytes, int pasadas, bool esSsd)
             {
                 string nombreArchivo = SoloNombre(rutaArchivo);

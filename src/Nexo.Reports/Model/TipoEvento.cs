@@ -31,6 +31,7 @@ namespace Nexo.Reports.Model
         public const string DuplicadosDetectados = "duplicados-detectados";
         public const string SaludDisco = "salud-disco";
         public const string ArchivoTriturado = "archivo-triturado";
+        public const string InicioModificado = "inicio-modificado";
 
         // --- Sistema ---
         public const string ResumenDiario = "resumen-diario";

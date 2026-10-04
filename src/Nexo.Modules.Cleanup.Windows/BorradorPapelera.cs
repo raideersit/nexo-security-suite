@@ -72,6 +72,19 @@ namespace Nexo.Modules.Cleanup.Windows
                 // poder nombrar al culpable en el reporte.
                 for (int i = 0; i < rutas.Count; i++)
                 {
+                    // SHFileOperation procesa el lote en orden y NO es atomico: cuando
+                    // falla por un archivo bloqueado, los demas ya pueden estar en la
+                    // Papelera. Reintentarlos devolveria "no existe" (0x2) y se
+                    // contarian como omitidos aunque ya se liberaron. Si el archivo ya
+                    // no esta en su sitio, fue el lote quien lo movio.
+                    // (Verificado en Windows con un lote de 3 donde 1 estaba bloqueado.)
+                    if (!File.Exists(rutas[i]))
+                    {
+                        eliminados++;
+                        bytes += tamanos[i];
+                        continue;
+                    }
+
                     (int c, bool a) = ShellFileOperations.EnviarAPapelera(new[] { rutas[i] });
                     if (c == 0 && !a)
                     {
