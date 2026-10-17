@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 para que tambien lo pueda consumir un proyecto C++/CLI;
+         net8.0 para que el servicio use las rutas rapidas sin polyfills. -->
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>false</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RootNamespace>Nexo.Reports</RootNamespace>
+    <!-- Cero dependencias NuGet a proposito: esta libreria la consumen los cinco
+         modulos y no debe arrastrar conflictos de version a ninguno. -->
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,22 @@
+# Normalizacion de fin de linea. Critico en este repo: se desarrolla en Linux y
+# en Windows, y sin esto el primer commit desde Windows aparece como "todos los
+# archivos modificados" por el cambio LF -> CRLF.
+* text=auto eol=lf
+
+# Visual Studio reescribe estos con CRLF pase lo que pase; se respeta para que
+# no generen ruido en cada guardado.
+*.sln        text eol=crlf
+*.csproj     text eol=crlf
+*.props      text eol=crlf
+*.targets    text eol=crlf
+*.ps1        text eol=crlf
+*.cmd        text eol=crlf
+*.bat        text eol=crlf
+
+# Binarios: nunca tocar.
+*.png binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.sys binary
+*.pdb binary

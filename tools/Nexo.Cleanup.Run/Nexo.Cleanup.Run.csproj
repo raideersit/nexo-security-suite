@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Herramienta de linea de comandos para ejecutar el limpiador contra el
+         equipo REAL (catalogo de rutas verdadero). Es el paso 4 de la Salida 6:
+         primero BorradorSimulado, despues Papelera, y el borrado permanente
+         solo dentro de una VM. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Cleanup.Run</RootNamespace>
+    <AssemblyName>nexo-cleanup</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Cleanup.Windows\Nexo.Modules.Cleanup.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

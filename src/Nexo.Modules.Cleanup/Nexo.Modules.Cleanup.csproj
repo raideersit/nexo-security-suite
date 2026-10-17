@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net8.0 y no net8.0-windows a proposito: toda la logica de seguridad y de
+         deteccion de duplicados queda ejecutable fuera de Windows, para poder
+         probarla contra un corpus sintetico sin levantar la VM. Lo especifico de
+         Windows vive detras de IBorrador / IEntorno. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Modules.Cleanup</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Reports\Nexo.Reports.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Junk\Data\cleanup-paths.json" />
+  </ItemGroup>
+
+</Project>

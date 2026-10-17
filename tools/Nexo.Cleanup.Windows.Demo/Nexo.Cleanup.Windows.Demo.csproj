@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de las comprobaciones que SOLO tienen sentido en Windows: registro,
+         Papelera, archivos bloqueados, tipo de disco. El arnes portable
+         (Nexo.Cleanup.Demo) sigue corriendo en cualquier sistema. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Cleanup.Windows.Demo</RootNamespace>
+    <AssemblyName>nexo-cleanup-windows-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Cleanup.Windows\Nexo.Modules.Cleanup.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+{
+  "userIgnoreFilters": [
+    "src/",
+    "tools/",
+    "drivers/",
+    "artifacts/",
+    "vault-demo/"
+  ]
+}
