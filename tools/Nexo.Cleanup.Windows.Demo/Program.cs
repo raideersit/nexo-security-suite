@@ -222,8 +222,12 @@ namespace Nexo.Cleanup.Windows.Demo
             Console.WriteLine();
             Console.WriteLine("4. Salud de disco por WMI (solo lectura, discos reales)");
 
+            // Historial en un archivo temporal: se prueba la persistencia sin tocar el de verdad.
+            string rutaHistorial = Path.Combine(Path.GetTempPath(), "nexo-historial-" + Guid.NewGuid().ToString("N")[..8] + ".json");
+            var historial = new Nexo.Modules.Cleanup.Disco.HistorialDeSalud(rutaHistorial);
+
             var eventos = new RegistroDeEventos();
-            var monitor = new Nexo.Modules.Cleanup.Disco.MonitorDeSalud(new FuenteSmartWmi(), eventos);
+            var monitor = new Nexo.Modules.Cleanup.Disco.MonitorDeSalud(new FuenteSmartWmi(), eventos, historial);
             var resultado = await monitor.EvaluarAsync().ConfigureAwait(false);
 
             foreach (var (l, e) in resultado)
@@ -242,6 +246,13 @@ namespace Nexo.Cleanup.Windows.Demo
             Check(resultado.All(r => !r.Lectura.SerieRedactada.Any(char.IsLower) && r.Lectura.SerieRedactada.Length <= 8),
                   "el numero de serie sale redactado (4 ultimos caracteres)");
             Check(eventos.Eventos.Count == resultado.Count, "publica un evento por disco");
+
+            int conAtributos = resultado.Count(r => r.Lectura.Atributos.Count > 0);
+            int guardados = historial.Cargar().Count;
+            Console.WriteLine($"      historial: {guardados} disco(s) guardado(s) de {resultado.Count} ({conAtributos} con atributos ATA)");
+            Check(monitor.AdvertenciaDeHistorial is null && guardados == conAtributos,
+                  "el historial guarda exactamente los discos con atributos, sin advertencias");
+            try { File.Delete(rutaHistorial); } catch (IOException) { }
             Console.WriteLine();
         }
 

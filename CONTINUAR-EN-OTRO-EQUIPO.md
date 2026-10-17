@@ -27,13 +27,14 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**127 comprobaciones automatizadas, todas en verde, en Windows 10:**
+**134 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+traspaso; +7 del historial de S.M.A.R.T., 2026-10-17):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
-| `tools/Nexo.Cleanup.Demo` | 86 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. (portable) |
-| `tools/Nexo.Cleanup.Windows.Demo` | 28 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
+| `tools/Nexo.Cleanup.Demo` | 92 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
+| `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -239,8 +240,13 @@ El código viaja por git; las máquinas no comparten nada más.
   truncado destruye el contenido para todos. .NET no expone el número de enlaces.
 - **Impacto de arranque** (§1.4): los eventos 100/101 de
   `Microsoft-Windows-Diagnostics-Performance/Operational` no se leen aún.
-- **S.M.A.R.T.:** la lectura anterior, para detectar crecimiento, hay que guardarla
-  entre ejecuciones; el monitor la acepta pero nadie la persiste todavía.
+- ~~**S.M.A.R.T.:** la lectura anterior no se guardaba entre ejecuciones.~~
+  Hecho (2026-10-17): `Disco/HistorialDeSalud` la guarda en JSON (escritura
+  atómica, serie ya redactada) y `MonitorDeSalud` la usa si se le pasa. Una
+  lectura sin atributos no pisa a una anterior que sí los tenía; un archivo
+  dañado se aparta como `.corrupto` y el evento dice que no se evaluó el
+  crecimiento. Es **estado, no un log**: no rompe la regla de §8. Falta decidir
+  la ruta definitiva cuando exista el servicio (p. ej. `%ProgramData%\Nexo`).
 - **Servicios y tareas programadas** como fuentes de inicio (§1.4): solo se leen
   `Run` y las carpetas de inicio.
 - **§1.5 Perfiles de rendimiento** sigue en diseño. **§1.3 Desinstalar aplicaciones**

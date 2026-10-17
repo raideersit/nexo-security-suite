@@ -783,6 +783,59 @@ namespace Nexo.Cleanup.Demo
                 .EvaluarAsync(previas).ConfigureAwait(false);
             Check(res2[0].Evaluacion.Severidad == Severidad.Critica,
                   "el monitor usa la lectura anterior para detectar crecimiento");
+
+            await ProbarHistorialDeSalud().ConfigureAwait(false);
+        }
+
+        private static async Task ProbarHistorialDeSalud()
+        {
+            string ruta = Path.Combine(Path.GetTempPath(), "nexo-historial-" + Guid.NewGuid().ToString("N")[..8] + ".json");
+            try
+            {
+                var historial = new HistorialDeSalud(ruta);
+                async Task<EvaluacionDeSalud> Corrida(params LecturaDeDisco[] l)
+                    => (await new MonitorDeSalud(new FuenteFalsa(l), new Eventos_(), historial)
+                        .EvaluarAsync().ConfigureAwait(false))[0].Evaluacion;
+
+                var primera = await Corrida(Lectura("Disco Dudoso", false, (197, 1))).ConfigureAwait(false);
+                Check(primera.Severidad == Severidad.Alta && File.Exists(ruta),
+                      "historial: la primera corrida no asume crecimiento y guarda la lectura");
+
+                var segunda = await Corrida(Lectura("Disco Dudoso", false, (197, 4))).ConfigureAwait(false);
+                Check(segunda.Severidad == Severidad.Critica,
+                      "historial: la segunda corrida detecta el crecimiento leyendo el archivo");
+
+                // Una lectura sin atributos (p. ej. sin administrador) no borra el historial.
+                await Corrida(new LecturaDeDisco("Disco Dudoso", "****1234")).ConfigureAwait(false);
+                var guardada = historial.Cargar();
+                Check(guardada.TryGetValue(MonitorDeSalud.Clave(Lectura("Disco Dudoso", false)), out var previa)
+                      && previa.Atributo(197)?.Crudo == 4,
+                      "historial: una lectura sin atributos no reemplaza a la anterior");
+
+                // Un disco que hoy no aparece (USB desconectado) se conserva.
+                await Corrida(Lectura("Otro Disco", false, (5, 0))).ConfigureAwait(false);
+                guardada = historial.Cargar();
+                Check(guardada.Count == 2, "historial: conserva los discos que no aparecen en esta corrida");
+
+                // Un historial danado no rompe la evaluacion, se aparta y se dice.
+                File.WriteAllText(ruta, "{ esto no es json");
+                var eventos = new Eventos_();
+                var monitor = new MonitorDeSalud(new FuenteFalsa(Lectura("Disco Dudoso", false, (197, 9))), eventos, historial);
+                var res = await monitor.EvaluarAsync().ConfigureAwait(false);
+                Check(res[0].Evaluacion.Severidad == Severidad.Alta
+                      && monitor.AdvertenciaDeHistorial is not null
+                      && File.Exists(ruta + ".corrupto")
+                      && historial.Cargar().Count == 1,
+                      "historial danado: se aparta como .corrupto, se evalua sin crecimiento y se rehace");
+                Check(eventos.Lista[0].Campos.TryGetValue("limitaciones", out object? lim)
+                      && lim is string[] arr && arr.Any(s => s.Contains("crecimiento", StringComparison.Ordinal)),
+                      "historial danado: el evento dice que no se evaluo el crecimiento");
+            }
+            finally
+            {
+                foreach (string f in new[] { ruta, ruta + ".corrupto" })
+                    if (File.Exists(f)) File.Delete(f);
+            }
         }
 
         private static string Rel(string raiz, string ruta)

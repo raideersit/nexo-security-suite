@@ -16,16 +16,29 @@ namespace Nexo.Modules.Cleanup.Disco
     {
         private readonly IFuenteSmart _fuente;
         private readonly IReportWriter _reportes;
+        private readonly HistorialDeSalud? _historial;
 
-        public MonitorDeSalud(IFuenteSmart fuente, IReportWriter reportes)
+        /// <param name="historial">
+        /// Si se pasa, el monitor carga de ahi las lecturas anteriores y guarda las
+        /// nuevas al terminar. Sin el, el crecimiento solo se detecta si quien llama
+        /// pasa <c>anteriores</c>.
+        /// </param>
+        public MonitorDeSalud(IFuenteSmart fuente, IReportWriter reportes, HistorialDeSalud? historial = null)
         {
             _fuente = fuente;
             _reportes = reportes;
+            _historial = historial;
         }
+
+        /// <summary>
+        /// Problema con el historial en la ultima evaluacion (no se pudo leer o
+        /// guardar), o null. La de lectura ademas va en el evento de cada disco.
+        /// </summary>
+        public string? AdvertenciaDeHistorial { get; private set; }
 
         /// <param name="anteriores">
         /// Ultima lectura conocida de cada disco, por modelo+serie, para detectar
-        /// crecimiento. Guardarla entre ejecuciones es responsabilidad de quien llama.
+        /// crecimiento. Si es null y hay historial, se cargan del historial.
         /// </param>
         public async Task<IReadOnlyList<(LecturaDeDisco Lectura, EvaluacionDeSalud Evaluacion)>> EvaluarAsync(
             IReadOnlyDictionary<string, LecturaDeDisco>? anteriores = null,
@@ -33,7 +46,16 @@ namespace Nexo.Modules.Cleanup.Disco
         {
             var resultado = new List<(LecturaDeDisco, EvaluacionDeSalud)>();
 
-            foreach (LecturaDeDisco lectura in _fuente.Leer())
+            AdvertenciaDeHistorial = null;
+            if (anteriores is null && _historial is not null)
+            {
+                anteriores = _historial.Cargar();
+                AdvertenciaDeHistorial = _historial.Advertencia;
+            }
+            string? avisoDeCarga = AdvertenciaDeHistorial;
+
+            IReadOnlyList<LecturaDeDisco> lecturas = _fuente.Leer();
+            foreach (LecturaDeDisco lectura in lecturas)
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -53,11 +75,19 @@ namespace Nexo.Modules.Cleanup.Disco
                     evaluacion.Severidad,
                     sinDatos: !lectura.TieneDatos);
 
-                if (lectura.Limitaciones.Count > 0)
-                    ev.Con("limitaciones", new List<string>(lectura.Limitaciones).ToArray());
+                var limitaciones = new List<string>(lectura.Limitaciones);
+                if (avisoDeCarga is not null) limitaciones.Add(avisoDeCarga);
+                if (limitaciones.Count > 0)
+                    ev.Con("limitaciones", limitaciones.ToArray());
 
                 await _reportes.EscribirAsync(ev, ct).ConfigureAwait(false);
                 resultado.Add((lectura, evaluacion));
+            }
+
+            if (_historial is not null)
+            {
+                _historial.Guardar(lecturas);
+                AdvertenciaDeHistorial ??= _historial.Advertencia;
             }
 
             return resultado;

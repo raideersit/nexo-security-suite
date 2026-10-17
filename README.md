@@ -36,19 +36,19 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**127 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 86 de
-la lógica portable de limpieza y 28 que solo tienen sentido en Windows
+**134 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 92 de
+la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales).
+Como administrador se cubren además la escritura en `HKLM` y los enlaces
+simbólicos de archivo.
 
 **Todavía sin verificar:**
 
-- S.M.A.R.T. con datos reales: exige administrador y hasta ahora solo se
-  comprobó sin él, donde reporta honestamente «sin datos suficientes».
-- Escritura en `HKLM` y reglas del catálogo que piden administrador.
+- S.M.A.R.T. con atributos ATA reales (disco SATA): como administrador solo se
+  probó un NVMe, que no los expone.
+- Reglas del catálogo que piden administrador, contra un perfil real.
 - El flujo completo con `BorradorPapelera` sobre un perfil limpio, y todo lo
   que implique borrado permanente: requiere una VM.
-- Enlaces simbólicos de *archivo* (piden modo desarrollador; las uniones NTFS
-  de carpeta sí están cubiertas).
 - Obsidian: el vault de demostración se abrió a mano y se vio correcto.
 
 ---
@@ -86,11 +86,11 @@ Arneses de aceptación — generan datos sintéticos y verifican el comportamien
 dotnet run --project tools/Nexo.Reports.Demo -- ./vault-demo
 
 # Corpus sintético: guardia, limpieza, duplicados, triturador, inicio y
-# S.M.A.R.T. Corre en cualquier sistema (86 comprobaciones)
+# S.M.A.R.T. Corre en cualquier sistema (92 comprobaciones)
 dotnet run --project tools/Nexo.Cleanup.Demo
 
 # Solo Windows: tipo de disco, registro de inicio (en una subclave temporal),
-# Papelera, archivos bloqueados y lectura real de discos (28 comprobaciones)
+# Papelera, archivos bloqueados y lectura real de discos (29 comprobaciones)
 dotnet run --project tools/Nexo.Cleanup.Windows.Demo
 ```
 
