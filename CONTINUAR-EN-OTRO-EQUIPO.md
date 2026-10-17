@@ -77,6 +77,54 @@ y 8,9 GB. Dos decisiones que son **tuyas**, no del código:
 
 ---
 
+## 2b. Resultados en el segundo equipo (2026-10-17)
+
+El segundo equipo resultó ser un **Lenovo 81F4** (i3-7020U, 2 núcleos, **4 GB de
+RAM**, NVMe de 128 GB, Windows 10 Home). VT-x está habilitada, pero **no cumple
+los requisitos de la VM** de §3.2 (4 GB en total y unos 17 GB libres). Se usó sin
+VM para todo lo que no borra; `papelera` y `real` siguen pendientes (§3.3).
+
+Se instaló .NET SDK 8.0.426. Compila con 0 errores y 0 advertencias.
+
+| Arnés | Sin administrador | Como administrador |
+|---|---|---|
+| `Nexo.Reports.Demo` | 13/13 | — |
+| `Nexo.Cleanup.Demo` | 86/86 (aviso: no pudo crear el enlace simbólico) | **87/87** (el enlace simbólico se crea y se rechaza) |
+| `Nexo.Cleanup.Windows.Demo` | 28/28 | **28/28**, escribe en `HKLM` y borra la subclave |
+
+- **Tipo de disco:** C:\ = SSD, coincide con `Get-PhysicalDisk` (NVMe).
+- **S.M.A.R.T. en NVMe:** como administrador lee temperatura (37 °C) y desgaste
+  (0 %). Horas de uso: «-» también como administrador; este disco no expone el
+  contador. Predicción de fallo: «no disponible», con el motivo (NVMe no expone
+  atributos ATA). Correcto según «no pude leer ≠ está bien».
+- **`Nexo.Cleanup.Demo` como administrador** sigue listando «No evaluado por
+  falta de permisos»: es a propósito, el arnés usa `esAdministrador: false`
+  contra su corpus sintético (`Program.cs`, `new LimpiadorDeBasura`).
+- La prueba de Papelera deja **3 archivos sintéticos `nexo-demo-*`** en la
+  Papelera del equipo. Esperado.
+
+**`nexo-cleanup` simulado, tres corridas seguidas:** las tres listas son
+idénticas línea por línea. 909 archivos, 127,1 MB (`cache-navegadores` 850,
+`miniaturas` 13, `temporales` 30, `cache-gpu` 16). Sin administrador quedan sin
+evaluar las 3 reglas de sistema, como debe ser.
+
+El guardia omitió 5 rutas: `INetCache\IE\container.dat` (`EsArchivoDeSistema`)
+y 4 archivos del corpus que el arnés dejó en `%TEMP%\nexo-cleanup-demo\corpus\`
+(`Documents\importante.docx`, `System32\x.dll`, …) por `EnListaNegra`. Buena
+prueba real: un documento o una DLL «de sistema» dentro de `Temp` no se tocan.
+
+### Anotado, sin arreglar
+
+1. **El arnés no limpia su corpus.** `Nexo.Cleanup.Demo` deja
+   `%TEMP%\nexo-cleanup-demo\` al terminar. No es un riesgo (el guardia lo
+   protege), pero ensucia la vista previa del limpiador real.
+2. **Codificación en consola redirigida.** Con la salida redirigida a archivo
+   en PowerShell 5.1, el «—» aparece como `ÔÇö`; y la lista del vault (UTF-8)
+   se ve como `â€”` al leerla con `Get-Content` sin `-Encoding utf8`. Es
+   cosmético; quizá fijar `Console.OutputEncoding = UTF8` en las herramientas.
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
@@ -161,6 +209,10 @@ No necesita VM, solo permisos:
   administrador**, para ver S.M.A.R.T. con datos reales (el NVMe, el SATA y el USB)
   y la escritura en `HKLM`. El intento de esta sesión se canceló en el aviso de UAC.
 - Enlaces simbólicos de archivo: requieren activar el modo desarrollador de Windows.
+
+> Ambos puntos se cubrieron en el segundo equipo (§2b), pero solo con un NVMe.
+> En el principal falta S.M.A.R.T. con el disco SATA (atributos ATA reales) y
+> el USB.
 
 ---
 
