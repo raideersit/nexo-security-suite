@@ -31,6 +31,9 @@ namespace Nexo.Cleanup.Run
 
         public static async Task<int> Main(string[] args)
         {
+            // Las rutas y los motivos ("—") no son ASCII. Sin esto la salida depende
+            // de la pagina de codigos de la consola (850 imprime "?").
+            Console.OutputEncoding = new UTF8Encoding(false);
             string modo = Opcion(args, "--modo") ?? "simulado";
             string? reglasArg = Opcion(args, "--reglas");
             string vaultRuta = Opcion(args, "--vault") ?? Path.Combine(
@@ -141,7 +144,9 @@ namespace Nexo.Cleanup.Run
                 sb.Append("\n# Omitido por el guardia\n");
                 foreach (string o in vista.RutasOmitidas) sb.Append(o).Append('\n');
             }
-            File.WriteAllText(ruta, sb.ToString(), new UTF8Encoding(false));
+            // Con BOM: Windows PowerShell 5.1 (Get-Content) y el Bloc de notas
+            // antiguo leen como ANSI un UTF-8 sin BOM y rompen "—" y las tildes.
+            File.WriteAllText(ruta, sb.ToString(), new UTF8Encoding(true));
             return ruta;
         }
 

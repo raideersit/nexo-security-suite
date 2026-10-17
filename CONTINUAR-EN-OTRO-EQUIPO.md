@@ -113,15 +113,21 @@ y 4 archivos del corpus que el arnés dejó en `%TEMP%\nexo-cleanup-demo\corpus\
 (`Documents\importante.docx`, `System32\x.dll`, …) por `EnListaNegra`. Buena
 prueba real: un documento o una DLL «de sistema» dentro de `Temp` no se tocan.
 
-### Anotado, sin arreglar
+### Anotado y arreglado
 
-1. **El arnés no limpia su corpus.** `Nexo.Cleanup.Demo` deja
-   `%TEMP%\nexo-cleanup-demo\` al terminar. No es un riesgo (el guardia lo
-   protege), pero ensucia la vista previa del limpiador real.
-2. **Codificación en consola redirigida.** Con la salida redirigida a archivo
-   en PowerShell 5.1, el «—» aparece como `ÔÇö`; y la lista del vault (UTF-8)
-   se ve como `â€”` al leerla con `Get-Content` sin `-Encoding utf8`. Es
-   cosmético; quizá fijar `Console.OutputEncoding = UTF8` en las herramientas.
+1. **El arnés no limpiaba su corpus.** `Nexo.Cleanup.Demo` dejaba
+   `%TEMP%\nexo-cleanup-demo\corpus` al terminar. No era un riesgo (el guardia
+   lo protege), pero ensuciaba la vista previa del limpiador real. Ahora lo
+   borra al final (quitando antes las uniones NTFS) si todo pasó; si algo
+   falló lo conserva para inspeccionarlo. El vault del arnés se conserva.
+2. **Codificación.** Las cuatro herramientas fijan `Console.OutputEncoding` a
+   UTF-8, así la salida no depende de la página de códigos (con 850 un «—»
+   salía como «?»). La lista del vault se escribe con BOM: Windows PowerShell
+   5.1 y el Bloc de notas la leen bien sin `-Encoding utf8`.
+
+   Lo que **no** se arregla desde el programa: Windows PowerShell 5.1 decodifica
+   la salida redirigida (`*> archivo`) con su propia página de códigos. Antes de
+   redirigir, ejecuta `[Console]::OutputEncoding = [Text.Encoding]::UTF8`.
 
 ---
 

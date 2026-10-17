@@ -23,6 +23,7 @@ namespace Nexo.Reports.Demo
     {
         public static async Task<int> Main(string[] args)
         {
+            Console.OutputEncoding = new System.Text.UTF8Encoding(false);
             string ruta = args.Length > 0
                 ? args[0]
                 : Path.Combine(Directory.GetCurrentDirectory(), "vault-demo");

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Nexo.Modules.Cleanup.Abstractions;
 using Nexo.Modules.Cleanup.Disco;
@@ -41,16 +42,9 @@ namespace Nexo.Cleanup.Demo
             string corpus = Path.Combine(raiz, "corpus");
             string vault = Path.Combine(raiz, "vault");
 
-            if (Directory.Exists(raiz))
-            {
-                // Una corrida anterior puede haber dejado uniones NTFS. Se quitan
-                // primero (sin recursion: borra solo la union, no su destino).
-                foreach (string d in Directory.EnumerateDirectories(raiz, "*", SearchOption.AllDirectories)
-                             .Where(d => (new DirectoryInfo(d).Attributes & FileAttributes.ReparsePoint) != 0)
-                             .ToList())
-                    Directory.Delete(d, recursive: false);
-                Directory.Delete(raiz, recursive: true);
-            }
+            Console.OutputEncoding = new UTF8Encoding(false);
+
+            if (Directory.Exists(raiz)) BorrarCorpus(raiz);
             ConstruirCorpus(corpus);
 
             var opciones = new VaultOptions
@@ -77,7 +71,33 @@ namespace Nexo.Cleanup.Demo
                 ? "TODAS LAS VERIFICACIONES PASARON"
                 : _fallos + " VERIFICACIONES FALLIDAS");
             Console.WriteLine("Vault: " + vault);
+
+            // El corpus se queda en %TEMP% y ensuciaria la vista previa del
+            // limpiador real. Si algo fallo se conserva, para poder inspeccionarlo.
+            if (_fallos == 0)
+            {
+                try { BorrarCorpus(corpus); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Console.WriteLine("  [AVISO] No se pudo borrar el corpus: " + ex.GetType().Name);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Corpus conservado para inspeccion: " + corpus);
+            }
             return _fallos == 0 ? 0 : 1;
+        }
+
+        private static void BorrarCorpus(string ruta)
+        {
+            // Puede haber uniones NTFS que apuntan fuera. Se quitan primero
+            // (sin recursion: borra solo la union, no su destino).
+            foreach (string d in Directory.EnumerateDirectories(ruta, "*", SearchOption.AllDirectories)
+                         .Where(d => (new DirectoryInfo(d).Attributes & FileAttributes.ReparsePoint) != 0)
+                         .ToList())
+                Directory.Delete(d, recursive: false);
+            Directory.Delete(ruta, recursive: true);
         }
 
         private static void Check(bool condicion, string descripcion, string? detalle = null)

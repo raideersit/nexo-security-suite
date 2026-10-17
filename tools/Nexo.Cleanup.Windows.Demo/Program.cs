@@ -42,6 +42,7 @@ namespace Nexo.Cleanup.Windows.Demo
 
         public static async Task<int> Main()
         {
+            Console.OutputEncoding = new System.Text.UTF8Encoding(false);
             bool admin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
             Console.WriteLine("Administrador: " + (admin ? "si" : "no"));
             Console.WriteLine();
