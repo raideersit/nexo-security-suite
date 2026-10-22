@@ -100,6 +100,23 @@ namespace Nexo.Reports.Model
                     .EnlazaA(EntidadRef.Archivo(nombreArchivo, rutaOriginal));
             }
 
+            /// <summary>Un archivo devuelto desde la cuarentena a su ubicacion.</summary>
+            public static NexoEvent Restaurado(string rutaDestino, string idCuarentena, long bytes)
+            {
+                string nombreArchivo = SoloNombre(rutaDestino);
+
+                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.ArchivoRestaurado,
+                           "Restaurado " + nombreArchivo + " desde cuarentena")
+                {
+                    Severidad = Severidad.Media,
+                    Accion = Accion.Restaurada
+                }
+                .Con("ruta_destino", Redactable.Ruta(rutaDestino))
+                .Con("id_cuarentena", idCuarentena)
+                .Con("bytes", bytes)
+                .EnlazaA(EntidadRef.Archivo(nombreArchivo, rutaDestino));
+            }
+
             /// <summary>Una conexion bloqueada por el firewall.</summary>
             public static NexoEvent Firewall(
                 string aplicacion,
@@ -190,18 +207,31 @@ namespace Nexo.Reports.Model
                 int archivosAnalizados,
                 int detecciones,
                 TimeSpan duracion,
-                string motor)
+                string motor,
+                int archivosOmitidos = 0,
+                bool incompleto = false)
             {
                 var ev = new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.ResultadoEscaneo,
                              "Escaneo de " + SoloNombre(alcance) +
                              (detecciones == 0 ? " sin hallazgos" : " con " + detecciones.ToString(Inv) + " hallazgos"))
                 {
                     Severidad = detecciones == 0 ? Severidad.Info : Severidad.Alta,
-                    Accion = Accion.Registrada
+                    Accion = Accion.Registrada,
+                    // "Sin hallazgos" solo es cierto de lo que se pudo leer. Lo omitido
+                    // (bloqueado, sin permisos, demasiado grande) se dice en la nota.
+                    Cuerpo = archivosOmitidos == 0 && !incompleto
+                        ? null
+                        : (incompleto ? "**El escaneo quedo INCOMPLETO**: el motor dejo de responder.\n\n" : "") +
+                          (archivosOmitidos > 0
+                              ? archivosOmitidos.ToString(Inv) + " archivos NO se pudieron analizar (en uso, sin permisos o demasiado grandes). " +
+                                "\"Sin hallazgos\" no los incluye.\n"
+                              : "")
                 };
 
                 return ev
                     .Con("alcance", Redactable.Ruta(alcance))
+                    .Con("archivos_omitidos", archivosOmitidos)
+                    .Con("incompleto", incompleto)
                     .Con("archivos_analizados", archivosAnalizados)
                     .Con("detecciones", detecciones)
                     .Con("duracion_segundos", Math.Round(duracion.TotalSeconds, 1))

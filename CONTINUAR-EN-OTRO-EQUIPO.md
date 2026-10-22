@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**222 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**289 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall, 2026-10-21):
++84 del firewall y +67 del escáner, 2026-10-21):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -38,6 +38,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 56 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
+| `tools/Nexo.Scan.Demo` | 67 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -253,6 +254,67 @@ y no pasa por el filtro; hace falta otro equipo de la red.
 
 ---
 
+## 2e. Escaneo bajo demanda y cuarentena (2026-10-21)
+
+Segundo entregable del módulo de amenazas (función 1 de la Salida 0, sin tiempo
+real). Todo en modo usuario; el motor es **ClamAV vía `clamd` por TCP** (no
+`libclamav` enlazada: es GPLv2 y obligaría a publicar Nexo bajo GPL).
+
+- `Nexo.Modules.Threats/Escaner`: `ClamdClient` (protocolo `zINSTREAM`),
+  `EscanerBajoDemanda`. `Cuarentena/AlmacenDeCuarentena`.
+- `tools/Nexo.Scan.Demo` (67) con un **clamd falso** que implementa el protocolo
+  real; `tools/Nexo.Scan.Run` (`nexo-scan`).
+- Eventos: `Escaneo(...)` ahora informa `archivos_omitidos` e `incompleto`;
+  nuevo `Restaurado(...)`.
+- `TokenDeCambio` se generalizó a líneas de texto para reutilizarlo.
+
+**Decisiones:**
+
+- **«No pude leer» != «está bien».** Archivo en uso, sin permisos, mayor que el
+  límite (25 MB, el de `clamd`), carpeta cerrada, ruta inexistente o error del
+  motor → **omitido y anotado**; `CompletamenteLimpio` solo es cierto si no hubo
+  detecciones *ni* omitidos. Si el motor no está al empezar, **no se escanea**
+  (lanza, no escribe «0 detecciones»). Si se cae a mitad (5 errores seguidos), el
+  escaneo se marca **INCOMPLETO** en vez de seguir.
+- **Privacidad:** el cliente solo acepta `localhost`/loopback; otro host exige
+  `permitirRemoto: true` explícito. Los archivos no salen del equipo.
+- **Escanear no modifica nada.** La cuarentena es otra acción, con vista previa y
+  token, y se puede **restaurar** (nunca pisa un archivo existente).
+- **Cuarentena:** AES-GCM, `NXQ1 | nonce | etiqueta | datos`. El cifrado **no
+  oculta el contenido** (la clave va en el `.json` contiguo): existe para que
+  ningún antivirus, incluido Defender, re-detecte el archivo y se pelee con Nexo.
+  La integridad sí importa: antes de borrar el original se descifra la copia y se
+  compara el SHA-256; si el original no se puede retirar (en uso), se deshace la
+  copia. Se reverifica tamaño, fecha **y SHA-256** al aplicar (TOCTOU).
+- **No mueve archivos del directorio de Windows:** una detección ahí es un
+  incidente a revisar a mano. Los ids de restauración se validan (32 hex) antes de
+  formar ninguna ruta.
+- El arnés usa una **cadena marcadora propia**, no el EICAR, para no dejar en el
+  disco archivos que Defender quiera poner en cuarentena.
+
+Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
+«error del motor ≠ limpio», fallan 3 comprobaciones.
+
+**NO probado — requiere una VM con ClamAV real:**
+
+- Contra un `clamd` de verdad: versión del protocolo, `StreamMaxLength` real,
+  comportamiento con la base de firmas completa y rendimiento en miles de archivos.
+- Que Defender no re-detecte el archivo cuarentenado (esperado por el cifrado).
+- Dónde queda la cuarentena: hoy `%LOCALAPPDATA%\Nexo\Quarantine`, sin ACL propia.
+  La definitiva sería `%ProgramData%\Nexo\Quarantine` con ACL (cuando exista el servicio).
+
+**Huecos conocidos (sin hacer):**
+
+- **YARA** (heurística) no está; el escaneo es solo por firmas de ClamAV.
+- Sin **tiempo real** (USN Journal), sin AMSI, sin escaneo programado.
+- La cuarentena **no purga** nunca: `restaurable_hasta` (30 días) es solo informativo.
+- Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
+- Escaneo secuencial, una conexión por archivo; no usa `IDSESSION` ni paraleliza.
+- Archivos > 25 MB no se analizan (quedan como omitidos): ISOs, VMs, instaladores grandes.
+- Los archivos comprimidos los abre `clamd`; no hay control de límites de recursión.
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
@@ -390,8 +452,10 @@ Según el plan recortado:
 - ~~Pasar al firewall por aplicación de `Prompt 1`~~ Hecho: ver §2d. (No hizo
   falta pegar la salida del Prompt 0 en el prompt: el contrato de la
   [[Salida 0 - Arquitectura general del sistema]] se aplicó directamente.)
-- Siguiente en el orden de la Salida 0 §4: **escaneo bajo demanda** (`clamd` +
-  YARA, sin tiempo real) y la integración de ambos módulos en `Nexo.Service`.
+- ~~Escaneo bajo demanda (`clamd`)~~ Hecho: ver §2e (falta probarlo con ClamAV
+  real en una VM). Pendiente de ese paso: YARA.
+- Siguiente en el orden de la Salida 0 §4: **probar con ClamAV real en la VM**
+  y la integración de los módulos en `Nexo.Service` + `Nexo.Ui.Tray` (Fase 0).
 - **Punto de decisión del mes 3** (§4 de la Salida 6): si para entonces no hay
   reportes y limpieza funcionando y usándose cada semana, la conclusión es recortar
   a esos dos módulos y publicarlos como una utilidad honesta y terminada.

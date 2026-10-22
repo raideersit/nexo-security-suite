@@ -50,18 +50,29 @@ namespace Nexo.Modules.Threats.Firewall
         public DateTimeOffset Expira { get; }
 
         public static TokenDeCambio Emitir(IEnumerable<CambioDeFirewall> plan, DateTimeOffset ahora)
-            => new TokenDeCambio(CalcularHuella(plan), ahora + Vigencia);
+            => Emitir(plan.Select(c => c.Huella), ahora);
 
         public bool EsValidoPara(IEnumerable<CambioDeFirewall> plan, DateTimeOffset ahora)
+            => EsValidoPara(plan.Select(c => c.Huella), ahora);
+
+        /// <summary>
+        /// Token sobre un plan descrito como lineas de texto estables. Lo usan
+        /// otras acciones con vista previa (p. ej. la cuarentena) para no
+        /// duplicar la logica de huella y caducidad.
+        /// </summary>
+        public static TokenDeCambio Emitir(IEnumerable<string> lineas, DateTimeOffset ahora)
+            => new TokenDeCambio(CalcularHuella(lineas), ahora + Vigencia);
+
+        public bool EsValidoPara(IEnumerable<string> lineas, DateTimeOffset ahora)
             => ahora <= Expira
                && CryptographicOperations.FixedTimeEquals(
                       Encoding.ASCII.GetBytes(Huella),
-                      Encoding.ASCII.GetBytes(CalcularHuella(plan)));
+                      Encoding.ASCII.GetBytes(CalcularHuella(lineas)));
 
-        private static string CalcularHuella(IEnumerable<CambioDeFirewall> plan)
+        private static string CalcularHuella(IEnumerable<string> entrada)
         {
             // El orden se normaliza: la huella no depende de como se armo el plan.
-            var lineas = plan.Select(c => c.Huella).ToList();
+            var lineas = entrada.ToList();
             lineas.Sort(StringComparer.Ordinal);
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", lineas)));
             return Convert.ToHexString(hash);

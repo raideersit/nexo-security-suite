@@ -33,15 +33,16 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Cleanup` — limpieza y duplicados | ✅ Implementado y verificado |
 | `Nexo.Modules.Cleanup` — triturador, inicio, S.M.A.R.T. | ✅ Implementado; verificado en Windows salvo lo listado abajo |
 | `Nexo.Modules.Threats` — firewall por aplicación y modo sigiloso | ✅ Implementado y verificado contra el Firewall de Windows real |
-| `Nexo.Modules.Threats` — escaneo bajo demanda (ClamAV/YARA) | 📐 Diseñado |
+| `Nexo.Modules.Threats` — escaneo bajo demanda y cuarentena (clamd) | ✅ Implementado; verificado contra un clamd falso, **sin probar con ClamAV real** |
+| `Nexo.Modules.Threats` — heurística YARA, tiempo real, anti-ransomware | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**222 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**289 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 56
 portables del firewall y 28 contra el Firewall de Windows real (como
-administrador; 9 sin serlo). Como administrador se cubren además la escritura
+administrador; 9 sin serlo) y 67 del escáner y la cuarentena. Como administrador se cubren además la escritura
 en `HKLM` y los enlaces simbólicos de archivo.
 
 **Todavía sin verificar:**
@@ -101,6 +102,10 @@ dotnet run --project tools/Nexo.Firewall.Demo
 # administrador solo lee; como administrador crea reglas temporales sobre un
 # .exe sintético y las retira (28 comprobaciones)
 dotnet run --project tools/Nexo.Firewall.Windows.Demo
+
+# Escáner bajo demanda y cuarentena contra un clamd FALSO que habla el protocolo
+# real por TCP (67 comprobaciones; no requiere ClamAV)
+dotnet run --project tools/Nexo.Scan.Demo
 ```
 
 Todos devuelven código de salida 0 solo si todas las comprobaciones pasan.
@@ -135,6 +140,26 @@ activa un firewall que el usuario haya apagado: lo avisa. El modo sigiloso no
 necesita driver: Windows ya descarta en silencio el tráfico entrante no
 solicitado, y Nexo solo añade el bloqueo del ping (ICMPv4/ICMPv6).
 
+### El escáner contra el equipo real: `nexo-scan`
+
+Requiere **ClamAV** con `clamd` escuchando en `127.0.0.1:3310` (y `freshclam` para
+las firmas). **Pruébalo primero en una VM**, no en el equipo principal.
+
+```powershell
+dotnet run --project tools/Nexo.Scan.Run -- estado                        # ¿hay un clamd?
+dotnet run --project tools/Nexo.Scan.Run -- escanear C:\Users\yo\Descargas   # no modifica nada
+dotnet run --project tools/Nexo.Scan.Run -- escanear C:\ruta --cuarentena   # plan + escribir CUARENTENA
+dotnet run --project tools/Nexo.Scan.Run -- cuarentena restaurar <id>
+```
+
+Escanear **no modifica nada**; la cuarentena es una acción aparte con vista
+previa y token. El contenido de los archivos **solo se envía a un clamd local**
+(el cliente rechaza cualquier otra dirección). Un archivo que no se pudo
+analizar (en uso, sin permisos, demasiado grande, o que el motor no supo
+evaluar) **nunca** cuenta como limpio: el resultado y la nota del vault lo dicen.
+Los códigos de salida distinguen «limpio» (0), «con detecciones» (10) y «sin
+detecciones pero con archivos sin analizar» (11).
+
 ### ⚠ Antes de ejecutar el módulo de limpieza en un equipo real
 
 1. Empieza siempre con el modo `simulado`: recorre el flujo completo y registra
@@ -155,8 +180,8 @@ src/
   Nexo.Modules.Cleanup/         Lógica portable: guardia, catálogo, duplicados,
                                 triturador, inicio, S.M.A.R.T.
   Nexo.Modules.Cleanup.Windows/ Papelera, registro de inicio, WMI, detección de VM.
-  Nexo.Modules.Threats/         Lógica portable del firewall: guardia de reglas,
-                                vista previa con token, modo sigiloso.
+  Nexo.Modules.Threats/         Lógica portable: firewall (guardia de reglas, vista previa
+                                con token, modo sigiloso), cliente de clamd, escáner y cuarentena.
   Nexo.Modules.Threats.Windows/ Firewall de Windows por COM (INetFwPolicy2).
 tools/
   Nexo.Reports.Demo/            Arnés de aceptación de reportes.
@@ -166,6 +191,8 @@ tools/
   Nexo.Firewall.Demo/           Arnés portable del firewall.
   Nexo.Firewall.Windows.Demo/   Arnés contra el Firewall de Windows real.
   Nexo.Firewall.Run/            `nexo-firewall`: el firewall contra el equipo real.
+  Nexo.Scan.Demo/               Arnés del escáner y la cuarentena (clamd falso).
+  Nexo.Scan.Run/                `nexo-scan`: el escáner contra un clamd real.
 ```
 
 ---
