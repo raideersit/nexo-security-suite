@@ -20,6 +20,8 @@ namespace Nexo.Service.Demo
     {
         private static int _fallos;
         private static readonly AlmacenEnMemoria Almacen = new AlmacenEnMemoria();
+        private static readonly MotorFalso Motor = new MotorFalso();
+        private static string _carpetaQ = "";
         private static readonly bool EsAdmin =
             new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent())
                 .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
@@ -31,6 +33,7 @@ namespace Nexo.Service.Demo
             string raiz = Path.Combine(Path.GetTempPath(), "nexo-service-demo-" + Guid.NewGuid().ToString("N"));
             string vault = Path.Combine(raiz, "vault");
             string pipe = "nexo-service-demo-" + Guid.NewGuid().ToString("N");
+            _carpetaQ = Path.Combine(raiz, "cuarentena");
 
             try
             {
@@ -39,6 +42,7 @@ namespace Nexo.Service.Demo
                 ProbarManejador();
                 await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 ProbarPlanes();
+                await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
             finally
             {
@@ -65,10 +69,12 @@ namespace Nexo.Service.Demo
             b.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Nexo:Vault"] = vault,
-                ["Nexo:PipeName"] = pipe
+                ["Nexo:PipeName"] = pipe,
+                ["Nexo:Cuarentena"] = _carpetaQ
             });
             // El firewall REAL no se toca nunca desde el arnes: el servicio recibe un almacen en memoria.
             b.Services.AddSingleton<IAlmacenDeFirewall>(Almacen);
+            b.Services.AddSingleton<Nexo.Modules.Threats.Escaner.IMotorDeFirmas>(Motor);
             b.Services.AddHostedService<NexoWorker>();
             b.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(4));
             return b.Build();
@@ -97,10 +103,10 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 5,
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 17,
                       "estado lista los metodos que expone: los basicos y los del firewall");
 
-                foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.restaurar", "ejecutar" })
+                foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })
                 {
                     Respuesta r = await c.LlamarAsync(peligroso, new { ruta = @"C:\Windows\System32\config" }).ConfigureAwait(false);
                     Check(!r.Exito && r.Error!.Codigo == CodigoDeError.MetodoDesconocido,

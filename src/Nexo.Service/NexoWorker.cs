@@ -10,6 +10,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nexo.Ipc;
+using Nexo.Modules.Threats.Cuarentena;
+using Nexo.Modules.Threats.Escaner;
 using Nexo.Modules.Threats.Firewall;
 using Nexo.Modules.Threats.Windows;
 using Nexo.Reports;
@@ -48,9 +50,24 @@ namespace Nexo.Service
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "firewall-protegidos.txt");
             var guardia = new GuardiaDeReglas(adicionales: GuardiaDeReglas.LeerAdicionales(protegidos, out _));
 
+            // Motor de firmas: clamd por TCP local (o uno inyectado por DI en las pruebas).
+            IMotorDeFirmas motor = _servicios.GetService<IMotorDeFirmas>() ?? new ClamdClient(
+                _config["Nexo:ClamdHost"] is { Length: > 0 } h ? h : "127.0.0.1",
+                int.TryParse(_config["Nexo:ClamdPuerto"], out int puerto) ? puerto : ClamdClient.PuertoPorDefecto);
+
+            // La carpeta de cuarentena guarda las claves junto a los archivos: solo SYSTEM y
+            // Administradores deben poder escribir ahi (lo fija nexo-service.ps1 sobre la carpeta Nexo de ProgramData).
+            string carpetaQ = _config["Nexo:Cuarentena"] is { Length: > 0 } q
+                ? q
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "Quarantine");
+            var almacenQ = new AlmacenDeCuarentena(carpetaQ, reportes);
+            var escaneo = new ModuloEscaneo(motor, reportes, excluir: new[] { almacenQ.Carpeta });
+
             return new IModuloDelServicio[]
             {
-                new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia))
+                new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia)),
+                escaneo,
+                new ModuloCuarentena(almacenQ, escaneo)
             };
         }
 
@@ -70,10 +87,12 @@ namespace Nexo.Service
 
             var inicio = Stopwatch.StartNew();
             ServidorDePipe? servidor = null;
+            IReadOnlyList<IModuloDelServicio> modulos = Array.Empty<IModuloDelServicio>();
             string? aviso = null;
             try
             {
-                servidor = new ServidorDePipe(pipe, new ManejadorDelServicio(version, CrearModulos(reportes)));
+                modulos = CrearModulos(reportes);
+                servidor = new ServidorDePipe(pipe, new ManejadorDelServicio(version, modulos));
                 servidor.Iniciar();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -91,6 +110,9 @@ namespace Nexo.Service
 
             int atendidas = servidor?.Atendidas ?? 0;
             if (servidor is not null) await servidor.DisposeAsync().ConfigureAwait(false);
+            // Los modulos con trabajos en curso (p. ej. un escaneo) los cancelan al cerrarse.
+            foreach (IModuloDelServicio m in modulos)
+                if (m is IAsyncDisposable d) await d.DisposeAsync().ConfigureAwait(false);
 
             // CancellationToken.None: la parada ya esta pedida y esta nota debe escribirse igualmente.
             await reportes.EscribirAsync(Eventos.Sistema.ServicioDetenido(inicio.Elapsed, atendidas), CancellationToken.None)

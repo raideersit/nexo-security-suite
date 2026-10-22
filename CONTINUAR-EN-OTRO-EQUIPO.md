@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**385 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**422 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +43 del servicio, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +80 del servicio, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -40,7 +40,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 28 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 43 | El servicio en el mismo proceso: ciclo de vida, firewall por el pipe con token de un solo uso, planes pendientes (solo Windows) |
+| `tools/Nexo.Service.Demo` | 80 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -339,10 +339,27 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   negativo cierra la conexión sin reservar memoria), JSON y UTF-8 validados, 16
   conexiones como máximo, cierre por inactividad (30 s), tiempo máximo por petición, y
   una excepción del manejador se devuelve como «error interno» **sin** su mensaje.
-- **Métodos expuestos:** `ping`, `estado`, `firewall.estado`, `firewall.previsualizar` y
-  `firewall.aplicar`. Ninguna otra acción que borre o cambie el sistema existe (una prueba
-  lo comprueba para `limpiar`, `borrar`, `firewall.bloquear` y `cuarentena.restaurar`);
-  cada una nueva debe llegar con su vista previa y su token.
+- **Métodos expuestos (17):** `ping`, `estado`; `firewall.estado|previsualizar|aplicar`;
+  `escaneo.estado|iniciar|progreso|resultado|cancelar`; y `cuarentena.listar`,
+  `previsualizar`/`aplicar`, `previsualizar-restauracion`/`restaurar`,
+  `previsualizar-purga`/`purgar`. Ninguna otra acción que borre o cambie el sistema existe
+  (una prueba lo comprueba); cada una nueva debe llegar con su vista previa y su token.
+- **Escaneo = trabajo en segundo plano** (dura más que el límite por petición): `iniciar`
+  devuelve un id; un solo escaneo a la vez; hasta 8 rutas con letra de unidad (nada de red,
+  `\\...`, comodines ni `..`); se avisa YA si no hay motor.
+- **La cuarentena solo mueve lo que detectó un escaneo del propio servicio**, nombrado por
+  su id. El cliente **no puede pasar una ruta suya** (si pudiera, tendría a SYSTEM
+  retirando cualquier archivo del equipo); una prueba lo comprueba y, al desactivar la
+  guardia, falla. Restaurar es solo a la ruta original, sin parámetro `destino` (sería
+  escribir como SYSTEM donde diga el cliente) y nunca pisa un archivo. La carpeta
+  `%ProgramData%\Nexo\Quarantine` guarda la clave junto al archivo: debe ser escribible solo
+  por SYSTEM y Administradores (la ACL que fija el script sobre `%ProgramData%\Nexo`); si un
+  usuario normal pudiera escribir ahí, fabricaría una entrada y haría que «restaurar»
+  escribiera donde quisiera.
+- **Fuga menor conocida del escaneo:** el servicio lee con SU cuenta, no con la del
+  llamador. Quien llama puede saber si una ruta que nombró tiene una detección y cuántos
+  archivos se analizaron aunque él no pudiera leerla. Corregirlo exige comprobar el acceso
+  con la identidad del cliente del pipe, que el protocolo todavía no transporta.
 - **Token de confirmación (`PlanesPendientes`):** el plan vive en el servicio; el cliente
   solo recibe un token aleatorio de 256 bits y pide aplicar **ese** plan, así que no
   puede cambiar lo que se aplica entre la vista previa y la confirmación (los parámetros
@@ -365,8 +382,8 @@ reinicio automático tras una caída, y la ACL contra un cliente de **otro** usu
 eso es para la VM `NexoVM` (snapshot `limpia`): `dotnet publish src\Nexo.Service -c
 Release -o "C:\Program Files\Nexo\service"` y `nexo-service.ps1 -Accion instalar`.
 
-**Huecos conocidos:** el firewall es el único módulo cargado (la cuarentena, el escáner y
-la limpieza aún no); `IModuloDelServicio` es una versión mínima de `INexoModule` (sin
+**Huecos conocidos:** la limpieza aún no está cargada en el servicio; el escaneo se probó
+con un motor falso por DI (no con `clamd` real); `IModuloDelServicio` es una versión mínima de `INexoModule` (sin
 `StartAsync`/`StopAsync` ni `EventBus`); sin bandeja (`Nexo.Ui.Tray`); el camino de
 aplicar **como administrador** solo está probado contra un almacén en memoria (el arnés
 corre sin elevar); y el vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
