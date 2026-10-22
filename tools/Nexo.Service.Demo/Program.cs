@@ -42,6 +42,7 @@ namespace Nexo.Service.Demo
                 ProbarManejador();
                 await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 ProbarPlanes();
+                ProbarAprobacionDeOtroUsuario();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
                 await ProbarLimpiezaPorIpc(Path.Combine(raiz, "vault10"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);

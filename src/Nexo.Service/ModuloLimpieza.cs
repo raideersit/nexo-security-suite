@@ -34,7 +34,7 @@ namespace Nexo.Service
         private const int MaxOmitidosEnRespuesta = 100;
         private const int MaxEjemplos = 20;
 
-        private sealed record Plan(LimpiadorDeBasura Limpiador, VistaPreviaLimpieza Vista, SecurityIdentifier? Dueno);
+        private sealed record Plan(LimpiadorDeBasura Limpiador, VistaPreviaLimpieza Vista);
 
         private readonly CatalogoDeRutas _catalogo;
         private readonly IBorrador _borrador;
@@ -107,7 +107,7 @@ namespace Nexo.Service
             DateTimeOffset? expira = null;
             if (vista.TotalArchivos > 0)
             {
-                (string t, DateTimeOffset e) = _planes.Guardar(new Plan(limpiador, vista, contexto.Usuario));
+                (string t, DateTimeOffset e) = _planes.Guardar(new Plan(limpiador, vista), contexto);
                 token = t;
                 expira = e;
             }
@@ -139,14 +139,16 @@ namespace Nexo.Service
                 || t.ValueKind != JsonValueKind.String || t.GetString()!.Length > 64)
                 throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "falta 'token' (texto)");
 
-            Plan? plan = _planes.Tomar(t.GetString());
-            // Mismo error para token falso, usado, caducado o de OTRO usuario: no se dan pistas.
-            if (plan is null || (plan.Dueno is not null && contexto.Usuario != plan.Dueno))
+            // Mismo error para token falso, usado, caducado o de OTRO usuario sin aprobacion de un administrador: no se dan pistas.
+            // Si aprueba un administrador distinto del dueno (usuario estandar con UAC), se limpia COMO el dueno.
+            using PlanTomado<Plan>? tomado = _planes.Tomar(t.GetString(), contexto);
+            if (tomado is null)
                 throw new ErrorDeComando(ModuloFirewall.TokenInvalido, "token invalido, ya usado o caducado: hay que previsualizar de nuevo");
+            Plan plan = tomado.Plan;
 
             try
             {
-                ResultadoBorrado r = await contexto.EjecutarAsync(() => plan.Limpiador.EjecutarAsync(plan.Vista, plan.Vista.Token, ct)).ConfigureAwait(false);
+                ResultadoBorrado r = await tomado.Contexto.EjecutarAsync(() => plan.Limpiador.EjecutarAsync(plan.Vista, plan.Vista.Token, ct)).ConfigureAwait(false);
                 return new
                 {
                     eliminados = r.Eliminados,

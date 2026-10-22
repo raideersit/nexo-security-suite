@@ -88,11 +88,13 @@ namespace Nexo.Service
                 {
                     // Primero la identidad y despues el token: si no se puede actuar como el llamador, el token NO se
                     // gasta y puede reintentar desde una conexion con suplantacion.
-                    AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
+                    AccesoComoLlamador.Requerir();
                     _politica.Exigir(ContextoDeLlamada.Actual);
-                    Plan plan = Tomar(p, "poner");
-                    // El original se lee y se retira CON LA IDENTIDAD DEL LLAMADOR: solo lo que el podria leer y borrar.
-                    ResultadoCuarentena r = await _almacen.AplicarAsync(plan.Poner!, plan.Poner!.Token, ct, acceso).ConfigureAwait(false);
+                    // El original se lee y se retira CON LA IDENTIDAD DEL DUENO DEL PLAN (el llamador, o el usuario estandar cuyo
+                    // plan aprobo un administrador): solo lo que el podria leer y borrar.
+                    using PlanTomado<Plan> tomado = Tomar(p, "poner");
+                    Plan plan = tomado.Plan;
+                    ResultadoCuarentena r = await _almacen.AplicarAsync(plan.Poner!, plan.Poner!.Token, ct, new AccesoComoLlamador(tomado.Contexto)).ConfigureAwait(false);
                     return new
                     {
                         movidos = r.Movidos.Select(e => new { id = e.Id, ruta_original = e.RutaOriginal }).ToList(),
@@ -102,18 +104,20 @@ namespace Nexo.Service
 
                 case "cuarentena.restaurar":
                 {
-                    AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
+                    AccesoComoLlamador.Requerir();
                     _politica.Exigir(ContextoDeLlamada.Actual);
-                    Plan plan = Tomar(p, "restaurar");
-                    // Se escribe en la ruta original CON LA IDENTIDAD DEL LLAMADOR: no donde el no podria escribir.
-                    ResultadoRestauracion r = await _almacen.RestaurarAsync(plan.Restaurar!.Id, destino: null, ct, acceso).ConfigureAwait(false);
+                    // Se escribe en la ruta original CON LA IDENTIDAD DEL DUENO DEL PLAN: no donde el no podria escribir.
+                    using PlanTomado<Plan> tomado = Tomar(p, "restaurar");
+                    Plan plan = tomado.Plan;
+                    ResultadoRestauracion r = await _almacen.RestaurarAsync(plan.Restaurar!.Id, destino: null, ct, new AccesoComoLlamador(tomado.Contexto)).ConfigureAwait(false);
                     return new { exito = r.Exito, ruta = r.Ruta, motivo = r.Motivo };
                 }
 
                 case "cuarentena.purgar":
                 {
                     _politica.Exigir(ContextoDeLlamada.Actual);
-                    Plan plan = Tomar(p, "purgar");
+                    using PlanTomado<Plan> tomado = Tomar(p, "purgar");
+                    Plan plan = tomado.Plan;
                     ResultadoPurga r = await _almacen.AplicarPurgaAsync(plan.Purgar!, plan.Purgar!.Token, ct).ConfigureAwait(false);
                     return new { purgados = r.Purgados.Count, omitidos = r.Omitidos };
                 }
@@ -179,21 +183,24 @@ namespace Nexo.Service
             DateTimeOffset? expira = null;
             if (plan is not null)
             {
-                (string t, DateTimeOffset x) = _planes.Guardar(plan);
+                (string t, DateTimeOffset x) = _planes.Guardar(plan, plan.Tipo == "purgar" ? null : ContextoDeLlamada.Actual);
                 token = t;
                 expira = x;
             }
             return new { descripcion, hay_cambios = hayCambios, elementos, avisos, token, expira };
         }
 
-        private Plan Tomar(JsonElement? p, string tipoEsperado)
+        private PlanTomado<Plan> Tomar(JsonElement? p, string tipoEsperado)
         {
             string? token = Cadena(Objeto(p), "token", 64);
-            Plan? plan = _planes.Tomar(token);
-            // Un token de otra accion se trata igual que uno falso (y queda consumido).
-            if (plan is null || plan.Tipo != tipoEsperado)
+            PlanTomado<Plan>? tomado = _planes.Tomar(token, ContextoDeLlamada.Actual);
+            // Un token de otra accion, o de otro usuario sin aprobacion de un administrador, se trata igual que uno falso (y queda consumido).
+            if (tomado is null || tomado.Plan.Tipo != tipoEsperado)
+            {
+                tomado?.Dispose();
                 throw new ErrorDeComando(ModuloFirewall.TokenInvalido, "token invalido, ya usado o caducado: hay que previsualizar de nuevo");
-            return plan;
+            }
+            return tomado;
         }
 
         private static JsonElement Objeto(JsonElement? p)
