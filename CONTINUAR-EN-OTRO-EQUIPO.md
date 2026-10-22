@@ -543,6 +543,14 @@ credenciales de **otro** usuario, cuyo SID no es el del dueño del plan, así qu
   **este mismo ejecutable elevado** (`--aplicar <tipo> <token>`, aviso de UAC) con el **mismo token**.
   El token se valida (64 hexadecimales) antes de ir a la línea de comandos. El token es visible en la
   línea de comandos para otros procesos del usuario; no les sirve sin elevación.
+- **Solo eleva desde una ubicación que el usuario no pueda modificar** (`UbicacionSegura`): la bandeja se
+  relanza elevada a sí misma, y si un proceso normal pudiera sustituir ese `.exe`, el aviso de UAC diría
+  «Nexo» y ejecutaría con permisos de administrador lo que otro hubiera puesto. Se niega si el archivo o su
+  carpeta permiten escribir, borrar o cambiar permisos al usuario o a sus grupos (salvo Administradores,
+  SYSTEM y TrustedInstaller), y si no puede comprobarlo asume que **no** es seguro. Consecuencia: ejecutada
+  desde la carpeta de compilación (del usuario) **no puede aprobar**; hay que instalarla en Program Files. El
+  instalador aplica la misma regla. Probado: un `.exe` del usuario no es seguro, uno de System32 o de
+  Program Files sí, y el lanzador se niega sin abrir ningún UAC.
 - **Una sola bandeja** (mutex); `--una-vez --salida f.json` hace una consulta y escribe el estado (lo
   usa el arnés para comprobar el cableado real).
 
@@ -559,7 +567,9 @@ sin duplicarse. Se rompió a propósito la comprobación de aprobación y falló
 - **El camino elevado de verdad:** aceptar el UAC, que el proceso elevado se conecte (su token sigue
   siendo del mismo usuario) y aplique, y que muestre el resultado. Los arneses usan un lanzador falso.
   Si se ejecutan **como administrador** cubren la rama «elevado aplica directamente».
-- **Arranque con Windows:** no hay entrada de inicio automático para `nexo-tray.exe` ni se instala.
+- **El instalador con `-Bandeja`:** `nexo-service.ps1 -Bandeja <nexo-tray.exe>` registra la bandeja en
+  `HKLM\...\Run` (arranca con cada usuario) y quita la entrada al desinstalar. Solo se ha comprobado su
+  **sintaxis**; nunca se ha ejecutado. También crea y restringe `%ProgramData%\Nexo` (vault y cuarentena).
 
 ---
 
