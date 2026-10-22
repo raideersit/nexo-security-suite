@@ -112,73 +112,104 @@ namespace Nexo.Modules.Cleanup.Junk
             List<string> omitidas,
             CancellationToken ct)
         {
-            IEnumerable<string> archivos;
-            try
+            // Recorrido propio, carpeta a carpeta, y no EnumerationOptions con
+            // RecurseSubdirectories: ese enumerador lanza al tropezar con una
+            // subcarpeta sin permisos y no puede reanudarse, asi que un solo
+            // directorio inaccesible en %TEMP% dejaba la regla entera en 0
+            // archivos. Aqui cada carpeta falla por separado, se anota como
+            // omitida (no se presenta como "limpia") y el resto sigue.
+            //
+            // No se entra en uniones ni enlaces de carpeta (ReparsePoint): pueden
+            // apuntar fuera de la raiz.
+            var opcionesArchivos = new EnumerationOptions
             {
+                RecurseSubdirectories = false,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = false,
+                MatchType = MatchType.Win32
+            };
+            var opcionesCarpetas = new EnumerationOptions
+            {
+                RecurseSubdirectories = false,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = false
+            };
+
+            var pendientes = new Stack<string>();
+            pendientes.Push(carpeta);
+
+            while (pendientes.Count > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                string actual = pendientes.Pop();
+
+                if (regla.Recursivo)
+                {
+                    try
+                    {
+                        foreach (string sub in Directory.EnumerateDirectories(actual, "*", opcionesCarpetas))
+                            pendientes.Push(sub);
+                    }
+                    catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
+                    {
+                        omitidas.Add(actual + " — subcarpetas no leidas: " + ex.GetType().Name);
+                    }
+                }
+
                 // EnumerateFiles y no GetFiles: una carpeta Temp puede tener
                 // cientos de miles de entradas y materializar el array entero
                 // duplica la memoria sin ganar nada.
-                //
-                // AttributesToSkip = ReparsePoint: no se entra en uniones ni
-                // enlaces de carpeta, que pueden apuntar fuera de la raiz. El resto
-                // de opciones replica el comportamiento de la sobrecarga con
-                // SearchOption (que no ignora ni oculta ni inaccesible).
-                var opciones = new EnumerationOptions
-                {
-                    RecurseSubdirectories = regla.Recursivo,
-                    AttributesToSkip = FileAttributes.ReparsePoint,
-                    IgnoreInaccessible = false,
-                    MatchType = MatchType.Win32
-                };
-                archivos = Directory.EnumerateFiles(carpeta, regla.Patron, opciones);
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
-            {
-                omitidas.Add(carpeta + " — " + ex.GetType().Name);
-                return;
-            }
-
-            // El enumerador tambien lanza a mitad de recorrido si tropieza con una
-            // subcarpeta sin permisos, asi que hay que envolver el propio MoveNext.
-            using IEnumerator<string> it = archivos.GetEnumerator();
-            while (true)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                string archivo;
+                IEnumerator<string> it;
                 try
                 {
-                    if (!it.MoveNext()) break;
-                    archivo = it.Current;
+                    it = Directory.EnumerateFiles(actual, regla.Patron, opcionesArchivos).GetEnumerator();
                 }
-                catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
+                catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                 {
-                    omitidas.Add(carpeta + " — recorrido interrumpido: " + ex.GetType().Name);
-                    break;
-                }
-
-                if (Excluido(archivo, regla)) continue;
-
-                ResultadoValidacion v = guardia.Validar(archivo, ahora);
-                if (!v.Aceptada)
-                {
-                    // Los rechazos rutinarios no ensucian el informe.
-                    if (v.Motivo != MotivoRechazo.DemasiadoReciente && v.Motivo != MotivoRechazo.NoExiste)
-                        omitidas.Add(v.RutaCanonica + " — " + v.Motivo);
+                    omitidas.Add(actual + " — " + (actual == carpeta ? "" : "carpeta omitida: ") + ex.GetType().Name);
                     continue;
                 }
 
-                try
+                using IEnumerator<string> _ = it;
+                while (true)
                 {
-                    var info = new FileInfo(v.RutaCanonica);
-                    elementos.Add(new ElementoLimpiable(
-                        v.RutaCanonica, info.Length,
-                        new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
-                        regla.Id, regla.Categoria));
-                }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-                {
-                    omitidas.Add(archivo + " — " + ex.GetType().Name);
+                    ct.ThrowIfCancellationRequested();
+
+                    string archivo;
+                    try
+                    {
+                        if (!it.MoveNext()) break;
+                        archivo = it.Current;
+                    }
+                    catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
+                    {
+                        omitidas.Add(actual + " — " + (actual == carpeta ? "" : "carpeta omitida: ") + ex.GetType().Name);
+                        break;
+                    }
+
+                    if (Excluido(archivo, regla)) continue;
+
+                    ResultadoValidacion v = guardia.Validar(archivo, ahora);
+                    if (!v.Aceptada)
+                    {
+                        // Los rechazos rutinarios no ensucian el informe.
+                        if (v.Motivo != MotivoRechazo.DemasiadoReciente && v.Motivo != MotivoRechazo.NoExiste)
+                            omitidas.Add(v.RutaCanonica + " — " + v.Motivo);
+                        continue;
+                    }
+
+                    try
+                    {
+                        var info = new FileInfo(v.RutaCanonica);
+                        elementos.Add(new ElementoLimpiable(
+                            v.RutaCanonica, info.Length,
+                            new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
+                            regla.Id, regla.Categoria));
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                    {
+                        omitidas.Add(archivo + " — " + ex.GetType().Name);
+                    }
                 }
             }
         }

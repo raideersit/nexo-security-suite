@@ -61,6 +61,7 @@ namespace Nexo.Cleanup.Demo
 
             await ProbarGuardia(corpus).ConfigureAwait(false);
             await ProbarLimpieza(corpus, reportes).ConfigureAwait(false);
+            await ProbarCarpetaInaccesible(corpus, reportes).ConfigureAwait(false);
             await ProbarDuplicados(corpus, reportes).ConfigureAwait(false);
             await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
             await ProbarInicio().ConfigureAwait(false);
@@ -353,6 +354,88 @@ namespace Nexo.Cleanup.Demo
                   "TRAMPA: secreto.txt sigue intacto");
 
             Console.WriteLine();
+        }
+
+        // ============================================================
+        //  2b. UNA CARPETA SIN PERMISOS NO ABORTA LA REGLA
+        // ============================================================
+        // Hallazgo real (VM, 2026-10-21): un solo directorio inaccesible en
+        // %TEMP% detenia el recorrido completo y la regla acababa con 0 archivos.
+        private static async Task ProbarCarpetaInaccesible(string corpus, IReportWriter reportes)
+        {
+            Console.WriteLine("2b. Limpieza: una carpeta sin permisos se omite y el resto sigue");
+
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine("  [AVISO] Prueba de ACL solo en Windows; no ejecutada.");
+                Console.WriteLine();
+                return;
+            }
+
+            string temp = Path.Combine(corpus, "temp");
+            string bloqueada = Path.Combine(temp, "aaa-bloqueada");
+            string usuario = Environment.UserDomainName + "\\" + Environment.UserName;
+
+            Escribir(temp, "aaa-bloqueada/x.tmp", Patron('Z', 2048));
+            Escribir(temp, "zzz-libre/y.tmp", Patron('Y', 2048));
+            Escribir(temp, "w.tmp", Patron('W', 2048));
+
+            try
+            {
+                if (!EjecutarIcacls($"\"{bloqueada}\" /deny \"{usuario}\":(OI)(CI)(RD,RX)"))
+                {
+                    Console.WriteLine("  [AVISO] No se pudo aplicar el ACL de denegacion; prueba no ejecutada.");
+                    return;
+                }
+
+                bool inaccesible = false;
+                try { _ = Directory.GetFiles(bloqueada); }
+                catch (UnauthorizedAccessException) { inaccesible = true; }
+                if (!inaccesible)
+                {
+                    Console.WriteLine("  [AVISO] La carpeta sigue siendo legible con este token; prueba no ejecutada.");
+                    return;
+                }
+
+                var limpiador = new LimpiadorDeBasura(
+                    CatalogoDeRutas.Predeterminado(), ResolutorDeBases.DeCorpus(corpus),
+                    new BorradorReal(), reportes, esAdministrador: false);
+                VistaPreviaLimpieza vista = await limpiador.PrepararVistaPreviaAsync().ConfigureAwait(false);
+
+                Check(vista.Elementos.Any(e => e.Ruta.EndsWith("w.tmp", StringComparison.Ordinal)),
+                      "sigue encontrando archivos de la carpeta raiz");
+                Check(vista.Elementos.Any(e => e.Ruta.EndsWith("y.tmp", StringComparison.Ordinal)),
+                      "sigue encontrando archivos de carpetas posteriores a la bloqueada");
+                Check(vista.RutasOmitidas.Any(r => r.Contains("aaa-bloqueada", StringComparison.Ordinal)),
+                      "la carpeta sin permisos queda anotada como omitida (no como limpia)");
+                Check(vista.RutasOmitidas.All(r => !r.Contains("recorrido interrumpido", StringComparison.Ordinal)),
+                      "ya no se interrumpe el recorrido completo");
+            }
+            finally
+            {
+                EjecutarIcacls($"\"{bloqueada}\" /remove:d \"{usuario}\"");
+            }
+
+            Console.WriteLine();
+        }
+
+        private static bool EjecutarIcacls(string argumentos)
+        {
+            try
+            {
+                using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("icacls", argumentos)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                })!;
+                p.StandardOutput.ReadToEnd();
+                p.StandardError.ReadToEnd();
+                p.WaitForExit();
+                return p.ExitCode == 0;
+            }
+            catch (System.ComponentModel.Win32Exception) { return false; }
         }
 
         // ============================================================

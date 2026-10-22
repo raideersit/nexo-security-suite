@@ -27,13 +27,13 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**134 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
-traspaso; +7 del historial de S.M.A.R.T., 2026-10-17):
+**138 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible, 2026-10-21):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
-| `tools/Nexo.Cleanup.Demo` | 92 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
+| `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
 
 **Implementado esta sesión** (además de lo que ya estaba):
@@ -129,6 +129,73 @@ prueba real: un documento o una DLL «de sistema» dentro de `Temp` no se tocan.
    Lo que **no** se arregla desde el programa: Windows PowerShell 5.1 decodifica
    la salida redirigida (`*> archivo`) con su propia página de códigos. Antes de
    redirigir, ejecuta `[Console]::OutputEncoding = [Text.Encoding]::UTF8`.
+
+---
+
+## 2c. Las pruebas destructivas por fin corrieron (2026-10-21)
+
+El trabajo que necesitaba una VM se hizo en un **tercer equipo**: un **Acer Nitro
+AN515-57** (Windows 11 Home, 15.8 GB de RAM, NVMe). Es el primero de los tres que
+cumple §3.2: los otros no podían (HP Pavilion con la BIOS inaccesible, Lenovo 81F4
+con solo 4 GB). Con esto se cierra el milestone de §3.3.
+
+**Montaje** (todo bajo `C:\VMs`): VirtualBox 7.2.22; VM **`NexoVM`** con Windows 10
+22H2 Home, 4 GB, 2 núcleos, disco de 40 GB, NAT; usuario **`nexo`** / **`nexo`**;
+snapshot **`limpia`** tomado tras instalar. El ISO de Windows y el SDK de .NET se
+descargaron **en el equipo anfitrión** y se pasaron a la VM por carpeta compartida:
+la red NAT del invitado se degradaba y colgaba las descargas largas. .NET quedó en
+`C:\Users\nexo\dotnet` (sin administrador, con `dotnet-install`).
+
+> **Si corres el ejecutable `nexo-cleanup.exe` directamente** (no `dotnet run`) con
+> un .NET instalado fuera de `Program Files`, define
+> `DOTNET_ROOT=C:\Users\nexo\dotnet`. Si no, el *apphost* no encuentra `hostfxr.dll`
+> y aborta con «You must install .NET».
+
+**Resultados dentro de la VM** (como usuario normal):
+
+| Prueba | Resultado |
+|---|---|
+| `dotnet build` | 0 errores, 0 advertencias |
+| Los tres arneses | `TODAS LAS VERIFICACIONES PASARON` |
+| `simulado` | 60 archivos de miniaturas sintéticas detectados; no se tocó nada |
+| `papelera` | 60 archivos a la Papelera (su contador pasó de 1 a 61); reversible |
+| **`real`** | 60 borrados de forma **permanente**; la Papelera siguió en 61, confirmando que **no** fueron a ella |
+
+El `DetectorDeVm` informó `innotek GmbH / VirtualBox`, así que el modo `real` se
+aceptó (en un equipo físico se niega, como está probado). El corpus de prueba
+fueron 60 archivos `thumbcache_9*.db` fechados tres días atrás en
+`%LOCALAPPDATA%\Microsoft\Windows\Explorer` (la regla `thumbcache` pide antigüedad
+≥ 1 día; un perfil recién instalado no tiene casi nada que limpiar).
+
+### Hallazgo real de esta sesión (corregido 2026-10-21)
+
+**El recorrido de `%TEMP%` se aborta entero ante un archivo sin permisos.** Con la
+regla `temp-usuario`, un único archivo que lanza `UnauthorizedAccessException`
+detiene la caminata de **toda** la carpeta (la vista previa lo registra como
+`%LOCALAPPDATA%\Temp — recorrido interrumpido: UnauthorizedAccessException`) y esa
+regla acaba con 0 archivos. Debería **omitir ese archivo y seguir**, como ya hace
+con los bloqueados. Anotado antes de tocar, según la convención de §5.
+
+**Causa y arreglo:** `EnumerationOptions` con `RecurseSubdirectories` lanza al llegar a
+una subcarpeta sin permisos y el enumerador no puede reanudarse. `RecorrerCarpeta`
+(`Junk/LimpiadorDeBasura.cs`) ahora recorre carpeta a carpeta, cada una con su propio
+`try`: la inaccesible queda en `RutasOmitidas` («carpeta omitida») y el resto sigue.
+Prueba de regresión `2b` en `Nexo.Cleanup.Demo` (carpeta con ACL de denegación vía
+`icacls`; se limpia en `finally`; solo Windows). Pendiente: repetirlo en la VM.
+
+### Notas de automatización (por si hay que repetirlo headless)
+
+- El servicio de *guestcontrol* de VirtualBox **se traba a menudo** bajo presión de
+  memoria del anfitrión (`Error starting guest session (current status is:
+  starting)` / `VERR_TIMEOUT`), sobre todo con salida larga por streaming. Se
+  destraba con `VBoxManage controlvm NexoVM reset`; lo ya extraído a disco (SDK,
+  logs) sobrevive al reinicio.
+- Los procesos lanzados por *guestcontrol* corren en una **sesión aislada, no en el
+  escritorio visible**. Para una consola interactiva de verdad (necesaria porque el
+  limpiador **rechaza la entrada redirigida** a propósito, `Console.IsInputRedirected`)
+  se usó una **tarea programada interactiva** (`schtasks /it`) y la confirmación
+  `BORRAR` se escribió por **inyección de teclado** desde el anfitrión
+  (`VBoxManage controlvm NexoVM keyboardputstring` + `keyboardputscancode 1c 9c`).
 
 ---
 
