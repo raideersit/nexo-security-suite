@@ -33,6 +33,7 @@ namespace Nexo.Tray.Demo
             try
             {
                 ProbarModelo();
+                ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);
             }
             finally
@@ -119,10 +120,56 @@ namespace Nexo.Tray.Demo
         }
 
         // ============================================================
+        private static void ProbarUbicacionSegura(string raiz)
+        {
+            Console.WriteLine("1b. Solo se eleva desde una ubicacion que el usuario no pueda modificar");
+
+            string propia = Path.Combine(raiz, "bandeja");
+            Directory.CreateDirectory(propia);
+            string exePropio = Path.Combine(propia, "nexo-tray.exe");
+            File.WriteAllBytes(exePropio, new byte[] { 0x4D, 0x5A });
+
+            Check(!UbicacionSegura.EsSegura(exePropio, out string m1) && m1.Length > 0,
+                  "un .exe en una carpeta del usuario NO es seguro (el usuario, o un proceso suyo, lo puede reemplazar)", m1);
+
+            string sistema = Path.Combine(Environment.SystemDirectory, "notepad.exe");
+            if (File.Exists(sistema))
+                Check(UbicacionSegura.EsSegura(sistema, out string m2), "un ejecutable de System32 si es seguro (solo lo modifican Administradores/SYSTEM)", m2);
+
+            string? pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string? algo = Directory.Exists(pf)
+                ? Directory.EnumerateFiles(pf, "*.exe", new EnumerationOptions
+                    { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }).FirstOrDefault()
+                : null;
+            if (algo is not null)
+                Check(UbicacionSegura.EsSegura(algo, out string m3), "y uno bajo Program Files tambien", m3 + " " + algo);
+
+            Check(!UbicacionSegura.EsSegura(Path.Combine(propia, "no-existe.exe"), out string m4) && m4.Contains("no se pudo comprobar"),
+                  "si no se puede comprobar, se asume que NO es seguro", m4);
+
+            // Escribir en la carpeta es lo que importa aunque el .exe fuera solo de lectura.
+            File.SetAttributes(exePropio, FileAttributes.ReadOnly);
+            Check(!UbicacionSegura.EsSegura(exePropio, out _), "marcar el archivo como solo lectura no lo hace seguro: la carpeta sigue siendo del usuario");
+            File.SetAttributes(exePropio, FileAttributes.Normal);
+
+            // El lanzador real se NIEGA a elevar desde una ubicacion insegura, sin abrir ningun UAC.
+            var real = new Nexo.Ui.Tray.LanzadorElevado("pipe-de-prueba", exePropio);
+            bool lanzo = real.Lanzar(TipoDeAccion.Cuarentena, new string('a', 64));
+            Check(!lanzo && real.UltimoMotivo is not null && real.UltimoMotivo.Contains("ubicacion que el usuario puede modificar"),
+                  "el lanzador elevado se niega desde una ubicacion que el usuario puede modificar (sin mostrar ningun UAC)", real.UltimoMotivo);
+            Check(!new Nexo.Ui.Tray.LanzadorElevado("p", exePropio).Lanzar(TipoDeAccion.Cuarentena, "no-valido")
+                  && new Nexo.Ui.Tray.LanzadorElevado("p", exePropio).UltimoMotivo is null,
+                  "y un token mal formado se rechaza antes de mirar nada");
+
+            Console.WriteLine();
+        }
+
+        // ============================================================
         private sealed class LanzadorFalso : ILanzadorElevado
         {
             public readonly List<(TipoDeAccion, string)> Llamadas = new();
             public bool Resultado = true;
+            public string? UltimoMotivo { get; set; }
             public bool Lanzar(TipoDeAccion tipo, string token) { Llamadas.Add((tipo, token)); return Resultado; }
         }
 

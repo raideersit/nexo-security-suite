@@ -30,8 +30,11 @@ namespace Nexo.Ui.Tray.Nucleo
     /// <summary>Quien abre el proceso elevado que aplica un plan. Se abstrae para probar sin mostrar un aviso de UAC.</summary>
     public interface ILanzadorElevado
     {
-        /// <returns>false si el usuario no acepto el UAC o no se pudo lanzar.</returns>
+        /// <returns>false si el usuario no acepto el UAC o no se pudo lanzar (el motivo, en <see cref="UltimoMotivo"/>).</returns>
         bool Lanzar(TipoDeAccion tipo, string token);
+
+        /// <summary>Por que no se lanzo la ultima vez (null si se lanzo).</summary>
+        string? UltimoMotivo { get; }
     }
 
     /// <summary>
@@ -143,7 +146,8 @@ namespace Nexo.Ui.Tray.Nucleo
             bool lanzado = lanzador.Lanzar(tipo, token);
             return lanzado
                 ? new ResultadoDeAplicar(true, true, "Se abrio el aviso de aprobacion (UAC). El resultado lo muestra el proceso elevado.")
-                : new ResultadoDeAplicar(false, true, "No se aprobo: el aviso de UAC se cancelo o no se pudo abrir. No se ha cambiado nada.");
+                : new ResultadoDeAplicar(false, true, "No se aprobo: " + (lanzador.UltimoMotivo ?? "el aviso de UAC se cancelo o no se pudo abrir") +
+                                                      ". No se ha cambiado nada."); 
         }
     }
 }
