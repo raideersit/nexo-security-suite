@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**567 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**615 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio y +34 de la limpieza, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +33 de la bandeja, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -40,8 +40,9 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 143 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
+| `tools/Nexo.Service.Demo` | 158 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
 | `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
+| `tools/Nexo.Tray.Demo` | 33 | Bandeja: modelo de estados sin pantalla, consulta y acciones contra el servicio real, y el ejecutable arrancando de verdad (solo Windows) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -395,7 +396,7 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   llegar a hacer (no bloquea procesos del sistema ni Defender, solo toca reglas del grupo
   «Nexo Security Suite», todo es reversible y queda en una nota), no el token. Impedirlo
   de verdad exigiría una aprobación fuera de banda (p. ej. un aviso UAC o una ventana del
-  servicio), que no existe todavía.
+  servicio): ya existe, ver §2i (aplicar exige UAC por omision).
 - El script de instalación se niega si la carpeta del `.exe` admite escritura a usuarios
   normales (sería una escalada a SYSTEM) y restringe el vault a SYSTEM y Administradores.
 
@@ -406,7 +407,7 @@ Release -o "C:\Program Files\Nexo\service"` y `nexo-service.ps1 -Accion instalar
 
 **Huecos conocidos:** la limpieza aún no está cargada en el servicio; el escaneo se probó
 con un motor falso por DI (no con `clamd` real); `IModuloDelServicio` es una versión mínima de `INexoModule` (sin
-`StartAsync`/`StopAsync` ni `EventBus`); sin bandeja (`Nexo.Ui.Tray`); el camino de
+`StartAsync`/`StopAsync` ni `EventBus`); el camino de
 aplicar **como administrador** solo está probado contra un almacén en memoria (el arnés
 corre sin elevar); y el vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
 herramientas de consola usan `%LOCALAPPDATA%\Nexo\Vault`.
@@ -510,6 +511,55 @@ el triturador, los duplicados, el inicio ni S.M.A.R.T.
   `reversible` en cada respuesta).
 - **Que actuar «como el llamador» difiera de actuar como el servicio** (los arneses corren los dos
   con el mismo usuario), y el perfil por SID en un equipo con varios usuarios o con perfil en red.
+
+---
+
+## 2i. Bandeja y aprobación fuera de banda (2026-10-22)
+
+**Aprobación con UAC (`PoliticaDeAprobacion`, `Nexo:Aprobacion:Modo`).** Cierra el límite del token
+(que no prueba que una *persona* aprobó): con el modo `elevada` —**el de por omisión**; una errata
+en la configuración también cuenta como `elevada`— *aplicar* (firewall, cuarentena, restauración,
+purga, limpieza) exige que el llamador tenga un **token elevado**, es decir, que alguien aceptó un
+aviso de UAC, que sale en el escritorio seguro y un proceso normal del usuario no puede pulsar ni
+simular. Previsualizar y leer no lo piden. Se comprueba **antes** de gastar el token, así que el plan
+sigue vigente. `ninguna` es una decisión explícita y deja un aviso en la nota de arranque.
+Límites: no protege frente a un proceso que ya esté elevado; y con un usuario *estándar* UAC pide las
+credenciales de **otro** usuario, cuyo SID no es el del dueño del plan, así que el plan se rechaza
+(para esos usuarios hace falta otro diseño).
+
+**Bandeja (`Nexo.Ui.Tray`, `nexo-tray.exe`, WinForms `NotifyIcon`).**
+
+- **Núcleo sin pantalla** (`Nucleo/`): `ConsultorDelServicio` (solo lectura: ping, estado y
+  detecciones del tiempo real), `ModeloDeBandeja` (máquina de estados), `AccionesDelServicio`
+  (previsualizar y aplicar). El icono y los diálogos son una capa fina encima.
+- **Estados:** gris *desconectado*; verde *normal*; ámbar *atención* (tiempo real apagado, motor caído,
+  cobertura incompleta, o detecciones revisadas pero sin resolver); rojo *alerta* (detecciones sin
+  revisar). **Nunca dice «todo en orden» si no lo sabe.** Una detección manda sobre cualquier otra
+  cosa; cada detección se notifica **una sola vez** (la misma ruta con otro contenido es otra).
+- **Menú:** estado; revisar detecciones (lista, y si el usuario acepta prepara el plan de cuarentena);
+  limpiar archivos basura; salir. Un aviso de globo por cada detección nueva.
+- **Muestra el plan que preparó el servicio**, no uno propio: el plan y su token viven en el servicio.
+  Al aplicar, prueba por el camino normal; si el servicio contesta «hace falta aprobación», abre
+  **este mismo ejecutable elevado** (`--aplicar <tipo> <token>`, aviso de UAC) con el **mismo token**.
+  El token se valida (64 hexadecimales) antes de ir a la línea de comandos. El token es visible en la
+  línea de comandos para otros procesos del usuario; no les sirve sin elevación.
+- **Una sola bandeja** (mutex); `--una-vez --salida f.json` hace una consulta y escribe el estado (lo
+  usa el arnés para comprobar el cableado real).
+
+**Probado** (`Nexo.Tray.Demo`, 33): el modelo, la consulta contra el servicio real en cada estado
+(sin servicio, tiempo real apagado, encendido, con una amenaza), el plan viniendo del servicio, que sin
+elevar el servicio pide aprobación y la bandeja lo distingue de un fallo, que abre el proceso elevado con
+el mismo token y que si se cancela el UAC no cambia nada, y el ejecutable arrancando, quedándose vivo y
+sin duplicarse. Se rompió a propósito la comprobación de aprobación y falló la prueba.
+
+**SIN PROBAR:**
+
+- **La parte visual:** el icono, el menú, los diálogos y los avisos de globo **nunca los ha visto una
+  persona** (los arneses no tienen pantalla). Revisar a mano que se ven y se entienden.
+- **El camino elevado de verdad:** aceptar el UAC, que el proceso elevado se conecte (su token sigue
+  siendo del mismo usuario) y aplique, y que muestre el resultado. Los arneses usan un lanzador falso.
+  Si se ejecutan **como administrador** cubren la rama «elevado aplica directamente».
+- **Arranque con Windows:** no hay entrada de inicio automático para `nexo-tray.exe` ni se instala.
 
 ---
 

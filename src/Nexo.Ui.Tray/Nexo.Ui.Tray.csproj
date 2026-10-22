@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Bandeja del sistema (Salida 0). WinForms y no WPF: NotifyIcon es lo unico que hace falta y no
+         trae dependencias; la logica vive en Nucleo/ (sin interfaz) para poder probarla. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Ui.Tray</RootNamespace>
+    <AssemblyName>nexo-tray</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>
