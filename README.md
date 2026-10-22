@@ -38,9 +38,9 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**309 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**314 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
-(registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 61
+(registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 66
 portables del firewall y 28 contra el Firewall de Windows real (como
 administrador; 9 sin serlo) y 82 del escáner y la cuarentena. Como administrador se cubren además la escritura
 en `HKLM` y los enlaces simbólicos de archivo.
@@ -95,7 +95,7 @@ dotnet run --project tools/Nexo.Cleanup.Demo
 dotnet run --project tools/Nexo.Cleanup.Windows.Demo
 
 # Firewall por aplicación y modo sigiloso, contra un almacén en memoria
-# (61 comprobaciones; no toca el Firewall de Windows)
+# (66 comprobaciones; no toca el Firewall de Windows)
 dotnet run --project tools/Nexo.Firewall.Demo
 
 # Solo Windows: el mismo flujo contra el Firewall de Windows REAL. Sin

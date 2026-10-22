@@ -27,16 +27,16 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**309 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**314 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas y +6 del escaneo en paralelo, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas +6 del escaneo en paralelo y +5 de la lista de protegidos, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
 | `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
-| `tools/Nexo.Firewall.Demo` | 61 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
+| `tools/Nexo.Firewall.Demo` | 66 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 
@@ -213,7 +213,7 @@ en **modo usuario y sin driver**: `INetFwPolicy2` por COM.
   no cambia nada; aplicar solo ejecuta ese plan exacto y reverifica cada cambio
   contra el estado real (TOCTOU).
 - `Nexo.Modules.Threats.Windows`: `AlmacenDeFirewallWindows` (COM de enlace tardío).
-- `tools/Nexo.Firewall.Demo` (61), `tools/Nexo.Firewall.Windows.Demo` (28 como
+- `tools/Nexo.Firewall.Demo` (66), `tools/Nexo.Firewall.Windows.Demo` (28 como
   administrador) y `tools/Nexo.Firewall.Run` (`nexo-firewall`).
 - Eventos nuevos en `Nexo.Reports`: `regla-firewall` y `modo-sigiloso`.
 
@@ -247,7 +247,7 @@ y no pasa por el filtro; hace falta otro equipo de la red.
   exige activar la auditoría de WFP): `Eventos.Amenazas.Firewall` existe pero
   nadie lo emite todavía. Hoy solo se reportan los *cambios de configuración*.
 - Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
-- La lista de procesos protegidos es fija en código; no es configurable.
+- ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%Nexoirewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
 - Sin integración en `Nexo.Service` (no existe todavía) ni confirmación desde la UI.
 - ~~`bloquear` no detecta reglas ajenas~~ Hecho (2026-10-22): ahora las **avisa** (misma app y dirección, habilitadas) sin tocarlas ni impedir la creación. No distingue puertos: la regla ajena podría aplicar solo a algunos.
 

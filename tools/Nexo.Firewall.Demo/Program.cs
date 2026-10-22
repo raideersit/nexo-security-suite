@@ -78,6 +78,29 @@ namespace Nexo.Firewall.Demo
             Check(!g.Validar(@"C:\Apps\no-existe.exe", AccionDeRegla.Bloquear).Aceptada, "rechaza un archivo que no existe");
             Check(!g.Validar("", AccionDeRegla.Bloquear).Aceptada && !g.Validar(null, AccionDeRegla.Bloquear).Aceptada,
                   "rechaza ruta vacia o nula");
+
+            // Lista adicional de procesos protegidos: solo suma.
+            string cfg = Path.Combine(Path.GetTempPath(), "nexo-fw-protegidos-" + Guid.NewGuid().ToString("N") + ".txt");
+            try
+            {
+                File.WriteAllLines(cfg, new[] { "# comentario", "", "navegador.exe", "MiAntivirus*", @"C:\malo\x.exe", "a*b", "svchost.exe" });
+                var extra = GuardiaDeReglas.LeerAdicionales(cfg, out var ign);
+                Check(extra.SequenceEqual(new[] { "navegador.exe", "MiAntivirus*", "svchost.exe" }),
+                      "lee la lista adicional: ignora comentarios y lineas vacias");
+                Check(ign.Count == 2, "y rechaza lo que no es un nombre (rutas, '*' en medio)");
+                var gx = new GuardiaDeReglas(existe: presentes.Contains, adicionales: extra);
+                Check(!gx.Validar(App, AccionDeRegla.Bloquear).Aceptada && gx.Validar(App, AccionDeRegla.Permitir).Aceptada,
+                      "un nombre adicional se protege de bloqueo, y permitir sigue valiendo");
+                Check(!gx.Validar(@"C:\Windows\System32\svchost.exe", AccionDeRegla.Bloquear).Aceptada
+                      && !gx.Validar(@"C:\ProgramData\Microsoft\Windows Defender\Platform\4.18\MsMpEng.exe", AccionDeRegla.Bloquear).Aceptada,
+                      "la lista de base no se puede quitar: svchost y Defender siguen protegidos");
+                var sinCfg = GuardiaDeReglas.LeerAdicionales(cfg + ".no-existe", out _);
+                Check(sinCfg.Count == 0
+                      && !new GuardiaDeReglas(existe: presentes.Contains, adicionales: sinCfg)
+                             .Validar(@"C:\Windows\System32\svchost.exe", AccionDeRegla.Bloquear).Aceptada,
+                      "sin archivo de configuracion todo sigue como estaba");
+            }
+            finally { try { File.Delete(cfg); } catch (IOException) { } }
             Check(g.Validar(@"\\servidor\recurso\app.exe", AccionDeRegla.Bloquear).Aceptada, "acepta una ruta UNC");
 
             Check(!g.Validar(@"C:\Windows\System32\svchost.exe", AccionDeRegla.Bloquear).Aceptada,

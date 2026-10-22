@@ -63,10 +63,49 @@ namespace Nexo.Modules.Threats.Firewall
         private readonly IReadOnlyList<string> _protegidos;
         private readonly Func<string, bool> _existe;
 
-        public GuardiaDeReglas(IEnumerable<string>? protegidos = null, Func<string, bool>? existe = null)
+        /// <param name="protegidos">Sustituye la lista por defecto (solo para pruebas).</param>
+        /// <param name="adicionales">
+        /// Nombres extra que el usuario quiere proteger. Se SUMAN a la lista de base: la
+        /// configuracion solo puede ampliar la proteccion, nunca quitar svchost o Defender.
+        /// </param>
+        public GuardiaDeReglas(
+            IEnumerable<string>? protegidos = null, Func<string, bool>? existe = null,
+            IEnumerable<string>? adicionales = null)
         {
-            _protegidos = (protegidos ?? ProtegidosPorDefecto).ToList();
+            _protegidos = (protegidos ?? ProtegidosPorDefecto)
+                .Concat((adicionales ?? Enumerable.Empty<string>()).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()))
+                .ToList();
             _existe = existe ?? File.Exists;
+        }
+
+        private static readonly char[] NoEsNombre = { '\\', '/', '*', '?', ':', '"', '<', '>', '|', '\0' };
+
+        /// <summary>
+        /// Lee la lista adicional: un nombre de ejecutable por linea ('#' comenta; un '*' final
+        /// compara por prefijo). Un nombre con ruta o con '*' en medio se ignora y se devuelve
+        /// en <paramref name="ignoradas"/>: aqui solo se admiten nombres, no rutas. Si el archivo
+        /// no existe o no se puede leer, la lista adicional queda vacia y la de base sigue intacta.
+        /// </summary>
+        public static IReadOnlyList<string> LeerAdicionales(string ruta, out IReadOnlyList<string> ignoradas)
+        {
+            var validas = new List<string>();
+            var malas = new List<string>();
+            ignoradas = malas;
+
+            string[] lineas;
+            try { lineas = File.ReadAllLines(ruta); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return validas; }
+
+            foreach (string cruda in lineas)
+            {
+                string l = cruda.Trim();
+                if (l.Length == 0 || l.StartsWith('#')) continue;
+
+                string cuerpo = l.EndsWith('*') ? l[..^1] : l;
+                if (cuerpo.Length == 0 || cuerpo.IndexOfAny(NoEsNombre) >= 0) malas.Add(l);
+                else validas.Add(l);
+            }
+            return validas;
         }
 
         public bool EstaProtegido(string rutaExe)

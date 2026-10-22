@@ -40,7 +40,14 @@ namespace Nexo.Firewall.Run
 
             using var reportes = new ReportWriter(new VaultOptions { RutaVault = vaultRuta });
             await reportes.InicializarVaultAsync().ConfigureAwait(false);
-            var adm = new AdministradorDeFirewall(new AlmacenDeFirewallWindows(), reportes, admin);
+            // Lista opcional de procesos que ademas NO se deben bloquear. Solo amplia la proteccion.
+            string protegidosRuta = Opcion(args, "--protegidos") ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nexo", "firewall-protegidos.txt");
+            var adicionales = GuardiaDeReglas.LeerAdicionales(protegidosRuta, out var ignoradas);
+            foreach (string i in ignoradas)
+                Console.Error.WriteLine("Aviso: se ignora '" + i + "' en " + protegidosRuta + " (solo nombres de ejecutable).");
+            var adm = new AdministradorDeFirewall(new AlmacenDeFirewallWindows(), reportes, admin,
+                new GuardiaDeReglas(adicionales: adicionales));
 
             string comando = args[0].ToLowerInvariant();
             string? objetivo = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
