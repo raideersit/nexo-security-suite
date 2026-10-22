@@ -166,7 +166,8 @@ namespace Nexo.Ipc
                     using WindowsIdentity id = WindowsIdentity.GetCurrent();
                     bool puede = id.ImpersonationLevel is TokenImpersonationLevel.Impersonation or TokenImpersonationLevel.Delegation;
                     c = new ContextoDeLlamada(id.User, id.ImpersonationLevel,
-                        puede ? new WindowsIdentity(id.AccessToken.DangerousGetHandle()) : null);
+                        puede ? new WindowsIdentity(id.AccessToken.DangerousGetHandle()) : null,
+                        esAdministrador: new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator));
                 });
                 return c ?? new ContextoDeLlamada(null, TokenImpersonationLevel.None, null);
             }

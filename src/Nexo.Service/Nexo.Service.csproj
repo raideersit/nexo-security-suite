@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
     <ProjectReference Include="..\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+    <ProjectReference Include="..\Nexo.Modules.Cleanup.Windows\Nexo.Modules.Cleanup.Windows.csproj" />
     <ProjectReference Include="..\Nexo.Reports\Nexo.Reports.csproj" />
   </ItemGroup>
 

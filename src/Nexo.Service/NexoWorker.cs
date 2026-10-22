@@ -11,6 +11,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nexo.Ipc;
+using Nexo.Modules.Cleanup.Abstractions;
+using Nexo.Modules.Cleanup.Junk;
+using Nexo.Modules.Cleanup.Platform;
+using Nexo.Modules.Cleanup.Windows;
 using Nexo.Modules.Threats.Cuarentena;
 using Nexo.Modules.Threats.Escaner;
 using Nexo.Modules.Threats.Firewall;
@@ -97,10 +101,45 @@ namespace Nexo.Service
 
             if (tiempoReal is null) modulos.Add(new ModuloTiempoRealApagado());
 
+            // Limpieza: se hace con la identidad y el perfil del llamador (ver ModuloLimpieza).
+            string? avisoBorrador = null;
+            modulos.Add(new ModuloLimpieza(
+                _servicios.GetService<CatalogoDeRutas>() ?? CatalogoDeRutas.Predeterminado(),
+                _servicios.GetService<IBorrador>() ?? ResolverBorrador(_config["Nexo:Limpieza:Modo"], out avisoBorrador),
+                reportes,
+                _servicios.GetService<Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?>>()));
+            if (avisoBorrador is not null) AvisosDeArranque.Add(avisoBorrador);
+
             modulos.Add(new ModuloCuarentena(almacenQ, tiempoReal is null
                 ? escaneo
                 : new ResultadosCombinados(escaneo, tiempoReal)));
             return modulos;
+        }
+
+        /// <summary>Avisos que se anotan en la nota de arranque (p. ej. un modo de borrado pedido y no permitido).</summary>
+        internal List<string> AvisosDeArranque { get; } = new List<string>();
+
+        /// <summary>
+        /// Modo de borrado de la limpieza. «papelera» por omision (reversible). «simulado» no borra nada. «real»
+        /// (permanente) SOLO dentro de una maquina virtual y con NEXO_PERMITIR_BORRADO_REAL=1, la misma regla que
+        /// la herramienta de consola: si no se cumple, se usa la Papelera y se avisa.
+        /// </summary>
+        private static IBorrador ResolverBorrador(string? modo, out string? aviso)
+        {
+            aviso = null;
+            switch ((modo ?? "papelera").Trim().ToLowerInvariant())
+            {
+                case "simulado":
+                    return new BorradorSimulado();
+                case "real":
+                    (bool esVm, string equipo) = DetectorDeVm.Detectar();
+                    if (esVm && Environment.GetEnvironmentVariable("NEXO_PERMITIR_BORRADO_REAL") == "1")
+                        return new BorradorReal();
+                    aviso = "Limpieza en modo 'real' pedida pero no permitida (" + (esVm ? "falta NEXO_PERMITIR_BORRADO_REAL=1" : "este equipo no es una VM: " + equipo) + "): se usa la Papelera.";
+                    return new BorradorPapelera();
+                default:
+                    return new BorradorPapelera();
+            }
         }
 
         protected override async Task ExecuteAsync(CancellationToken parada)
@@ -134,6 +173,7 @@ namespace Nexo.Service
                 servidor = null;
             }
 
+            if (AvisosDeArranque.Count > 0) aviso = string.Join(" ", new[] { aviso }.Concat(AvisosDeArranque).Where(x => !string.IsNullOrEmpty(x)));
             await reportes.EscribirAsync(Eventos.Sistema.ServicioIniciado(version, servidor is not null, aviso), parada)
                           .ConfigureAwait(false);
 

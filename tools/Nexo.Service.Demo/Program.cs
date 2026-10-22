@@ -44,6 +44,7 @@ namespace Nexo.Service.Demo
                 ProbarPlanes();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
+                await ProbarLimpiezaPorIpc(Path.Combine(raiz, "vault10"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarIdentidadDelLlamador(Path.Combine(raiz, "vault9"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
@@ -80,6 +81,10 @@ namespace Nexo.Service.Demo
             if (tiempoReal is not null) b.Services.AddSingleton<Nexo.Modules.Threats.TiempoReal.IFuenteDeCambios>(tiempoReal);
             // El firewall REAL no se toca nunca desde el arnes: el servicio recibe un almacen en memoria.
             b.Services.AddSingleton<IAlmacenDeFirewall>(Almacen);
+            // Limpieza: catalogo y carpetas de PRUEBA, y un borrador que solo toca el corpus sintetico.
+            b.Services.AddSingleton(CatalogoDePrueba());
+            b.Services.AddSingleton<Nexo.Modules.Cleanup.Abstractions.IBorrador>(Espia);
+            b.Services.AddSingleton<Func<Nexo.Ipc.ContextoDeLlamada, IReadOnlyDictionary<Nexo.Modules.Cleanup.Junk.BaseDeRuta, string>?>>(BasesDePrueba);
             b.Services.AddSingleton<Nexo.Modules.Threats.Escaner.IMotorDeFirmas>(Motor);
             b.Services.AddHostedService<NexoWorker>();
             b.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(4));
@@ -115,7 +120,7 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 19,
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 22,
                       "estado lista los metodos que expone: los basicos y los del firewall");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })

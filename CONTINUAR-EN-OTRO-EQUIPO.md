@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**533 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**567 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio y +34 de la limpieza, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -40,7 +40,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 109 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
+| `tools/Nexo.Service.Demo` | 143 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
 | `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
@@ -340,7 +340,7 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   negativo cierra la conexión sin reservar memoria), JSON y UTF-8 validados, 16
   conexiones como máximo, cierre por inactividad (30 s), tiempo máximo por petición, y
   una excepción del manejador se devuelve como «error interno» **sin** su mensaje.
-- **Métodos expuestos (19):** `ping`, `estado`; `tiempo-real.estado|detecciones` (solo lectura); `firewall.estado|previsualizar|aplicar`;
+- **Métodos expuestos (22):** `limpieza.reglas|previsualizar|aplicar` (ver §2h); `ping`, `estado`; `tiempo-real.estado|detecciones` (solo lectura); `firewall.estado|previsualizar|aplicar`;
   `escaneo.estado|iniciar|progreso|resultado|cancelar`; y `cuarentena.listar`,
   `previsualizar`/`aplicar`, `previsualizar-restauracion`/`restaurar`,
   `previsualizar-purga`/`purgar`. Ninguna otra acción que borre o cambie el sistema existe
@@ -468,6 +468,48 @@ administrador la fuente se **niega con claridad** y no emite nada.
 **Huecos conocidos:** sin acción automática (solo avisa; poner en cuarentena exige confirmar),
 sin notificación en la bandeja (el evento `Detectado` existe, nadie lo escucha aún), sin
 análisis de comportamiento (ETW), y el diario USN es por volumen: solo NTFS.
+
+---
+
+## 2h. Limpieza en el servicio (2026-10-22)
+
+`Nexo.Service/ModuloLimpieza`: `limpieza.reglas`, `limpieza.previsualizar`, `limpieza.aplicar`.
+Es la limpieza de archivos basura (la de siempre: vista previa + token). **No** expone todavía
+el triturador, los duplicados, el inicio ni S.M.A.R.T.
+
+- **Con la identidad y el perfil del llamador.** El servicio corre como SYSTEM; si limpiara con su
+  cuenta, `%LOCALAPPDATA%` sería el de SYSTEM y borraría otra cosa (o lo que al usuario no le dejan).
+  La vista previa y el borrado corren suplantando al llamador con `RunImpersonatedAsync`
+  (`ContextoDeLlamada.EjecutarAsync`), que **mantiene la suplantación a través de los `await`**
+  (probado: tras un `await` y un cambio de hilo se sigue suplantando). Las carpetas base se sacan
+  del **perfil del SID del llamador** (`PerfilDeUsuario`, lista de perfiles del registro), no del
+  entorno del servicio. Limite: se usan las subcarpetas estándar; no se siguen carpetas redirigidas.
+  Sin identidad utilizable o sin perfil, se rechaza (nunca como SYSTEM).
+- **Las notas se escriben con la identidad del servicio** (`ReportesFueraDeSuplantacion`), no con la
+  del usuario, que no tiene permiso sobre el vault. Está probado que dentro de la suplantación la
+  escritura se hace *sin* suplantar y que luego se vuelve a suplantar.
+- **El cliente elige reglas del catálogo por id, nunca rutas.** Un id desconocido, una ruta, `..`,
+  una lista vacía o de más de 64, o uno enorme se rechazan. Por omisión solo entran las de riesgo
+  bajo; las de riesgo medio/alto solo si se piden por su id. Las que exigen administrador se saltan
+  si el **token del llamador** no lo es (un administrador con UAC y token filtrado cuenta como no
+  administrador) y se informa.
+- **Se borra exactamente lo previsualizado:** el plan vive en el servicio y el cliente solo devuelve
+  un token de un solo uso. Probado: un archivo que aparece después de la vista previa **no** se borra
+  y uno que cambia de tamaño se omite. **Un plan solo lo puede aplicar quien lo previsualizó** (mismo
+  SID); otro usuario recibe el mismo error que con un token falso.
+- **Modo de borrado por configuración** (`Nexo:Limpieza:Modo`), no por el cliente: `papelera` (por
+  omisión, reversible), `simulado`, o `real` **solo** en una VM y con `NEXO_PERMITIR_BORRADO_REAL=1`
+  (la regla de la herramienta de consola); si se pide `real` y no se cumple, usa la Papelera y lo
+  anota en la nota de arranque.
+
+**SIN PROBAR:**
+
+- **La Papelera desde el servicio.** `BorradorPapelera` usa `SHFileOperation` (API del shell); se ha
+  probado en una sesión de usuario, **no** desde un servicio suplantando a un usuario. Si no
+  funcionara, hay que verlo antes de confiar en que el borrado sea reversible (el servicio dice
+  `reversible` en cada respuesta).
+- **Que actuar «como el llamador» difiera de actuar como el servicio** (los arneses corren los dos
+  con el mismo usuario), y el perfil por SID en un equipo con varios usuarios o con perfil en red.
 
 ---
 

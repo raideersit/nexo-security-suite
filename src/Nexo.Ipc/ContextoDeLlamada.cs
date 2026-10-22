@@ -1,6 +1,7 @@
 using System;
 using System.Security.Principal;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexo.Ipc
 {
@@ -22,11 +23,13 @@ namespace Nexo.Ipc
 
         private readonly WindowsIdentity? _identidad;
 
-        public ContextoDeLlamada(SecurityIdentifier? usuario, TokenImpersonationLevel nivel, WindowsIdentity? identidad)
+        public ContextoDeLlamada(SecurityIdentifier? usuario, TokenImpersonationLevel nivel, WindowsIdentity? identidad,
+                                 bool esAdministrador = false)
         {
             Usuario = usuario;
             Nivel = nivel;
             _identidad = identidad;
+            EsAdministrador = esAdministrador;
         }
 
         /// <summary>El contexto de la peticion que se esta atendiendo (null fuera de una peticion).</summary>
@@ -35,6 +38,12 @@ namespace Nexo.Ipc
         internal static void Establecer(ContextoDeLlamada? contexto) => _actual.Value = contexto;
 
         public SecurityIdentifier? Usuario { get; }
+
+        /// <summary>
+        /// Si el token del llamador es de administrador (un administrador con UAC y el token filtrado cuenta como
+        /// NO administrador, igual que para el propio Windows). Lo usa quien decide que reglas necesitan permisos.
+        /// </summary>
+        public bool EsAdministrador { get; }
         public TokenImpersonationLevel Nivel { get; }
 
         /// <summary>True si se pueden usar los permisos del llamador (nivel Impersonation o Delegation y token valido).</summary>
@@ -54,12 +63,30 @@ namespace Nexo.Ipc
         }
 
         /// <summary>
+        /// Como <see cref="Ejecutar{T}"/> pero para una operacion ASINCRONA: la suplantacion se mantiene a traves de
+        /// los <c>await</c> (RunImpersonatedAsync). Util para operaciones largas que mezclan archivos y esperas.
+        /// </summary>
+        public Task<T> EjecutarAsync<T>(Func<Task<T>> operacion)
+        {
+            if (!PuedeActuarComoElLlamador || _identidad is null)
+                throw new InvalidOperationException("No se puede actuar con la identidad del llamador.");
+            return WindowsIdentity.RunImpersonatedAsync(_identidad.AccessToken, operacion);
+        }
+
+        /// <summary>
+        /// Ejecuta algo con la identidad del PROPIO SERVICIO aunque se este dentro de <see cref="EjecutarAsync{T}"/>.
+        /// Para lo que es del servicio y no del usuario (escribir en el vault, que el usuario no puede tocar).
+        /// </summary>
+        public static Task<T> FueraDeSuplantacionAsync<T>(Func<Task<T>> operacion)
+            => WindowsIdentity.RunImpersonatedAsync(Microsoft.Win32.SafeHandles.SafeAccessTokenHandle.InvalidHandle, operacion);
+
+        /// <summary>
         /// Copia independiente, para un trabajo que sigue despues de que la peticion termine (un
         /// escaneo): el contexto original se libera al cerrarse la conexion.
         /// </summary>
         public ContextoDeLlamada Duplicar()
             => new ContextoDeLlamada(Usuario, Nivel,
-                _identidad is null ? null : new WindowsIdentity(_identidad.AccessToken.DangerousGetHandle()));
+                _identidad is null ? null : new WindowsIdentity(_identidad.AccessToken.DangerousGetHandle()), EsAdministrador);
 
         public void Dispose() => _identidad?.Dispose();
     }

@@ -34,17 +34,17 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Cleanup` — triturador, inicio, S.M.A.R.T. | ✅ Implementado; verificado en Windows salvo lo listado abajo |
 | `Nexo.Modules.Threats` — firewall por aplicación y modo sigiloso | ✅ Implementado y verificado contra el Firewall de Windows real |
 | `Nexo.Modules.Threats` — escaneo bajo demanda y cuarentena (clamd) | ✅ Implementado; verificado contra un clamd falso, **sin probar con ClamAV real** |
-| `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio** (`ping`, `estado`, firewall, escaneo y cuarentena; lo que cambia algo lleva vista previa y token) |
+| `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio**. Aloja firewall, escaneo, cuarentena, tiempo real y limpieza (lo que cambia algo lleva vista previa y token) |
 | `Nexo.Modules.Threats` — tiempo real (FileSystemWatcher y diario USN) | ✅ Implementado; **apagado por omisión**; el diario USN probado **como administrador** en el equipo principal (2026-10-22): abre el volumen y entrega un archivo nuevo con su ruta |
 | `Nexo.Modules.Threats` — heurística YARA, anti-ransomware | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**533 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**567 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 66
 portables del firewall y 28 contra el Firewall de Windows real (como
-administrador; 9 sin serlo) y 92 del escáner y la cuarentena, 43 del protocolo IPC, 109 del servicio y 57 del tiempo real. Como administrador se cubren además la escritura
+administrador; 9 sin serlo) y 92 del escáner y la cuarentena, 43 del protocolo IPC, 143 del servicio y 57 del tiempo real. Como administrador se cubren además la escritura
 en `HKLM` y los enlaces simbólicos de archivo.
 
 **Todavía sin verificar:**
@@ -110,7 +110,7 @@ dotnet run --project tools/Nexo.Firewall.Windows.Demo
 dotnet run --project tools/Nexo.Scan.Demo
 
 # Protocolo IPC (named pipe) atacado con clientes buenos y malos: 43 comprobaciones.
-# Y el servicio levantado en el mismo proceso, sin instalarlo (con firewall, motor y fuente de cambios falsos): 109 comprobaciones.
+# Y el servicio levantado en el mismo proceso, sin instalarlo (con firewall, motor y fuente de cambios falsos): 143 comprobaciones.
 dotnet run --project tools/Nexo.Ipc.Demo
 dotnet run --project tools/Nexo.Service.Demo
 
