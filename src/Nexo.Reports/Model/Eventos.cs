@@ -129,6 +129,61 @@ namespace Nexo.Reports.Model
                     .EnlazaA(EntidadRef.Aplicacion(SoloNombre(aplicacion), aplicacion));
             }
 
+            /// <summary>
+            /// Una regla del firewall creada, eliminada o (des)habilitada por Nexo.
+            /// Es el rastro de un cambio de configuracion, distinto del bloqueo de
+            /// una conexion (<see cref="Firewall"/>).
+            /// </summary>
+            public static NexoEvent ReglaFirewall(
+                string cambio,          // "creada" | "eliminada" | "habilitada" | "deshabilitada"
+                string regla,
+                string accion,          // "bloquear" | "permitir"
+                string direccion,       // "entrante" | "saliente"
+                string? aplicacion)
+            {
+                var ev = new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.ReglaFirewall,
+                             "Regla de firewall " + cambio + ": " + regla)
+                {
+                    Severidad = Severidad.Info,
+                    Accion = Accion.Registrada,
+                    Cuerpo = cambio == "creada"
+                        ? "Para revertirlo: `nexo-firewall quitar \"" + regla + "\"` o Firewall de Windows con\n" +
+                          "seguridad avanzada > Reglas > grupo \"Nexo Security Suite\".\n"
+                        : null
+                };
+
+                ev.Con("regla", regla)
+                  .Con("cambio", cambio)
+                  .Con("accion_regla", accion)
+                  .Con("direccion", direccion)
+                  .Con("reversible", true);
+
+                if (!string.IsNullOrWhiteSpace(aplicacion))
+                {
+                    ev.Con("aplicacion", aplicacion)
+                      .EnlazaA(EntidadRef.Aplicacion(SoloNombre(aplicacion!), aplicacion));
+                }
+                return ev;
+            }
+
+            /// <summary>Se activo o desactivo el modo sigiloso.</summary>
+            public static NexoEvent ModoSigiloso(bool activado, int reglas)
+            {
+                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.ModoSigiloso,
+                           activado ? "Modo sigiloso activado" : "Modo sigiloso desactivado")
+                {
+                    Severidad = Severidad.Info,
+                    Accion = Accion.Registrada,
+                    Cuerpo = activado
+                        ? "Se bloquean los Echo Request (ping) entrantes de ICMPv4 e ICMPv6. El resto del\n" +
+                          "trafico entrante no solicitado ya lo descarta en silencio el Firewall de Windows.\n"
+                        : "Se retiraron las reglas de Nexo que bloqueaban el ping entrante.\n"
+                }
+                .Con("activado", activado)
+                .Con("reglas_afectadas", reglas)
+                .Con("reversible", true);
+            }
+
             /// <summary>Resultado de un escaneo bajo demanda o programado.</summary>
             public static NexoEvent Escaneo(
                 string alcance,

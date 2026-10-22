@@ -27,14 +27,17 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**138 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
-traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible, 2026-10-21):
+**222 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
++84 del firewall, 2026-10-21):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
 | `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
+| `tools/Nexo.Firewall.Demo` | 56 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
+| `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -199,6 +202,57 @@ Prueba de regresión `2b` en `Nexo.Cleanup.Demo` (carpeta con ACL de denegación
 
 ---
 
+## 2d. Firewall por aplicación y modo sigiloso (2026-10-21)
+
+Primer entregable del módulo de amenazas (funciones 3 y 3b de la Salida 0), todo
+en **modo usuario y sin driver**: `INetFwPolicy2` por COM.
+
+- `Nexo.Modules.Threats` (portable): `GuardiaDeReglas`, `AdministradorDeFirewall`,
+  `VistaPreviaFirewall` + `TokenDeCambio`. Mismo patrón que el limpiador: planear
+  no cambia nada; aplicar solo ejecuta ese plan exacto y reverifica cada cambio
+  contra el estado real (TOCTOU).
+- `Nexo.Modules.Threats.Windows`: `AlmacenDeFirewallWindows` (COM de enlace tardío).
+- `tools/Nexo.Firewall.Demo` (56), `tools/Nexo.Firewall.Windows.Demo` (28 como
+  administrador) y `tools/Nexo.Firewall.Run` (`nexo-firewall`).
+- Eventos nuevos en `Nexo.Reports`: `regla-firewall` y `modo-sigiloso`.
+
+**Decisiones:**
+
+- **Frontera = el grupo «Nexo Security Suite».** Solo se modifican las reglas con
+  ese grupo *y* el prefijo `Nexo: `. Una regla de Windows, o una impostora con el
+  prefijo pero otro grupo, no se edita ni se borra.
+- **No se bloquea** `svchost`, `lsass`, `services`, `winlogon`, Windows Defender
+  (`MsMpEng`, `NisSrv`, `SecurityHealthService`…) ni `Nexo*`. Permitir sí se
+  acepta. Es la regla «Nexo complementa a Defender» hecha código. (Lo confirmó el
+  propio arnés: mi `.exe` de prueba se llamaba `nexo-fw-demo.exe` y el guardia lo
+  rechazó.)
+- **Modo sigiloso = bloquear el ping entrante** (ICMPv4 tipo 8, ICMPv6 tipo 128).
+  El resto ya lo descarta Windows en silencio. **No** cambia las políticas por
+  defecto ni enciende un firewall apagado: lo **avisa**.
+- Nombres de regla deterministas con sufijo de hash de la ruta: pedir lo mismo
+  dos veces es «ya existe», y dos `chrome.exe` de carpetas distintas no chocan.
+
+**Probado en el equipo principal (HP, administrador):** las reglas se crean, se
+leen de vuelta con un almacén nuevo (ruta exacta, bloquear, 3 perfiles, grupo),
+se quitan y el firewall vuelve exactamente a su número inicial de reglas (744).
+Se niega a quitar una regla real de Windows y a bloquear el `svchost.exe` real.
+
+**No probado:** el ping real. El tráfico hacia la propia máquina va por loopback
+y no pasa por el filtro; hace falta otro equipo de la red.
+
+**Huecos conocidos del firewall (sin hacer):**
+
+- No lee los **bloqueos** efectivos (evento 5157 del registro de Seguridad, que
+  exige activar la auditoría de WFP): `Eventos.Amenazas.Firewall` existe pero
+  nadie lo emite todavía. Hoy solo se reportan los *cambios de configuración*.
+- Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
+- La lista de procesos protegidos es fija en código; no es configurable.
+- Sin integración en `Nexo.Service` (no existe todavía) ni confirmación desde la UI.
+- `bloquear` no detecta una regla ajena equivalente ya existente (p. ej. una de
+  Windows para esa misma app): solo compara por nombre.
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
@@ -333,8 +387,11 @@ El código viaja por git; las máquinas no comparten nada más.
 
 Según el plan recortado:
 
-- Pasar al firewall por aplicación de `Prompt 1 Módulo de protección contra amenazas.md`,
-  que necesita antes la salida del Prompt 0 pegada en su bloque `<arquitectura>`.
+- ~~Pasar al firewall por aplicación de `Prompt 1`~~ Hecho: ver §2d. (No hizo
+  falta pegar la salida del Prompt 0 en el prompt: el contrato de la
+  [[Salida 0 - Arquitectura general del sistema]] se aplicó directamente.)
+- Siguiente en el orden de la Salida 0 §4: **escaneo bajo demanda** (`clamd` +
+  YARA, sin tiempo real) y la integración de ambos módulos en `Nexo.Service`.
 - **Punto de decisión del mes 3** (§4 de la Salida 6): si para entonces no hay
   reportes y limpieza funcionando y usándose cada semana, la conclusión es recortar
   a esos dos módulos y publicarlos como una utilidad honesta y terminada.

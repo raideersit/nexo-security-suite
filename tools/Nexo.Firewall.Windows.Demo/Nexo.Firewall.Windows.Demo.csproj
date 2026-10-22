@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de las comprobaciones contra el Firewall de Windows REAL. Las de
+         escritura exigen administrador y dejan el firewall como estaba. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Firewall.Windows.Demo</RootNamespace>
+    <AssemblyName>nexo-firewall-windows-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

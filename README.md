@@ -32,15 +32,17 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Reports` — notas markdown + vault de Obsidian | ✅ Implementado y verificado |
 | `Nexo.Modules.Cleanup` — limpieza y duplicados | ✅ Implementado y verificado |
 | `Nexo.Modules.Cleanup` — triturador, inicio, S.M.A.R.T. | ✅ Implementado; verificado en Windows salvo lo listado abajo |
-| `Nexo.Modules.Threats` — firewall, escaneo bajo demanda | 📐 Diseñado |
+| `Nexo.Modules.Threats` — firewall por aplicación y modo sigiloso | ✅ Implementado y verificado contra el Firewall de Windows real |
+| `Nexo.Modules.Threats` — escaneo bajo demanda (ClamAV/YARA) | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**138 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**222 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
-(registro, Papelera, archivos bloqueados, tipo de disco, discos reales).
-Como administrador se cubren además la escritura en `HKLM` y los enlaces
-simbólicos de archivo.
+(registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 56
+portables del firewall y 28 contra el Firewall de Windows real (como
+administrador; 9 sin serlo). Como administrador se cubren además la escritura
+en `HKLM` y los enlaces simbólicos de archivo.
 
 **Todavía sin verificar:**
 
@@ -90,9 +92,18 @@ dotnet run --project tools/Nexo.Cleanup.Demo
 # Solo Windows: tipo de disco, registro de inicio (en una subclave temporal),
 # Papelera, archivos bloqueados y lectura real de discos (29 comprobaciones)
 dotnet run --project tools/Nexo.Cleanup.Windows.Demo
+
+# Firewall por aplicación y modo sigiloso, contra un almacén en memoria
+# (56 comprobaciones; no toca el Firewall de Windows)
+dotnet run --project tools/Nexo.Firewall.Demo
+
+# Solo Windows: el mismo flujo contra el Firewall de Windows REAL. Sin
+# administrador solo lee; como administrador crea reglas temporales sobre un
+# .exe sintético y las retira (28 comprobaciones)
+dotnet run --project tools/Nexo.Firewall.Windows.Demo
 ```
 
-Los tres devuelven código de salida 0 solo si todas las comprobaciones pasan.
+Todos devuelven código de salida 0 solo si todas las comprobaciones pasan.
 El arnés de Windows deja unos pocos archivos sintéticos `nexo-demo-*` en la
 Papelera; son inofensivos y puedes vaciarla.
 
@@ -107,6 +118,22 @@ dotnet run --project tools/Nexo.Cleanup.Run -- --ayuda
 El modo `real` (borrado permanente) **se niega a ejecutarse fuera de una
 máquina virtual**: lo hace cumplir el código, no una advertencia. Dentro de una
 VM además exige `NEXO_PERMITIR_BORRADO_REAL=1`.
+
+### El firewall contra el equipo real: `nexo-firewall`
+
+```powershell
+dotnet run --project tools/Nexo.Firewall.Run -- estado                    # perfiles, sigiloso, reglas de Nexo
+dotnet run --project tools/Nexo.Firewall.Run -- bloquear C:\ruta\app.exe   # muestra el plan; pide escribir APLICAR
+dotnet run --project tools/Nexo.Firewall.Run -- sigiloso on               # bloquea el ping entrante
+dotnet run --project tools/Nexo.Firewall.Run -- quitar "Nexo: ..."        # solo reglas que creó Nexo
+```
+
+Ver el plan no requiere administrador; aplicarlo sí. Nexo **solo toca reglas de
+su propio grupo** («Nexo Security Suite»), **nunca bloquea** procesos del
+sistema (`svchost.exe`, `lsass.exe`…), Windows Defender ni a sí mismo, y no
+activa un firewall que el usuario haya apagado: lo avisa. El modo sigiloso no
+necesita driver: Windows ya descarta en silencio el tráfico entrante no
+solicitado, y Nexo solo añade el bloqueo del ping (ICMPv4/ICMPv6).
 
 ### ⚠ Antes de ejecutar el módulo de limpieza en un equipo real
 
@@ -128,11 +155,17 @@ src/
   Nexo.Modules.Cleanup/         Lógica portable: guardia, catálogo, duplicados,
                                 triturador, inicio, S.M.A.R.T.
   Nexo.Modules.Cleanup.Windows/ Papelera, registro de inicio, WMI, detección de VM.
+  Nexo.Modules.Threats/         Lógica portable del firewall: guardia de reglas,
+                                vista previa con token, modo sigiloso.
+  Nexo.Modules.Threats.Windows/ Firewall de Windows por COM (INetFwPolicy2).
 tools/
   Nexo.Reports.Demo/            Arnés de aceptación de reportes.
   Nexo.Cleanup.Demo/            Arnés portable de limpieza.
   Nexo.Cleanup.Windows.Demo/    Arnés de lo que solo tiene sentido en Windows.
   Nexo.Cleanup.Run/             `nexo-cleanup`: el limpiador contra el equipo real.
+  Nexo.Firewall.Demo/           Arnés portable del firewall.
+  Nexo.Firewall.Windows.Demo/   Arnés contra el Firewall de Windows real.
+  Nexo.Firewall.Run/            `nexo-firewall`: el firewall contra el equipo real.
 ```
 
 ---

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net8.0 y no net8.0-windows a proposito, igual que Nexo.Modules.Cleanup:
+         la logica de decision (que se puede bloquear, que se rechaza, el token)
+         queda ejecutable y probable fuera de Windows contra un almacen en
+         memoria. Lo que habla con el Firewall de Windows vive en
+         Nexo.Modules.Threats.Windows detras de IAlmacenDeFirewall. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Modules.Threats</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Reports\Nexo.Reports.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- nexo-firewall: el administrador de firewall contra el equipo REAL. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Firewall.Run</RootNamespace>
+    <AssemblyName>nexo-firewall</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

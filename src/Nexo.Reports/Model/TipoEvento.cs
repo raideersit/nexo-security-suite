@@ -14,6 +14,8 @@ namespace Nexo.Reports.Model
         public const string ArchivoEnCuarentena = "archivo-en-cuarentena";
         public const string ArchivoRestaurado = "archivo-restaurado";
         public const string BloqueoFirewall = "bloqueo-firewall";
+        public const string ReglaFirewall = "regla-firewall";
+        public const string ModoSigiloso = "modo-sigiloso";
         public const string ResultadoEscaneo = "resultado-escaneo";
         public const string VulnerabilidadDetectada = "vulnerabilidad-detectada";
 

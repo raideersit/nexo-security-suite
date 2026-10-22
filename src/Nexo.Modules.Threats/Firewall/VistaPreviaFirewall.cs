@@ -1,0 +1,131 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace Nexo.Modules.Threats.Firewall
+{
+    public enum TipoDeCambio
+    {
+        Agregar,
+        Eliminar
+    }
+
+    /// <summary>Un cambio concreto sobre una regla de Nexo.</summary>
+    public sealed record CambioDeFirewall(TipoDeCambio Tipo, ReglaDeFirewall Regla)
+    {
+        /// <summary>Texto estable que entra en la huella del token.</summary>
+        internal string Huella => string.Create(CultureInfo.InvariantCulture,
+            $"{Tipo}|{Regla.Nombre}|{Regla.RutaApp}|{Regla.Direccion}|{Regla.Accion}|{(int)Regla.Perfiles}|{Regla.Protocolo}|{Regla.TiposIcmp}");
+
+        public string Describir()
+        {
+            string accion = Regla.Accion == AccionDeRegla.Bloquear ? "BLOQUEAR" : "PERMITIR";
+            string dir = Regla.Direccion == DireccionDeRegla.Entrante ? "entrante" : "saliente";
+            string objetivo = Regla.RutaApp ?? (Regla.Protocolo is 1 ? "ICMPv4 Echo Request" : Regla.Protocolo is 58 ? "ICMPv6 Echo Request" : "(todo)");
+            return (Tipo == TipoDeCambio.Agregar ? "+ " : "- ") + accion + " " + dir + "  " + objetivo
+                   + "   [" + Regla.Nombre + "]";
+        }
+    }
+
+    /// <summary>
+    /// Prueba de que el usuario vio un plan de cambios concreto y lo aprobo. Misma
+    /// idea que TokenConfirmacion del limpiador: no es un booleano, lleva la huella
+    /// del plan exacto, caduca, y al aplicar se recalcula sobre el plan que llega.
+    /// Un proceso que pida aplicar otro plan distinto no tiene un token valido.
+    /// </summary>
+    public sealed class TokenDeCambio
+    {
+        public static readonly TimeSpan Vigencia = TimeSpan.FromMinutes(10);
+
+        private TokenDeCambio(string huella, DateTimeOffset expira)
+        {
+            Huella = huella;
+            Expira = expira;
+        }
+
+        public string Huella { get; }
+        public DateTimeOffset Expira { get; }
+
+        public static TokenDeCambio Emitir(IEnumerable<CambioDeFirewall> plan, DateTimeOffset ahora)
+            => new TokenDeCambio(CalcularHuella(plan), ahora + Vigencia);
+
+        public bool EsValidoPara(IEnumerable<CambioDeFirewall> plan, DateTimeOffset ahora)
+            => ahora <= Expira
+               && CryptographicOperations.FixedTimeEquals(
+                      Encoding.ASCII.GetBytes(Huella),
+                      Encoding.ASCII.GetBytes(CalcularHuella(plan)));
+
+        private static string CalcularHuella(IEnumerable<CambioDeFirewall> plan)
+        {
+            // El orden se normaliza: la huella no depende de como se armo el plan.
+            var lineas = plan.Select(c => c.Huella).ToList();
+            lineas.Sort(StringComparer.Ordinal);
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", lineas)));
+            return Convert.ToHexString(hash);
+        }
+    }
+
+    /// <summary>Plan de cambios propuesto, todavia sin aplicar.</summary>
+    public sealed class VistaPreviaFirewall
+    {
+        public VistaPreviaFirewall(
+            string titulo,
+            IReadOnlyList<CambioDeFirewall> cambios,
+            IReadOnlyList<string> rechazos,
+            IReadOnlyList<string> advertencias,
+            TokenDeCambio token,
+            bool esModoSigiloso = false,
+            bool activarSigiloso = false)
+        {
+            Titulo = titulo;
+            Cambios = cambios;
+            Rechazos = rechazos;
+            Advertencias = advertencias;
+            Token = token;
+            EsModoSigiloso = esModoSigiloso;
+            ActivarSigiloso = activarSigiloso;
+        }
+
+        public string Titulo { get; }
+        public IReadOnlyList<CambioDeFirewall> Cambios { get; }
+
+        /// <summary>Lo que se pidio y NO se hara, con el motivo. Nunca se descarta en silencio.</summary>
+        public IReadOnlyList<string> Rechazos { get; }
+
+        /// <summary>Cosas que el usuario debe saber aunque no impidan aplicar el plan.</summary>
+        public IReadOnlyList<string> Advertencias { get; }
+
+        public TokenDeCambio Token { get; }
+
+        internal bool EsModoSigiloso { get; }
+        internal bool ActivarSigiloso { get; }
+
+        public bool HayCambios => Cambios.Count > 0;
+
+        public string Describir()
+        {
+            var sb = new StringBuilder();
+            sb.Append(Titulo).Append('\n');
+            if (Cambios.Count == 0) sb.Append("  (sin cambios)\n");
+            foreach (CambioDeFirewall c in Cambios) sb.Append("  ").Append(c.Describir()).Append('\n');
+            foreach (string r in Rechazos) sb.Append("  RECHAZADO: ").Append(r).Append('\n');
+            foreach (string a in Advertencias) sb.Append("  AVISO: ").Append(a).Append('\n');
+            return sb.ToString();
+        }
+    }
+
+    public sealed class ResultadoFirewall
+    {
+        public ResultadoFirewall(int aplicados, IReadOnlyList<string> omitidos)
+        {
+            Aplicados = aplicados;
+            Omitidos = omitidos;
+        }
+
+        public int Aplicados { get; }
+        public IReadOnlyList<string> Omitidos { get; }
+    }
+}
