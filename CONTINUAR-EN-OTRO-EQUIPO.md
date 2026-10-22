@@ -449,13 +449,17 @@ cada respuesta (`nota`).
   desplazamientos fuera del registro, nombres enormes o de longitud impar detienen la lectura
   como «corrupto» en vez de seguir a ciegas; 2000 buffers aleatorios no lo hacen lanzar.
 
-**SIN PROBAR — hacerlo en la VM `NexoVM`, como administrador:**
+**Probado como administrador (2026-10-22, equipo principal HP, Windows 10):** la lectura real del
+diario USN (`Nexo.Native/Usn/VolumenUsn` + `FuenteUsn`). `Nexo.Service.Demo` (sección 8), ejecutado
+elevado, abre el volumen con el diario activo, recibe por el diario un archivo recién creado con su
+ruta completa (`OpenFileById`) y no emite lo que cambia fuera de las carpetas pedidas. Sin
+administrador la fuente se **niega con claridad** y no emite nada.
 
-- **La lectura real del diario USN** (`Nexo.Native/Usn/VolumenUsn` + `FuenteUsn`): abrir el
-  volumen, `FSCTL_QUERY_USN_JOURNAL`/`FSCTL_READ_USN_JOURNAL`, la resolución de rutas por
-  `OpenFileById` y el reintento tras el error 1181. Sin administrador solo se comprueba que la
-  fuente se **niega con claridad** y no emite nada; `Nexo.Service.Demo` (sección 8) ya incluye
-  la prueba elevada (crea un archivo y espera verlo llegar), pero nunca se ha ejecutado elevada.
+**Todavía SIN PROBAR — hacerlo en la VM `NexoVM`:**
+
+- **El camino de error del diario:** el reintento tras el error 1181 (el diario sobrescribió lo
+  pendiente) y el comportamiento con mucha actividad. La prueba de hoy cubre el caso normal, no
+  la sobrecarga.
 - **Rendimiento y ruido con `clamd` real** en carpetas con mucha actividad (Descargas, Temp), y
   **que Defender y Nexo no se estorben** al leer el mismo archivo recién escrito.
 - Los valores por defecto (1,5 s de estabilización, 2 trabajadores, 5000 pendientes) son
