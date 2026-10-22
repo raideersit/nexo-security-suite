@@ -38,8 +38,12 @@ namespace Nexo.Service
         private readonly IResultadosDeEscaneo _escaneos;
         private readonly PlanesPendientes<Plan> _planes;
 
-        public ModuloCuarentena(AlmacenDeCuarentena almacen, IResultadosDeEscaneo escaneos, Func<DateTimeOffset>? reloj = null)
+        private readonly PoliticaDeAprobacion _politica;
+
+        public ModuloCuarentena(AlmacenDeCuarentena almacen, IResultadosDeEscaneo escaneos, Func<DateTimeOffset>? reloj = null,
+                                PoliticaDeAprobacion? politica = null)
         {
+            _politica = politica ?? PoliticaDeAprobacion.Ninguna;
             _almacen = almacen;
             _escaneos = escaneos;
             _planes = new PlanesPendientes<Plan>(TokenDeCambio.Vigencia, reloj: reloj);
@@ -85,6 +89,7 @@ namespace Nexo.Service
                     // Primero la identidad y despues el token: si no se puede actuar como el llamador, el token NO se
                     // gasta y puede reintentar desde una conexion con suplantacion.
                     AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
+                    _politica.Exigir(ContextoDeLlamada.Actual);
                     Plan plan = Tomar(p, "poner");
                     // El original se lee y se retira CON LA IDENTIDAD DEL LLAMADOR: solo lo que el podria leer y borrar.
                     ResultadoCuarentena r = await _almacen.AplicarAsync(plan.Poner!, plan.Poner!.Token, ct, acceso).ConfigureAwait(false);
@@ -98,6 +103,7 @@ namespace Nexo.Service
                 case "cuarentena.restaurar":
                 {
                     AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
+                    _politica.Exigir(ContextoDeLlamada.Actual);
                     Plan plan = Tomar(p, "restaurar");
                     // Se escribe en la ruta original CON LA IDENTIDAD DEL LLAMADOR: no donde el no podria escribir.
                     ResultadoRestauracion r = await _almacen.RestaurarAsync(plan.Restaurar!.Id, destino: null, ct, acceso).ConfigureAwait(false);
@@ -106,6 +112,7 @@ namespace Nexo.Service
 
                 case "cuarentena.purgar":
                 {
+                    _politica.Exigir(ContextoDeLlamada.Actual);
                     Plan plan = Tomar(p, "purgar");
                     ResultadoPurga r = await _almacen.AplicarPurgaAsync(plan.Purgar!, plan.Purgar!.Token, ct).ConfigureAwait(false);
                     return new { purgados = r.Purgados.Count, omitidos = r.Omitidos };

@@ -22,9 +22,12 @@ namespace Nexo.Service
         private readonly AdministradorDeFirewall _admin;
         private readonly PlanesPendientes<VistaPreviaFirewall> _planes;
 
-        public ModuloFirewall(AdministradorDeFirewall admin, Func<DateTimeOffset>? reloj = null)
+        private readonly PoliticaDeAprobacion _politica;
+
+        public ModuloFirewall(AdministradorDeFirewall admin, Func<DateTimeOffset>? reloj = null, PoliticaDeAprobacion? politica = null)
         {
             _admin = admin;
+            _politica = politica ?? PoliticaDeAprobacion.Ninguna;
             _planes = new PlanesPendientes<VistaPreviaFirewall>(TokenDeCambio.Vigencia, reloj: reloj);
         }
 
@@ -122,6 +125,9 @@ namespace Nexo.Service
         {
             JsonElement o = Objeto(p);
             string? token = Texto(o, "token", obligatorio: true, max: 64);
+
+            // Aprobacion antes de gastar el token: si falta, el plan sigue vigente.
+            _politica.Exigir(ContextoDeLlamada.Actual);
 
             VistaPreviaFirewall? vista = _planes.Tomar(token);
             if (vista is null)

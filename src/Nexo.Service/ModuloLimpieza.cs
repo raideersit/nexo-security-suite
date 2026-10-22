@@ -41,12 +41,14 @@ namespace Nexo.Service
         private readonly IReportWriter _reportes;
         private readonly Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?> _bases;
         private readonly PlanesPendientes<Plan> _planes;
+        private readonly PoliticaDeAprobacion _politica;
 
         public ModuloLimpieza(
             CatalogoDeRutas catalogo, IBorrador borrador, IReportWriter reportes,
             Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?>? basesDelLlamador = null,
-            Func<DateTimeOffset>? reloj = null)
+            Func<DateTimeOffset>? reloj = null, PoliticaDeAprobacion? politica = null)
         {
+            _politica = politica ?? PoliticaDeAprobacion.Ninguna;
             _catalogo = catalogo;
             _borrador = borrador;
             _reportes = new ReportesFueraDeSuplantacion(reportes);
@@ -131,6 +133,7 @@ namespace Nexo.Service
             // Primero la identidad y despues el token: si no se puede actuar como el llamador, el token NO se gasta.
             AccesoComoLlamador.Requerir();
             ContextoDeLlamada contexto = ContextoDeLlamada.Actual!;
+            _politica.Exigir(contexto);
 
             if (p is not { ValueKind: JsonValueKind.Object } o || !o.TryGetProperty("token", out JsonElement t)
                 || t.ValueKind != JsonValueKind.String || t.GetString()!.Length > 64)

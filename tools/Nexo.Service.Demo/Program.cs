@@ -46,6 +46,7 @@ namespace Nexo.Service.Demo
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
                 await ProbarLimpiezaPorIpc(Path.Combine(raiz, "vault10"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarIdentidadDelLlamador(Path.Combine(raiz, "vault9"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
+                await ProbarAprobacion(Path.Combine(raiz, "vault12"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
             finally
@@ -75,6 +76,7 @@ namespace Nexo.Service.Demo
                 ["Nexo:Vault"] = vault,
                 ["Nexo:PipeName"] = pipe,
                 ["Nexo:Cuarentena"] = _carpetaQ,
+                ["Nexo:Aprobacion:Modo"] = _aprobacion,
                 ["Nexo:TiempoReal:Activo"] = tiempoReal is null ? "false" : "true",
                 ["Nexo:TiempoReal:Raices"] = tiempoReal is null ? "" : _carpetaQ + "-no-se-usa"
             });

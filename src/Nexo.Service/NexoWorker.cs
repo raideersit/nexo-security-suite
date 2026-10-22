@@ -69,9 +69,15 @@ namespace Nexo.Service
             var almacenQ = new AlmacenDeCuarentena(carpetaQ, reportes);
             var escaneo = new ModuloEscaneo(motor, reportes, excluir: new[] { almacenQ.Carpeta });
 
+            // Aprobacion de lo que cambia algo: "elevada" por omision (exige UAC al aplicar).
+            PoliticaDeAprobacion politica = PoliticaDeAprobacion.Desde(_config["Nexo:Aprobacion:Modo"], out string? avisoPolitica);
+            if (avisoPolitica is not null) AvisosDeArranque.Add(avisoPolitica);
+            if (!politica.ExigeElevacion)
+                AvisosDeArranque.Add("Aprobacion en modo 'ninguna': aplicar un plan no exige UAC (un proceso del mismo usuario podria aplicarlo).");
+
             var modulos = new List<IModuloDelServicio>
             {
-                new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia)),
+                new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia), politica: politica),
                 escaneo
             };
 
@@ -107,12 +113,13 @@ namespace Nexo.Service
                 _servicios.GetService<CatalogoDeRutas>() ?? CatalogoDeRutas.Predeterminado(),
                 _servicios.GetService<IBorrador>() ?? ResolverBorrador(_config["Nexo:Limpieza:Modo"], out avisoBorrador),
                 reportes,
-                _servicios.GetService<Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?>>()));
+                _servicios.GetService<Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?>>(),
+                politica: politica));
             if (avisoBorrador is not null) AvisosDeArranque.Add(avisoBorrador);
 
             modulos.Add(new ModuloCuarentena(almacenQ, tiempoReal is null
                 ? escaneo
-                : new ResultadosCombinados(escaneo, tiempoReal)));
+                : new ResultadosCombinados(escaneo, tiempoReal), politica: politica));
             return modulos;
         }
 
