@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -13,6 +14,7 @@ using Nexo.Ipc;
 using Nexo.Modules.Threats.Cuarentena;
 using Nexo.Modules.Threats.Escaner;
 using Nexo.Modules.Threats.Firewall;
+using Nexo.Modules.Threats.TiempoReal;
 using Nexo.Modules.Threats.Windows;
 using Nexo.Reports;
 using Nexo.Reports.Model;
@@ -38,7 +40,7 @@ namespace Nexo.Service
         public static string RutaDeVaultPorDefecto()
             => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "Vault");
 
-        private IReadOnlyList<IModuloDelServicio> CrearModulos(IReportWriter reportes)
+        private IReadOnlyList<IModuloDelServicio> CrearModulos(IReportWriter reportes, string vault)
         {
             // El almacen se puede sustituir por DI (las pruebas usan uno en memoria y no tocan el firewall real).
             IAlmacenDeFirewall almacen = _servicios.GetService<IAlmacenDeFirewall>() ?? new AlmacenDeFirewallWindows();
@@ -63,12 +65,42 @@ namespace Nexo.Service
             var almacenQ = new AlmacenDeCuarentena(carpetaQ, reportes);
             var escaneo = new ModuloEscaneo(motor, reportes, excluir: new[] { almacenQ.Carpeta });
 
-            return new IModuloDelServicio[]
+            var modulos = new List<IModuloDelServicio>
             {
                 new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia)),
-                escaneo,
-                new ModuloCuarentena(almacenQ, escaneo)
+                escaneo
             };
+
+            // Tiempo real: APAGADO por omision (hay que activarlo en appsettings.json). Sin metodos para
+            // encenderlo ni apagarlo por el pipe: un proceso malicioso los usaria para quitar la proteccion.
+            ModuloTiempoReal? tiempoReal = null;
+            if (bool.TryParse(_config["Nexo:TiempoReal:Activo"], out bool activo) && activo)
+            {
+                IReadOnlyList<string> raices = _config["Nexo:TiempoReal:Raices"] is { Length: > 0 } r
+                    ? r.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    : ModuloTiempoReal.RaicesPorDefecto();
+
+                // Nunca se analiza a si mismo: ni la cuarentena ni el vault.
+                var opciones = new OpcionesDeTiempoReal { Excluir = new[] { almacenQ.Carpeta, vault } };
+
+                // Fuente: "watcher" (FileSystemWatcher; por omision, sin administrador, puede perder eventos)
+                // o "usn" (diario NTFS; necesita administrador/SYSTEM, no pierde eventos).
+                bool usn = string.Equals(_config["Nexo:TiempoReal:Fuente"], "usn", StringComparison.OrdinalIgnoreCase);
+                IFuenteDeCambios fuente = _servicios.GetService<IFuenteDeCambios>()
+                    ?? (usn
+                        ? new FuenteUsn(raices.Select(r => r.Length > 1 && r[1] == ':' ? r[0] : 'C'), raices)
+                        : new FuenteFileSystemWatcher(raices));
+                tiempoReal = new ModuloTiempoReal(new VigilanteEnTiempoReal(motor, reportes, opciones), fuente, raices, motor.Nombre);
+                tiempoReal.Iniciar();
+                modulos.Add(tiempoReal);
+            }
+
+            if (tiempoReal is null) modulos.Add(new ModuloTiempoRealApagado());
+
+            modulos.Add(new ModuloCuarentena(almacenQ, tiempoReal is null
+                ? escaneo
+                : new ResultadosCombinados(escaneo, tiempoReal)));
+            return modulos;
         }
 
         protected override async Task ExecuteAsync(CancellationToken parada)
@@ -91,7 +123,7 @@ namespace Nexo.Service
             string? aviso = null;
             try
             {
-                modulos = CrearModulos(reportes);
+                modulos = CrearModulos(reportes, vault);
                 servidor = new ServidorDePipe(pipe, new ManejadorDelServicio(version, modulos));
                 servidor.Iniciar();
             }

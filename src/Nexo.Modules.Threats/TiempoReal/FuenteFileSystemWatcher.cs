@@ -11,13 +11,15 @@ namespace Nexo.Modules.Threats.TiempoReal
     /// avisa por <c>alPerder</c> (nunca se silencia) y el vigilante lo cuenta. El diario USN
     /// (necesita administrador) no tiene ese limite.
     /// </summary>
-    public sealed class FuenteFileSystemWatcher : IFuenteDeCambios
+    public sealed class FuenteFileSystemWatcher : IFuenteDeCambios, IFuenteConCobertura
     {
         private readonly IReadOnlyList<string> _raices;
         private readonly List<FileSystemWatcher> _vigilantes = new List<FileSystemWatcher>();
 
         /// <summary>Raices que no existen o no se pueden vigilar; se informan, no se ignoran.</summary>
         public List<string> NoVigiladas { get; } = new List<string>();
+
+        IReadOnlyList<string> IFuenteConCobertura.NoVigiladas => NoVigiladas;
 
         public FuenteFileSystemWatcher(IEnumerable<string> raices) => _raices = raices.ToList();
 

@@ -29,6 +29,12 @@ namespace Nexo.Modules.Threats.TiempoReal
         void Iniciar(Action<CambioDeArchivo> alCambiar, Action<string> alPerder);
     }
 
+    /// <summary>Una fuente que sabe decir que partes NO esta vigilando (y por que). Nunca se oculta.</summary>
+    public interface IFuenteConCobertura
+    {
+        IReadOnlyList<string> NoVigiladas { get; }
+    }
+
     public sealed class OpcionesDeTiempoReal
     {
         /// <summary>Extensiones que se analizan: ejecutables, scripts, instaladores y documentos con macros.</summary>

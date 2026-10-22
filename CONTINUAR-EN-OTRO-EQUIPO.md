@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**422 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**504 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +80 del servicio, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -39,8 +39,9 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Demo` | 66 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
-| `tools/Nexo.Ipc.Demo` | 28 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 80 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows) |
+| `tools/Nexo.Ipc.Demo` | 33 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
+| `tools/Nexo.Service.Demo` | 100 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
+| `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -307,7 +308,7 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 **Huecos conocidos (sin hacer):**
 
 - **YARA** (heurística) no está; el escaneo es solo por firmas de ClamAV.
-- Sin **tiempo real** (USN Journal), sin AMSI, sin escaneo programado.
+- ~~Sin tiempo real~~ Hecho (2026-10-22, ver §2g). Siguen sin AMSI ni escaneo programado.
 - ~~La cuarentena no purga~~ Hecho (2026-10-22): `nexo-scan cuarentena purgar` elimina lo que superó los 30 días, con vista previa, token y confirmación `PURGAR`. Es manual: nada la ejecuta sola hasta que exista el servicio.
 - Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
 - ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8, por defecto 1) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Con clamd real falta medir si compensa.
@@ -339,7 +340,7 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   negativo cierra la conexión sin reservar memoria), JSON y UTF-8 validados, 16
   conexiones como máximo, cierre por inactividad (30 s), tiempo máximo por petición, y
   una excepción del manejador se devuelve como «error interno» **sin** su mensaje.
-- **Métodos expuestos (17):** `ping`, `estado`; `firewall.estado|previsualizar|aplicar`;
+- **Métodos expuestos (19):** `ping`, `estado`; `tiempo-real.estado|detecciones` (solo lectura); `firewall.estado|previsualizar|aplicar`;
   `escaneo.estado|iniciar|progreso|resultado|cancelar`; y `cuarentena.listar`,
   `previsualizar`/`aplicar`, `previsualizar-restauracion`/`restaurar`,
   `previsualizar-purga`/`purgar`. Ninguna otra acción que borre o cambie el sistema existe
@@ -388,6 +389,60 @@ con un motor falso por DI (no con `clamd` real); `IModuloDelServicio` es una ver
 aplicar **como administrador** solo está probado contra un almacén en memoria (el arnés
 corre sin elevar); y el vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
 herramientas de consola usan `%LOCALAPPDATA%\Nexo\Vault`.
+
+---
+
+## 2g. Análisis en tiempo real (2026-10-22)
+
+`Nexo.Modules.Threats/TiempoReal` (portable) + `Nexo.Service/ModuloTiempoReal`.
+
+**Qué es y qué NO es:** detecta y **avisa después** de que el archivo se escribió. **No
+puede impedir** que se cree ni que se ejecute: eso exigiría el driver de minifiltro (fuera
+de alcance). Complementa a Defender, que sí bloquea. El estado del servicio lo repite en
+cada respuesta (`nota`).
+
+- **`VigilanteEnTiempoReal`:** recibe cambios de una `IFuenteDeCambios`, filtra por extensión
+  (ejecutables, scripts, instaladores, macros) y carpetas excluidas, **espera a que el archivo
+  deje de cambiar** (1,5 s) antes de analizarlo, no reanaliza lo que no cambió, reintenta los
+  bloqueados (con espera creciente) y solo detecta: **no toca los archivos**. Deja una nota por
+  detección y ninguna por archivo analizado (no llena el vault).
+- **Cobertura honesta:** lo que no se pudo analizar (bloqueado tras los reintentos, sobre el
+  límite, sin permiso, el motor no decidió) cuenta como **no analizado**; lo que se descarta
+  por desborde o lo que la fuente dice haber perdido, como **perdido**; tras 5 fallos seguidos
+  se declara **motor caído**. `tiempo-real.estado` solo da `cobertura_completa: true` si no hay
+  nada de eso ni fuentes no vigiladas. Una prueba lo comprueba con cada causa.
+- **Fuentes:** `FuenteFileSystemWatcher` (sin administrador; buffer finito, puede perder
+  eventos y lo avisa) y `FuenteUsn` (diario NTFS; administrador o SYSTEM; entrega el evento al
+  **cerrar** el archivo, no tiene buffer que se desborde y detecta si el diario sobrescribió lo
+  pendiente). Se elige con `Nexo:TiempoReal:Fuente` (`watcher` por omisión, o `usn`).
+- **Se excluye a sí mismo:** la carpeta de cuarentena y el vault nunca se analizan (evita el
+  bucle de Nexo escaneando lo que Nexo escribe).
+- **Apagado por omisión** (`Nexo:TiempoReal:Activo`, en `appsettings.json`). **No hay métodos
+  para encenderlo, apagarlo ni cambiar sus carpetas por el pipe**: un proceso malicioso los
+  usaría para quitar la protección. Solo se leen `tiempo-real.estado` y `tiempo-real.detecciones`.
+  Apagado, el servicio lo dice (`activo: false`), no calla.
+- **A cuarentena** con el flujo de siempre (vista previa + token) usando el id de escaneo
+  `tiempo-real`; sigue sin poder pedirse un archivo que el vigilante no detectó.
+- **Parser del diario USN** (`ParserDeUsn`, portable): defensivo porque el buffer viene del
+  sistema y el nombre de un archivo lo controla cualquiera. Longitud 0 o desalineada,
+  desplazamientos fuera del registro, nombres enormes o de longitud impar detienen la lectura
+  como «corrupto» en vez de seguir a ciegas; 2000 buffers aleatorios no lo hacen lanzar.
+
+**SIN PROBAR — hacerlo en la VM `NexoVM`, como administrador:**
+
+- **La lectura real del diario USN** (`Nexo.Native/Usn/VolumenUsn` + `FuenteUsn`): abrir el
+  volumen, `FSCTL_QUERY_USN_JOURNAL`/`FSCTL_READ_USN_JOURNAL`, la resolución de rutas por
+  `OpenFileById` y el reintento tras el error 1181. Sin administrador solo se comprueba que la
+  fuente se **niega con claridad** y no emite nada; `Nexo.Service.Demo` (sección 8) ya incluye
+  la prueba elevada (crea un archivo y espera verlo llegar), pero nunca se ha ejecutado elevada.
+- **Rendimiento y ruido con `clamd` real** en carpetas con mucha actividad (Descargas, Temp), y
+  **que Defender y Nexo no se estorben** al leer el mismo archivo recién escrito.
+- Los valores por defecto (1,5 s de estabilización, 2 trabajadores, 5000 pendientes) son
+  estimaciones, no medidas.
+
+**Huecos conocidos:** sin acción automática (solo avisa; poner en cuarentena exige confirmar),
+sin notificación en la bandeja (el evento `Detectado` existe, nadie lo escucha aún), sin
+análisis de comportamiento (ETW), y el diario USN es por volumen: solo NTFS.
 
 ---
 

@@ -12,7 +12,7 @@ using Nexo.Reports.Model;
 
 namespace Nexo.RealTime.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
         private static readonly byte[] Marca = Encoding.ASCII.GetBytes("NEXO-MARCADOR-TIEMPO-REAL");
@@ -30,6 +30,7 @@ namespace Nexo.RealTime.Demo
                 await ProbarEstabilizacion(raiz).ConfigureAwait(false);
                 await ProbarNoSeFingeCobertura(raiz).ConfigureAwait(false);
                 await ProbarConWatcherReal(raiz).ConfigureAwait(false);
+                ProbarParserUsn();
             }
             finally
             {

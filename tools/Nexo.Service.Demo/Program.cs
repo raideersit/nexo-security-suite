@@ -42,6 +42,8 @@ namespace Nexo.Service.Demo
                 ProbarManejador();
                 await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 ProbarPlanes();
+                await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
+                await ProbarUsnReal(raiz).ConfigureAwait(false);
                 await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
             finally
@@ -63,15 +65,18 @@ namespace Nexo.Service.Demo
             if (!condicion && detalle is not null) Console.WriteLine("           " + detalle);
         }
 
-        private static IHost Crear(string vault, string pipe)
+        private static IHost Crear(string vault, string pipe, FuenteManualSvc? tiempoReal = null)
         {
             HostApplicationBuilder b = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
             b.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Nexo:Vault"] = vault,
                 ["Nexo:PipeName"] = pipe,
-                ["Nexo:Cuarentena"] = _carpetaQ
+                ["Nexo:Cuarentena"] = _carpetaQ,
+                ["Nexo:TiempoReal:Activo"] = tiempoReal is null ? "false" : "true",
+                ["Nexo:TiempoReal:Raices"] = tiempoReal is null ? "" : _carpetaQ + "-no-se-usa"
             });
+            if (tiempoReal is not null) b.Services.AddSingleton<Nexo.Modules.Threats.TiempoReal.IFuenteDeCambios>(tiempoReal);
             // El firewall REAL no se toca nunca desde el arnes: el servicio recibe un almacen en memoria.
             b.Services.AddSingleton<IAlmacenDeFirewall>(Almacen);
             b.Services.AddSingleton<Nexo.Modules.Threats.Escaner.IMotorDeFirmas>(Motor);
@@ -86,7 +91,13 @@ namespace Nexo.Service.Demo
                 : Enumerable.Empty<string>();
 
         private static string LeerTodo(IEnumerable<string> archivos)
-            => string.Concat(archivos.Select(f => File.ReadAllText(f, Encoding.UTF8)));
+            => string.Concat(archivos.Select(f =>
+            {
+                // El servicio puede tener la nota abierta para escribir: se lee sin pedir exclusividad.
+                using var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var sr = new StreamReader(fs, Encoding.UTF8);
+                return sr.ReadToEnd();
+            }));
 
         // ============================================================
         private static async Task ProbarCicloDeVida(string vault, string pipe)
@@ -103,7 +114,7 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 17,
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 19,
                       "estado lista los metodos que expone: los basicos y los del firewall");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })
