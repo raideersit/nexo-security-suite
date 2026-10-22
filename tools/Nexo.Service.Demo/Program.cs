@@ -44,6 +44,7 @@ namespace Nexo.Service.Demo
                 ProbarPlanes();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
+                await ProbarIdentidadDelLlamador(Path.Combine(raiz, "vault9"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
             finally

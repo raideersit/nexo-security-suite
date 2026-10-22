@@ -37,6 +37,12 @@ namespace Nexo.Modules.Threats.Escaner
         /// </summary>
         public int Paralelismo { get; init; } = 1;
 
+        /// <summary>
+        /// En nombre de quien se abren y enumeran los archivos. Por omision, el proceso actual; el servicio
+        /// pasa la identidad del cliente para no leer con SYSTEM lo que ese cliente no podria leer.
+        /// </summary>
+        public IAccesoAArchivos Acceso { get; init; } = AccesoDirecto.Instancia;
+
         public const int ParalelismoMaximo = 8;
     }
 
@@ -216,7 +222,12 @@ namespace Nexo.Modules.Threats.Escaner
             FileInfo info;
             try
             {
-                info = new FileInfo(ruta);
+                info = _opciones.Acceso.Ejecutar(() =>
+                {
+                    var fi = new FileInfo(ruta);
+                    _ = fi.Exists && fi.Length >= 0;      // fuerza la consulta ahora, dentro del contexto del llamador
+                    return fi;
+                });
                 if (!info.Exists) return new ResultadoDeArchivo(null, "ya no existe", false);
                 if (info.Length > _opciones.MaxBytes)
                     return new ResultadoDeArchivo(null,
@@ -233,8 +244,9 @@ namespace Nexo.Modules.Threats.Escaner
             {
                 // FileShare.ReadWrite | Delete: leer sin impedir que otro proceso siga
                 // usando el archivo. Si esta bloqueado en exclusiva, se omite.
-                await using var fs = new FileStream(ruta, FileMode.Open, FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                // El acceso se comprueba al ABRIR, con la identidad del llamador; leer despues no lo repite.
+                await using FileStream fs = _opciones.Acceso.Ejecutar(() => new FileStream(ruta, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan));
                 veredicto = await _motor.AnalizarAsync(fs, ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -258,11 +270,11 @@ namespace Nexo.Modules.Threats.Escaner
             }
         }
 
-        private static string? Sha256De(string ruta)
+        private string? Sha256De(string ruta)
         {
             try
             {
-                using var fs = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using FileStream fs = _opciones.Acceso.Ejecutar(() => new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
                 return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -281,6 +293,7 @@ namespace Nexo.Modules.Threats.Escaner
         // que el usuario pidio escanear.
         private IEnumerable<string> Recorrer(List<string> raices, List<string> omitidos, CancellationToken ct)
         {
+            IAccesoAArchivos acceso = _opciones.Acceso;
             var opciones = new EnumerationOptions
             {
                 RecurseSubdirectories = false,
@@ -290,8 +303,19 @@ namespace Nexo.Modules.Threats.Escaner
 
             foreach (string raiz in raices)
             {
-                if (File.Exists(raiz)) { yield return raiz; continue; }
-                if (!Directory.Exists(raiz)) { lock (omitidos) omitidos.Add(raiz + " — no existe"); continue; }
+                bool esArchivo, esCarpeta;
+                try
+                {
+                    esArchivo = acceso.Ejecutar(() => File.Exists(raiz));
+                    esCarpeta = !esArchivo && acceso.Ejecutar(() => Directory.Exists(raiz));
+                }
+                catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
+                {
+                    lock (omitidos) omitidos.Add(raiz + " — no se pudo consultar: " + ex.GetType().Name);
+                    continue;
+                }
+                if (esArchivo) { yield return raiz; continue; }
+                if (!esCarpeta) { lock (omitidos) omitidos.Add(raiz + " — no existe"); continue; }
 
                 var pendientes = new Stack<string>();
                 pendientes.Push(raiz);
@@ -306,7 +330,8 @@ namespace Nexo.Modules.Threats.Escaner
                     {
                         try
                         {
-                            foreach (string sub in Directory.EnumerateDirectories(actual, "*", opciones))
+                            // La enumeracion es perezosa: se materializa DENTRO del contexto del llamador.
+                            foreach (string sub in acceso.Ejecutar(() => Directory.EnumerateDirectories(actual, "*", opciones).ToList()))
                                 pendientes.Push(sub);
                         }
                         catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
@@ -316,7 +341,7 @@ namespace Nexo.Modules.Threats.Escaner
                     }
 
                     IEnumerator<string> it;
-                    try { it = Directory.EnumerateFiles(actual, "*", opciones).GetEnumerator(); }
+                    try { it = acceso.Ejecutar(() => { var e = Directory.EnumerateFiles(actual, "*", opciones).GetEnumerator(); return e; }); }
                     catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                     {
                         lock (omitidos) omitidos.Add(actual + " — carpeta no leida: " + ex.GetType().Name);
@@ -330,7 +355,7 @@ namespace Nexo.Modules.Threats.Escaner
                             string archivo;
                             try
                             {
-                                if (!it.MoveNext()) break;
+                                if (!acceso.Ejecutar(() => it.MoveNext())) break;
                                 archivo = it.Current;
                             }
                             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)

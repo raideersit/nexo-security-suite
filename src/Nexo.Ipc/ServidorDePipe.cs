@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -114,6 +115,7 @@ namespace Nexo.Ipc
 
         private async Task AtenderAsync(NamedPipeServerStream pipe, CancellationToken parar)
         {
+            ContextoDeLlamada? contexto = null;
             try
             {
                 await using (pipe.ConfigureAwait(false))
@@ -128,7 +130,10 @@ namespace Nexo.Ipc
                         }
                         if (cuerpo is null) return;                      // el cliente cerro
 
-                        Respuesta r = await ResponderAsync(cuerpo, parar).ConfigureAwait(false);
+                        // Solo tras leer el primer mensaje se puede identificar al cliente.
+                        contexto ??= Capturar(pipe);
+
+                        Respuesta r = await ResponderAsync(cuerpo, contexto, parar).ConfigureAwait(false);
                         Interlocked.Increment(ref _atendidas);
                         await Tramas.EscribirAsync(pipe, JsonSerializer.SerializeToUtf8Bytes(r, Json), parar).ConfigureAwait(false);
                     }
@@ -139,10 +144,39 @@ namespace Nexo.Ipc
                 // No se puede resincronizar: se cierra. Contestar a un cuerpo ilegible no aporta nada.
             }
             catch (Exception ex) when (ex is OperationCanceledException || ex is IOException || ex is ObjectDisposedException) { }
-            finally { _huecos.Release(); }
+            finally
+            {
+                contexto?.Dispose();
+                _huecos.Release();
+            }
         }
 
-        private async Task<Respuesta> ResponderAsync(byte[] cuerpo, CancellationToken parar)
+        /// <summary>
+        /// Identidad del cliente (SID y nivel de suplantacion que concedio) y, si dejo suplantarlo, un token
+        /// duplicado para actuar en su nombre. Si no se puede, el contexto queda SIN token: las operaciones
+        /// que lo exijan se rechazan (nunca se sustituye por SYSTEM).
+        /// </summary>
+        private static ContextoDeLlamada Capturar(NamedPipeServerStream pipe)
+        {
+            try
+            {
+                ContextoDeLlamada? c = null;
+                pipe.RunAsClient(() =>
+                {
+                    using WindowsIdentity id = WindowsIdentity.GetCurrent();
+                    bool puede = id.ImpersonationLevel is TokenImpersonationLevel.Impersonation or TokenImpersonationLevel.Delegation;
+                    c = new ContextoDeLlamada(id.User, id.ImpersonationLevel,
+                        puede ? new WindowsIdentity(id.AccessToken.DangerousGetHandle()) : null);
+                });
+                return c ?? new ContextoDeLlamada(null, TokenImpersonationLevel.None, null);
+            }
+            catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is UnauthorizedAccessException)
+            {
+                return new ContextoDeLlamada(null, TokenImpersonationLevel.None, null);
+            }
+        }
+
+        private async Task<Respuesta> ResponderAsync(byte[] cuerpo, ContextoDeLlamada contexto, CancellationToken parar)
         {
             Solicitud? s;
             try { s = JsonSerializer.Deserialize<Solicitud>(Tramas.Texto(cuerpo), Json); }
@@ -160,6 +194,8 @@ namespace Nexo.Ipc
             {
                 using var limite = CancellationTokenSource.CreateLinkedTokenSource(parar);
                 limite.CancelAfter(_opciones.TiempoPorPeticion);
+                // Los manejadores leen la identidad del llamador de aqui (fluye por las llamadas asincronas).
+                ContextoDeLlamada.Establecer(contexto);
                 object? resultado = await _manejador.ManejarAsync(s.Metodo, s.Parametros, limite.Token).ConfigureAwait(false);
                 return new Respuesta
                 {

@@ -17,12 +17,17 @@ namespace Nexo.Ipc
 
         private ClienteDePipe(NamedPipeClientStream pipe) => _pipe = pipe;
 
+        /// <param name="nivel">
+        /// Que puede hacer el servidor con la identidad de este cliente. Por omision Impersonation: el
+        /// servicio actua CON TUS permisos al leer, mover o restaurar archivos (si no, lo haria como SYSTEM
+        /// y tu obtendrias permisos que no tienes). Es seguro porque solo SYSTEM y Administradores pueden
+        /// crear el pipe (ver SeguridadDePipe); con Identification esas operaciones se rechazan.
+        /// </param>
         /// <exception cref="TimeoutException">El servicio no esta escuchando.</exception>
-        public static async Task<ClienteDePipe> ConectarAsync(string nombre, TimeSpan espera, CancellationToken ct = default)
+        public static async Task<ClienteDePipe> ConectarAsync(string nombre, TimeSpan espera, CancellationToken ct = default,
+            TokenImpersonationLevel nivel = TokenImpersonationLevel.Impersonation)
         {
-            // Identification: el servidor puede saber quien llama, pero no actuar en su nombre.
-            var pipe = new NamedPipeClientStream(".", nombre, PipeDirection.InOut, PipeOptions.Asynchronous,
-                                                 TokenImpersonationLevel.Identification);
+            var pipe = new NamedPipeClientStream(".", nombre, PipeDirection.InOut, PipeOptions.Asynchronous, nivel);
             try
             {
                 await pipe.ConnectAsync((int)espera.TotalMilliseconds, ct).ConfigureAwait(false);

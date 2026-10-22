@@ -18,6 +18,9 @@ namespace Nexo.Service
     ///  1. SOLO se pone en cuarentena lo que detecto un escaneo del propio servicio y se
     ///     nombra por el id de ese escaneo. El cliente NO puede pasar una ruta suya: si pudiera,
     ///     tendria a SYSTEM moviendo (es decir, quitando de su sitio) cualquier archivo del equipo.
+    ///  0. El original se lee, se retira y se restaura CON LA IDENTIDAD DEL LLAMADOR (no como SYSTEM): solo
+    ///     se puede poner en cuarentena lo que ese usuario podria leer y borrar por si mismo, y solo se
+    ///     restaura donde el podria escribir. Si no se puede actuar como el, se rechaza.
     ///  2. Restaurar es SOLO a la ruta original y nunca pisa un archivo; no hay parametro
     ///     "destino" por el pipe (seria escribir un archivo donde diga el cliente, como SYSTEM).
     ///  3. Todo lo que cambia algo (poner, restaurar, purgar) es vista previa + token de un solo uso.
@@ -79,8 +82,12 @@ namespace Nexo.Service
 
                 case "cuarentena.aplicar":
                 {
+                    // Primero la identidad y despues el token: si no se puede actuar como el llamador, el token NO se
+                    // gasta y puede reintentar desde una conexion con suplantacion.
+                    AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
                     Plan plan = Tomar(p, "poner");
-                    ResultadoCuarentena r = await _almacen.AplicarAsync(plan.Poner!, plan.Poner!.Token, ct).ConfigureAwait(false);
+                    // El original se lee y se retira CON LA IDENTIDAD DEL LLAMADOR: solo lo que el podria leer y borrar.
+                    ResultadoCuarentena r = await _almacen.AplicarAsync(plan.Poner!, plan.Poner!.Token, ct, acceso).ConfigureAwait(false);
                     return new
                     {
                         movidos = r.Movidos.Select(e => new { id = e.Id, ruta_original = e.RutaOriginal }).ToList(),
@@ -90,8 +97,10 @@ namespace Nexo.Service
 
                 case "cuarentena.restaurar":
                 {
+                    AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
                     Plan plan = Tomar(p, "restaurar");
-                    ResultadoRestauracion r = await _almacen.RestaurarAsync(plan.Restaurar!.Id, destino: null, ct).ConfigureAwait(false);
+                    // Se escribe en la ruta original CON LA IDENTIDAD DEL LLAMADOR: no donde el no podria escribir.
+                    ResultadoRestauracion r = await _almacen.RestaurarAsync(plan.Restaurar!.Id, destino: null, ct, acceso).ConfigureAwait(false);
                     return new { exito = r.Exito, ruta = r.Ruta, motivo = r.Motivo };
                 }
 
@@ -149,7 +158,8 @@ namespace Nexo.Service
             if (e is null) throw new ErrorDeComando(ModuloEscaneo.NoExiste, "no existe esa entrada de cuarentena");
 
             var avisos = new List<string>();
-            if (File.Exists(e.RutaOriginal) || Directory.Exists(e.RutaOriginal))
+            AccesoComoLlamador acceso = AccesoComoLlamador.Requerir();
+            if (acceso.Ejecutar(() => File.Exists(e.RutaOriginal) || Directory.Exists(e.RutaOriginal)))
                 avisos.Add("el destino ya existe: la restauracion no lo sobrescribira");
             avisos.Add("Se restaura un archivo que se detecto como " + e.Firma + ". Es tu decision.");
 

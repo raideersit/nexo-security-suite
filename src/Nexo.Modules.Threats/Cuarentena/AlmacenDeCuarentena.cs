@@ -198,9 +198,15 @@ namespace Nexo.Modules.Threats.Cuarentena
         // ============================================================
         //  FASE 2: APLICAR
         // ============================================================
+        /// <param name="acceso">
+        /// En nombre de quien se lee y se retira el ORIGINAL. El servicio pasa la identidad del llamador:
+        /// asi solo se puede poner en cuarentena lo que ese usuario podria leer y borrar por si mismo
+        /// (si no, un usuario haria borrar a SYSTEM archivos que a el no le dejan).
+        /// </param>
         public async Task<ResultadoCuarentena> AplicarAsync(
-            VistaPreviaCuarentena vista, TokenDeCambio token, CancellationToken ct = default)
+            VistaPreviaCuarentena vista, TokenDeCambio token, CancellationToken ct = default, IAccesoAArchivos? acceso = null)
         {
+            IAccesoAArchivos a = acceso ?? AccesoDirecto.Instancia;
             if (vista is null) throw new ArgumentNullException(nameof(vista));
             if (token is null) throw new ArgumentNullException(nameof(token));
 
@@ -221,7 +227,7 @@ namespace Nexo.Modules.Threats.Cuarentena
                 string? motivo = MotivoDeRechazo(d.Ruta);
                 if (motivo is not null) { omitidos.Add(d.Ruta + " — " + motivo); continue; }
 
-                (ElementoDeCuarentena? item, string? error) = Mover(d);
+                (ElementoDeCuarentena? item, string? error) = Mover(d, a);
                 if (item is null) { omitidos.Add(d.Ruta + " — " + error); continue; }
 
                 movidos.Add(item);
@@ -232,23 +238,31 @@ namespace Nexo.Modules.Threats.Cuarentena
             return new ResultadoCuarentena(movidos, omitidos);
         }
 
-        private (ElementoDeCuarentena?, string?) Mover(Deteccion d)
+        private (ElementoDeCuarentena?, string?) Mover(Deteccion d, IAccesoAArchivos a)
         {
             byte[] contenido;
             DateTimeOffset modificado;
             try
             {
-                var info = new FileInfo(d.Ruta);
-                if (!info.Exists) return (null, "ya no existe");
-                if (info.Length > MaxBytesPorArchivo) return (null, "demasiado grande para la cuarentena");
-                modificado = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
+                // Todo lo que toca el original va con la identidad del llamador (ver AplicarAsync).
+                (byte[]? leido, DateTimeOffset mod, string? rechazo) = a.Ejecutar<(byte[]?, DateTimeOffset, string?)>(() =>
+                {
+                    var info = new FileInfo(d.Ruta);
+                    if (!info.Exists) return ((byte[]?)null, default(DateTimeOffset), "ya no existe");
+                    if (info.Length > MaxBytesPorArchivo) return (null, default, "demasiado grande para la cuarentena");
+                    var m = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
 
-                if (info.Length != d.Bytes || modificado != d.Modificado)
-                    return (null, "el archivo cambio despues de la vista previa; no se mueve");
+                    if (info.Length != d.Bytes || m != d.Modificado)
+                        return (null, default, "el archivo cambio despues de la vista previa; no se mueve");
 
-                using var fs = new FileStream(d.Ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                contenido = new byte[fs.Length];
-                fs.ReadExactly(contenido);
+                    using var fs = new FileStream(d.Ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    byte[] buf = new byte[fs.Length];
+                    fs.ReadExactly(buf);
+                    return (buf, m, null);
+                });
+                if (rechazo is not null) return (null, rechazo);
+                contenido = leido!;
+                modificado = mod;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -291,7 +305,7 @@ namespace Nexo.Modules.Threats.Cuarentena
                 return (null, "no se pudo escribir en la cuarentena (" + ex.GetType().Name + ")");
             }
 
-            if (!BorrarOriginal(d.Ruta))
+            if (!BorrarOriginal(d.Ruta, a))
             {
                 Descartar(rutaDatos, rutaMeta);
                 return (null, "no se pudo retirar el original (en uso o sin permisos); se deshizo la copia");
@@ -322,8 +336,10 @@ namespace Nexo.Modules.Threats.Cuarentena
         /// pisa un archivo existente.
         /// </summary>
         public async Task<ResultadoRestauracion> RestaurarAsync(
-            string id, string? destino = null, CancellationToken ct = default)
+            string id, string? destino = null, CancellationToken ct = default, IAccesoAArchivos? acceso = null)
         {
+            // Escribir en la ruta original va con la identidad del llamador: no se escribe con SYSTEM donde el no podria.
+            IAccesoAArchivos a = acceso ?? AccesoDirecto.Instancia;
             // El id llega de fuera: se valida antes de formar ninguna ruta con el.
             if (id is null || !IdValido.IsMatch(id))
                 return new ResultadoRestauracion(false, null, "identificador de cuarentena no valido");
@@ -335,7 +351,13 @@ namespace Nexo.Modules.Threats.Cuarentena
                 return new ResultadoRestauracion(false, null, "no existe esa entrada de cuarentena");
 
             string ruta = destino ?? m.RutaOriginal;
-            if (File.Exists(ruta) || Directory.Exists(ruta))
+            bool existe;
+            try { existe = a.Ejecutar(() => File.Exists(ruta) || Directory.Exists(ruta)); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return new ResultadoRestauracion(false, ruta, "no se pudo comprobar el destino (" + ex.GetType().Name + ")");
+            }
+            if (existe)
                 return new ResultadoRestauracion(false, ruta, "el destino ya existe; no se sobrescribe (usa otro destino)");
 
             try
@@ -345,9 +367,12 @@ namespace Nexo.Modules.Threats.Cuarentena
                         Convert.ToHexString(SHA256.HashData(contenido)).ToLowerInvariant(), m.Sha256, StringComparison.Ordinal))
                     return new ResultadoRestauracion(false, ruta, "la copia cuarentenada esta danada (no pasa la verificacion)");
 
-                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(ruta))!);
-                using (var fs = new FileStream(ruta, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                a.Ejecutar(() =>
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(ruta))!);
+                    using var fs = new FileStream(ruta, FileMode.CreateNew, FileAccess.Write, FileShare.None);
                     fs.Write(contenido);
+                });
 
                 Descartar(rutaDatos, rutaMeta);
                 await _reportes.EscribirAsync(Eventos.Amenazas.Restaurado(ruta, id, contenido.Length), ct).ConfigureAwait(false);
@@ -448,20 +473,21 @@ namespace Nexo.Modules.Threats.Cuarentena
         }
 
         // ============================================================
-        private static bool BorrarOriginal(string ruta)
-        {
-            for (int intento = 0; intento < 2; intento++)
+        private static bool BorrarOriginal(string ruta, IAccesoAArchivos a)
+            => a.Ejecutar(() =>
             {
-                try { File.Delete(ruta); return !File.Exists(ruta); }
-                catch (UnauthorizedAccessException) when (intento == 0)
+                for (int intento = 0; intento < 2; intento++)
                 {
-                    // Un archivo de solo lectura no se puede borrar: se quita el atributo y se reintenta.
-                    try { File.SetAttributes(ruta, FileAttributes.Normal); } catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { return false; }
+                    try { File.Delete(ruta); return !File.Exists(ruta); }
+                    catch (UnauthorizedAccessException) when (intento == 0)
+                    {
+                        // Un archivo de solo lectura no se puede borrar: se quita el atributo y se reintenta.
+                        try { File.SetAttributes(ruta, FileAttributes.Normal); } catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { return false; }
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return false; }
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return false; }
-            }
-            return false;
-        }
+                return false;
+            });
 
         private static void Descartar(params string[] rutas)
         {

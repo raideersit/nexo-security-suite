@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**504 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**533 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -38,9 +38,9 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 66 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
-| `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
-| `tools/Nexo.Ipc.Demo` | 33 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 100 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
+| `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
+| `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
+| `tools/Nexo.Service.Demo` | 109 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
 | `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
@@ -357,10 +357,31 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   por SYSTEM y Administradores (la ACL que fija el script sobre `%ProgramData%\Nexo`); si un
   usuario normal pudiera escribir ahí, fabricaría una entrada y haría que «restaurar»
   escribiera donde quisiera.
-- **Fuga menor conocida del escaneo:** el servicio lee con SU cuenta, no con la del
-  llamador. Quien llama puede saber si una ruta que nombró tiene una detección y cuántos
-  archivos se analizaron aunque él no pudiera leerla. Corregirlo exige comprobar el acceso
-  con la identidad del cliente del pipe, que el protocolo todavía no transporta.
+- **El servicio actúa con la identidad del llamador, no como SYSTEM (2026-10-22):** antes el
+  escaneo leía con la cuenta del servicio, así que quien llamaba podía saber si una ruta que
+  no podía leer tenía una detección; y la cuarentena habría borrado como SYSTEM lo que al
+  usuario no le dejan borrar. Ahora `ContextoDeLlamada` (`Nexo.Ipc`) captura quién llamó
+  (SID y nivel de suplantación que concedió) tras el primer mensaje de cada conexión
+  (Windows no deja suplantar antes), y cada operación de archivos —recorrer, consultar,
+  abrir, retirar el original, restaurar— pasa por `IAccesoAArchivos` y se ejecuta con
+  `WindowsIdentity.RunImpersonated`. El acceso se comprueba al **abrir**; leer después no lo
+  repite. Un escaneo largo usa una **copia** del contexto que sobrevive a la conexión.
+  **Falla cerrado:** si el cliente conectó con nivel `Identification` (el servicio sabe quién
+  es pero no puede usar sus permisos) o no se pudo identificar, el escaneo, la cuarentena
+  y la restauración se **rechazan** con un error claro; nunca se recurre a SYSTEM «por si
+  acaso». Esa comprobación va **antes** de gastar el token, así que se puede reintentar.
+  `ClienteDePipe` conecta por omisión con `Impersonation`: es seguro porque solo SYSTEM y
+  Administradores pueden crear el pipe (un servidor falso no puede suplantar al servicio).
+  Resultado: solo se puede escanear lo que ese usuario podría leer, poner en cuarentena lo
+  que podría leer **y borrar**, y restaurar donde podría escribir.
+  **Matiz:** `firewall.previsualizar` comprueba con `File.Exists` (como SYSTEM) que la ruta
+  del `.exe` existe, lo que revela si un archivo existe; es el único resto y es mínimo.
+  **Sin probar con un usuario distinto del servicio:** los arneses corren servicio y cliente
+  como el mismo usuario, así que no pueden *mostrar* la diferencia entre actuar como SYSTEM
+  y como el llamador. Lo que sí prueban es que **todas** las operaciones pasan por el acceso
+  del llamador (accesos falsos que cuentan, deniegan o fallan), el fallo cerrado, y que la
+  suplantación real funciona y sobrevive a la conexión. La prueba definitiva es en la VM:
+  servicio como SYSTEM, cliente como usuario normal, un archivo que solo SYSTEM pueda leer.
 - **Token de confirmación (`PlanesPendientes`):** el plan vive en el servicio; el cliente
   solo recibe un token aleatorio de 256 bits y pide aplicar **ese** plan, así que no
   puede cambiar lo que se aplica entre la vista previa y la confirmación (los parámetros

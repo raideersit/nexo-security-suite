@@ -26,10 +26,9 @@ namespace Nexo.Service
     /// llamador (ver "Limite" abajo), asi que se acota lo que se puede pedir: hasta 8 rutas
     /// absolutas y locales, nunca de red (UNC), y un solo escaneo a la vez.
     ///
-    /// Limite conocido: el servicio puede leer archivos que el llamador no. El resultado solo
-    /// dice si una ruta que el propio llamador nombro tiene una deteccion y cuantos archivos se
-    /// analizaron, no devuelve contenido; aun asi es una fuga menor. Corregirla exige comprobar
-    /// el acceso con la identidad del cliente del pipe, que el protocolo todavia no transporta.
+    /// El servicio lee los archivos CON LA IDENTIDAD DEL LLAMADOR (recorrido, tamano y apertura), no
+    /// como SYSTEM: solo se analiza lo que ese usuario podria leer por si mismo, asi que escanear no
+    /// le revela nada que no pudiera saber. Si el cliente no deja actuar en su nombre, se rechaza.
     /// </summary>
     public sealed class ModuloEscaneo : IModuloDelServicio, IResultadosDeEscaneo, IAsyncDisposable
     {
@@ -144,15 +143,26 @@ namespace Nexo.Service
                     throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "'paralelo' debe ser un entero positivo");
             }
 
+            // Se escanea CON LA IDENTIDAD DEL LLAMADOR: solo se lee lo que el podria leer. Si no se puede
+            // actuar como el, se rechaza (nunca se escanea como SYSTEM). La copia sobrevive a la peticion.
+            AccesoComoLlamador acceso = AccesoComoLlamador.Requerir().Duplicar();
+
             // Se avisa YA si no hay motor, en vez de arrancar un trabajo que fallara despues.
             try { await _motor.VersionAsync(ct).ConfigureAwait(false); }
-            catch (MotorNoDisponibleException ex) { throw new ErrorDeComando(MotorNoDisponible, "el motor de analisis no esta disponible: " + ex.Message); }
+            catch (MotorNoDisponibleException ex)
+            {
+                acceso.Dispose();
+                throw new ErrorDeComando(MotorNoDisponible, "el motor de analisis no esta disponible: " + ex.Message);
+            }
 
             Trabajo t;
             lock (_candado)
             {
                 if (_trabajos.Values.Any(x => x.Estado == "corriendo"))
+                {
+                    acceso.Dispose();
                     throw new ErrorDeComando(Ocupado, "ya hay un escaneo en curso");
+                }
 
                 // Se descartan los terminados mas antiguos: no se acumulan resultados sin limite.
                 foreach (string k in _trabajos.Values.Where(x => x.Estado != "corriendo").OrderBy(x => x.Inicio)
@@ -163,7 +173,7 @@ namespace Nexo.Service
                 _trabajos[t.Id] = t;
             }
 
-            var opciones = new OpcionesDeEscaneo { Excluir = _excluir, Paralelismo = paralelo };
+            var opciones = new OpcionesDeEscaneo { Excluir = _excluir, Paralelismo = paralelo, Acceso = acceso };
             var progreso = new Progress<ProgresoDeEscaneo>(x => Volatile.Write(ref t.Analizados, x.Analizados));
             t.Tarea = Task.Run(async () =>
             {
@@ -182,6 +192,7 @@ namespace Nexo.Service
                     t.Error = "el escaneo fallo por un error interno";
                     t.Estado = "fallido";
                 }
+                finally { acceso.Dispose(); }
             });
 
             return new { id = t.Id, rutas };

@@ -15,7 +15,7 @@ using Nexo.Ipc;
 
 namespace Nexo.Ipc.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
 
@@ -28,6 +28,7 @@ namespace Nexo.Ipc.Demo
             await ProbarFallosDelManejador().ConfigureAwait(false);
             await ProbarLimites().ConfigureAwait(false);
             ProbarAcl();
+            await ProbarIdentidad().ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0
@@ -288,6 +289,30 @@ namespace Nexo.Ipc.Demo
 
                 case "explota":
                     throw new InvalidOperationException("secreto: C:\\Users\\alguien\\clave.txt");
+
+                case "quien":
+                {
+                    ContextoDeLlamada? c = ContextoDeLlamada.Actual;
+                    if (c is null) return new { hay_contexto = false };
+                    string? ejecutadoComo = null;
+                    string? error = null;
+                    try { ejecutadoComo = c.Ejecutar(() => System.Security.Principal.WindowsIdentity.GetCurrent().Name); }
+                    catch (InvalidOperationException ex) { error = ex.GetType().Name; }
+                    return new
+                    {
+                        hay_contexto = true,
+                        sid = c.Usuario?.Value,
+                        nivel = c.Nivel.ToString(),
+                        puede = c.PuedeActuarComoElLlamador,
+                        ejecutado_como = ejecutadoComo,
+                        error
+                    };
+                }
+
+                case "guardar-copia":
+                    // Una copia que sobrevive a la peticion (como la de un escaneo en segundo plano).
+                    Program.CopiaGuardada = ContextoDeLlamada.Actual?.Duplicar();
+                    return new { guardada = Program.CopiaGuardada is not null };
 
                 case "dormir":
                     await Task.Delay(TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);

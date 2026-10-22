@@ -20,7 +20,7 @@ namespace Nexo.Scan.Demo
     /// habla el protocolo real por TCP en loopback. No requiere ClamAV. Los
     /// archivos "infectados" solo contienen una cadena marcadora propia.
     /// </summary>
-    public static class Program
+    public static partial class Program
     {
         private static int _fallos;
         private static readonly byte[] Marcador = Encoding.ASCII.GetBytes(ClamdFalso.Marcador);
@@ -37,6 +37,7 @@ namespace Nexo.Scan.Demo
                 await ProbarClienteAsync().ConfigureAwait(false);
                 await ProbarEscanerAsync(Path.Combine(raiz, "escaner")).ConfigureAwait(false);
                 await ProbarCuarentenaAsync(Path.Combine(raiz, "cuarentena")).ConfigureAwait(false);
+                await ProbarIdentidadAsync(Path.Combine(raiz, "identidad")).ConfigureAwait(false);
             }
             finally
             {
