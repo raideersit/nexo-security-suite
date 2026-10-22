@@ -114,6 +114,22 @@ namespace Nexo.Modules.Threats.Firewall
                                  _reloj().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ". Ruta: " + v.Ruta)));
             }
 
+            // Reglas ajenas (Windows u otros programas) sobre la misma aplicacion: no se tocan, solo se avisan.
+            foreach (DireccionDeRegla d in direcciones)
+            {
+                foreach (ReglaDeFirewall r in existentes.Where(r => !r.EsDeNexo && r.Habilitada && r.Direccion == d
+                             && r.RutaApp is not null
+                             && string.Equals(r.RutaApp, v.Ruta, StringComparison.OrdinalIgnoreCase)))
+                {
+                    string que = r.Accion == accion
+                        ? "ya hay una regla ajena equivalente"
+                        : accion == AccionDeRegla.Permitir
+                            ? "hay una regla ajena que BLOQUEA; en Windows el bloqueo tiene prioridad sobre el permiso"
+                            : "hay una regla ajena que PERMITE; la de Nexo la superara porque el bloqueo tiene prioridad";
+                    advertencias.Add("Direccion " + d + ": " + que + " (\"" + r.Nombre + "\", puede aplicar solo a ciertos puertos).");
+                }
+            }
+
             if (accion == AccionDeRegla.Permitir)
             {
                 string bloqueo = "Nexo: Bloquear";

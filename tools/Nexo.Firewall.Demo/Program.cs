@@ -304,6 +304,25 @@ namespace Nexo.Firewall.Demo
             Check(vc.Rechazos.Count == 1 && vc.Cambios.Count == 1,
                   "si una regla ajena ya usa ese nombre, no la pisa: la informa y sigue con la otra");
 
+            // Regla ajena sobre la misma aplicacion: se avisa, no se toca ni se impide crear la de Nexo.
+            var equiv = Crear(out var almacenE, out _);
+            var ajenaBloq = new ReglaDeFirewall("Bloqueo de otro programa", App, DireccionDeRegla.Saliente,
+                AccionDeRegla.Bloquear, PerfilesDeRed.Todos, true, "Otro programa");
+            almacenE.Reglas.Add(ajenaBloq);
+            VistaPreviaFirewall ve = equiv.PrepararRegla(App, AccionDeRegla.Bloquear, DireccionDeRegla.Saliente);
+            Check(ve.Cambios.Count == 1 && ve.Advertencias.Any(w => w.Contains("equivalente") && w.Contains("Bloqueo de otro programa")),
+                  "bloquear avisa de una regla ajena equivalente, pero sigue siendo posible");
+            VistaPreviaFirewall vp = equiv.PrepararRegla(App, AccionDeRegla.Permitir, DireccionDeRegla.Saliente);
+            Check(vp.Advertencias.Any(w => w.Contains("BLOQUEA") && w.Contains("prioridad")),
+                  "permitir avisa de que una regla ajena que bloquea tiene prioridad");
+            VistaPreviaFirewall vd = equiv.PrepararRegla(App, AccionDeRegla.Bloquear, DireccionDeRegla.Entrante);
+            Check(!vd.Advertencias.Any(w => w.Contains("Bloqueo de otro programa")),
+                  "no avisa de reglas ajenas de otra direccion");
+            almacenE.Reglas[0] = ajenaBloq with { Habilitada = false };
+            Check(!equiv.PrepararRegla(App, AccionDeRegla.Bloquear, DireccionDeRegla.Saliente).Advertencias.Any(w => w.Contains("Bloqueo de otro programa")),
+                  "no avisa de reglas ajenas deshabilitadas");
+            Check(almacenE.Reglas.Count == 1, "avisar no modifica el almacen");
+
             Console.WriteLine();
         }
     }
