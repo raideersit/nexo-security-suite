@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**314 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**356 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +14 del servicio, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -39,6 +39,8 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Demo` | 66 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
+| `tools/Nexo.Ipc.Demo` | 28 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
+| `tools/Nexo.Service.Demo` | 14 | El servicio en el mismo proceso: ciclo de vida, métodos expuestos, notas (solo Windows) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -248,7 +250,7 @@ y no pasa por el filtro; hace falta otro equipo de la red.
   nadie lo emite todavía. Hoy solo se reportan los *cambios de configuración*.
 - Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
 - ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%\Nexo\firewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
-- Sin integración en `Nexo.Service` (no existe todavía) ni confirmación desde la UI.
+- Sin integración en `Nexo.Service` (existe, pero solo expone `ping` y `estado`; ver §2f) ni confirmación desde la UI.
 - ~~`bloquear` no detecta reglas ajenas~~ Hecho (2026-10-22): ahora las **avisa** (misma app y dirección, habilitadas) sin tocarlas ni impedir la creación. No distingue puertos: la regla ajena podría aplicar solo a algunos.
 
 ---
@@ -311,6 +313,48 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 - ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8, por defecto 1) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Con clamd real falta medir si compensa.
 - Archivos > 25 MB no se analizan (quedan como omitidos): ISOs, VMs, instaladores grandes.
 - Los archivos comprimidos los abre `clamd`; no hay control de límites de recursión.
+
+---
+
+## 2f. Servicio y canal IPC (2026-10-22)
+
+Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL en
+`%ProgramData%`): la Fase 0 de la Salida 0 sin la bandeja.
+
+- `Nexo.Ipc` (`net8.0-windows`): tramas con longitud (4 bytes LE, máx. 1 MiB), JSON
+  estilo JSON-RPC, `ServidorDePipe` y `ClienteDePipe`.
+- `Nexo.Service`: `Worker` que levanta el vault y el pipe `NexoIpc`, deja notas
+  `servicio-iniciado` y `servicio-detenido`, y para en < 4 s. El mismo `.exe` corre como
+  servicio o en consola (`AddWindowsService`).
+- `src\Nexo.Service\Install\nexo-service.ps1` (instalar / desinstalar / estado). **No se ha
+  ejecutado nunca**: solo se comprobó su sintaxis.
+
+**Decisiones de seguridad:**
+
+- **ACL del pipe:** SYSTEM, Administradores y la cuenta del propio servicio con control
+  total; el usuario interactivo solo lectura y escritura —**sin** crear instancias del
+  pipe ni cambiar permisos, para que nadie suplante al servicio—; red denegada; ni
+  Everyone ni Usuarios autenticados.
+- **El servidor no confía en lo que llega:** tamaño acotado (un tamaño enorme, cero o
+  negativo cierra la conexión sin reservar memoria), JSON y UTF-8 validados, 16
+  conexiones como máximo, cierre por inactividad (30 s), tiempo máximo por petición, y
+  una excepción del manejador se devuelve como «error interno» **sin** su mensaje.
+- **Hoy solo hay métodos de lectura** (`ping`, `estado`). Ninguna acción que borre,
+  cambie el firewall o mueva archivos se expone hasta que lleve su vista previa y su
+  token **validados en el servicio**. Una prueba comprueba que `limpiar`, `borrar`,
+  `firewall.bloquear` y `cuarentena.restaurar` no existen.
+- El script de instalación se niega si la carpeta del `.exe` admite escritura a usuarios
+  normales (sería una escalada a SYSTEM) y restringe el vault a SYSTEM y Administradores.
+
+**NO probado:** instalarlo como servicio y arrancarlo con el SCM (LocalSystem), el
+reinicio automático tras una caída, y la ACL contra un cliente de **otro** usuario. Todo
+eso es para la VM `NexoVM` (snapshot `limpia`): `dotnet publish src\Nexo.Service -c
+Release -o "C:\Program Files\Nexo\service"` y `nexo-service.ps1 -Accion instalar`.
+
+**Huecos conocidos:** sin `INexoModule` ni `EventBus` (los módulos aún no se cargan en el
+servicio), sin bandeja (`Nexo.Ui.Tray`), sin token de confirmación en el protocolo, y el
+vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
+herramientas de consola usan `%LOCALAPPDATA%\Nexo\Vault`.
 
 ---
 

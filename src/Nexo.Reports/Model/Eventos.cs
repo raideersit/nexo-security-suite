@@ -544,6 +544,33 @@ namespace Nexo.Reports.Model
             }
         }
 
+        // ================================================================
+        //  SISTEMA
+        // ================================================================
+        public static class Sistema
+        {
+            /// <summary>El servicio arranco. <paramref name="admiteIpc"/> dice si el pipe quedo escuchando.</summary>
+            public static NexoEvent ServicioIniciado(string version, bool admiteIpc, string? aviso = null)
+            {
+                var ev = new NexoEvent(ModuloOrigen.Sistema, TipoEvento.ServicioIniciado, "Nexo Service iniciado")
+                {
+                    Severidad = admiteIpc ? Severidad.Info : Severidad.Alta,
+                    Accion = Accion.Registrada,
+                    Cuerpo = aviso
+                };
+                return ev.Con("version", version).Con("ipc_activo", admiteIpc);
+            }
+
+            public static NexoEvent ServicioDetenido(TimeSpan activo, int peticionesAtendidas)
+                => new NexoEvent(ModuloOrigen.Sistema, TipoEvento.ServicioDetenido, "Nexo Service detenido")
+                {
+                    Severidad = Severidad.Info,
+                    Accion = Accion.Registrada
+                }
+                .Con("activo_segundos", Math.Round(activo.TotalSeconds, 0))
+                .Con("peticiones_ipc", peticionesAtendidas);
+        }
+
         private static string SoloNombre(string ruta)
         {
             if (string.IsNullOrWhiteSpace(ruta)) return "desconocido";

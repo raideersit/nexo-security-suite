@@ -37,6 +37,8 @@ namespace Nexo.Reports.Model
         public const string InicioModificado = "inicio-modificado";
 
         // --- Sistema ---
+        public const string ServicioIniciado = "servicio-iniciado";
+        public const string ServicioDetenido = "servicio-detenido";
         public const string ResumenDiario = "resumen-diario";
         public const string ErrorModulo = "error-modulo";
     }
