@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes del protocolo IPC: levanta el servidor en un pipe de nombre unico y lo
+         ataca con clientes buenos y malos. No instala nada ni toca el servicio real. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Ipc.Demo</RootNamespace>
+    <AssemblyName>nexo-ipc-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Ipc\Nexo.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>

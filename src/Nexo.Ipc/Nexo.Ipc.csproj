@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Protocolo UI <-> servicio por named pipe (Salida 0, §2). Es net8.0-windows
+         porque la ACL del pipe (PipeSecurity) es una API de Windows. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Ipc</RootNamespace>
+  </PropertyGroup>
+
+</Project>
