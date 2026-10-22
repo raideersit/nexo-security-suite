@@ -285,8 +285,16 @@ No necesita VM, solo permisos:
 - Enlaces simbólicos de archivo: requieren activar el modo desarrollador de Windows.
 
 > Ambos puntos se cubrieron en el segundo equipo (§2b), pero solo con un NVMe.
-> En el principal falta S.M.A.R.T. con el disco SATA (atributos ATA reales) y
-> el USB.
+>
+> **Hecho en el principal (2026-10-21, como administrador):** 29/29. Escribe en
+> `HKLM`. Tipo de disco: C: = SSD, D: y E: = HDD. S.M.A.R.T.:
+> - NVMe GIGABYTE: 40 °C, desgaste 0 %; sin atributos ATA, con el motivo (Info).
+> - **SATA ST1000LM035 (18 269 h): 23 atributos ATA reales. Evaluación «Alta»:
+>   atributo 187 (errores incorregibles reportados) = 90.** Primera lectura ATA
+>   real del proyecto; el evaluador y el historial funcionan con ella. El
+>   disco está dando señales de fallo: conviene respaldar lo importante.
+> - Puente USB: sin comandos S.M.A.R.T. (limitación declarada, Info).
+> - El historial guardó 1 de 3 discos (el único con atributos), como debe ser.
 
 ---
 

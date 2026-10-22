@@ -44,8 +44,6 @@ simbólicos de archivo.
 
 **Todavía sin verificar:**
 
-- S.M.A.R.T. con atributos ATA reales (disco SATA): como administrador solo se
-  probó un NVMe, que no los expone.
 - Reglas del catálogo que piden administrador, contra un perfil real.
 - El flujo completo con `BorradorPapelera` sobre un perfil limpio, y todo lo
   que implique borrado permanente: requiere una VM.
