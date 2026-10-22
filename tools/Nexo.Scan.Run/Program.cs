@@ -19,6 +19,7 @@ namespace Nexo.Scan.Run
     ///   escanear &lt;ruta...&gt; [--cuarentena]
     ///   cuarentena listar
     ///   cuarentena restaurar &lt;id&gt; [--destino ruta]
+    ///   cuarentena purgar
     ///
     /// Escanear no modifica nada. Con --cuarentena se muestra un plan y se pide
     /// escribir CUARENTENA; sin eso (o con la entrada redirigida) no se toca nada.
@@ -162,8 +163,23 @@ namespace Nexo.Scan.Run
                     Console.WriteLine(r.Exito ? "Restaurado en " + r.Ruta : "No se restauro: " + r.Motivo);
                     return r.Exito ? 0 : 4;
 
+                case "purgar":
+                    VistaPreviaPurga vista = almacen.PrepararPurga();
+                    Console.WriteLine(vista.Describir());
+                    if (!vista.HayCambios) return 0;
+
+                    Console.Write("Escribe PURGAR para eliminarlas definitivamente: ");
+                    string? respuesta = Console.IsInputRedirected ? null : Console.ReadLine();
+                    if (respuesta != "PURGAR") { Console.WriteLine(Environment.NewLine + "Cancelado. No se ha tocado nada."); return 3; }
+
+                    ResultadoPurga rp = await almacen.AplicarPurgaAsync(vista, vista.Token).ConfigureAwait(false);
+                    Console.WriteLine();
+                    Console.WriteLine($"Purgadas: {rp.Purgados.Count}. Omitidas: {rp.Omitidos.Count}.");
+                    foreach (string o in rp.Omitidos) Console.WriteLine("  omitida: " + o);
+                    return rp.Omitidos.Count == 0 ? 0 : 5;
+
                 default:
-                    return Uso("Usa: cuarentena listar | cuarentena restaurar <id> [--destino ruta]");
+                    return Uso("Usa: cuarentena listar | cuarentena restaurar <id> [--destino ruta] | cuarentena purgar");
             }
         }
 
@@ -191,6 +207,7 @@ namespace Nexo.Scan.Run
             Console.WriteLine("  escanear <ruta...> [--cuarentena]   no modifica nada; con --cuarentena pide CUARENTENA");
             Console.WriteLine("  cuarentena listar");
             Console.WriteLine("  cuarentena restaurar <id> [--destino ruta]");
+            Console.WriteLine("  cuarentena purgar                   elimina lo que supero los 30 dias; pide PURGAR");
             Console.WriteLine();
             Console.WriteLine("  --host 127.0.0.1 --puerto 3310     solo se aceptan direcciones locales");
             Console.WriteLine("  --carpeta-cuarentena <ruta>        por defecto %LOCALAPPDATA%\\Nexo\\Quarantine");

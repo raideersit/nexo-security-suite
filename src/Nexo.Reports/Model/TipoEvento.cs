@@ -13,6 +13,7 @@ namespace Nexo.Reports.Model
         public const string AmenazaDetectada = "amenaza-detectada";
         public const string ArchivoEnCuarentena = "archivo-en-cuarentena";
         public const string ArchivoRestaurado = "archivo-restaurado";
+        public const string CuarentenaPurgada = "cuarentena-purgada";
         public const string BloqueoFirewall = "bloqueo-firewall";
         public const string ReglaFirewall = "regla-firewall";
         public const string ModoSigiloso = "modo-sigiloso";

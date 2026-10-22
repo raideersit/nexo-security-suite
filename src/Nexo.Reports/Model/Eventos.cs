@@ -117,6 +117,23 @@ namespace Nexo.Reports.Model
                 .EnlazaA(EntidadRef.Archivo(nombreArchivo, rutaDestino));
             }
 
+            /// <summary>Una entrada de cuarentena cuyo plazo vencio y se elimino de forma definitiva.</summary>
+            public static NexoEvent Purgado(string rutaOriginal, string idCuarentena, long bytes)
+            {
+                string nombreArchivo = SoloNombre(rutaOriginal);
+
+                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.CuarentenaPurgada,
+                           "Purgado " + nombreArchivo + " de la cuarentena")
+                {
+                    Severidad = Severidad.Baja,
+                    Accion = Accion.Eliminada
+                }
+                .Con("ruta_original", Redactable.Ruta(rutaOriginal))
+                .Con("id_cuarentena", idCuarentena)
+                .Con("bytes", bytes)
+                .EnlazaA(EntidadRef.Archivo(nombreArchivo, rutaOriginal));
+            }
+
             /// <summary>Una conexion bloqueada por el firewall.</summary>
             public static NexoEvent Firewall(
                 string aplicacion,

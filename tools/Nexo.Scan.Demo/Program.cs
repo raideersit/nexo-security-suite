@@ -488,6 +488,51 @@ namespace Nexo.Scan.Demo
             ResultadoCuarentena r6 = await almacen.AplicarAsync(v6, v6.Token).ConfigureAwait(false);
             Check(r6.Movidos.Count == 1 && !File.Exists(d6.Ruta), "un archivo de solo lectura tambien se retira");
 
+            // --- Purga: solo lo que supero la retencion, con vista previa y token ---
+            string cuarP = Path.Combine(raiz, "qp");
+            var ahora = DateTimeOffset.Now;
+            DateTimeOffset reloj = ahora;
+            var repP = new ReportesEnMemoria();
+            var almP = new AlmacenDeCuarentena(cuarP, repP, new[] { sistema }, () => reloj);
+
+            Deteccion pv = Crear(datos, "purga-vieja.exe");
+            Deteccion pn = Crear(datos, "purga-nueva.exe");
+            reloj = ahora - AlmacenDeCuarentena.Retencion - TimeSpan.FromDays(1);
+            VistaPreviaCuarentena vpv = almP.Preparar(new[] { pv });
+            ElementoDeCuarentena viejo = (await almP.AplicarAsync(vpv, vpv.Token).ConfigureAwait(false)).Movidos[0];
+            reloj = ahora - TimeSpan.FromDays(1);
+            VistaPreviaCuarentena vpn = almP.Preparar(new[] { pn });
+            ElementoDeCuarentena nuevo = (await almP.AplicarAsync(vpn, vpn.Token).ConfigureAwait(false)).Movidos[0];
+            reloj = ahora;
+            int eventosAntes = repP.Eventos.Count;
+
+            VistaPreviaPurga pp = almP.PrepararPurga();
+            Check(pp.Elementos.Count == 1 && pp.Elementos[0].Id == viejo.Id, "la vista previa de purga solo incluye lo vencido");
+            Check(almP.Listar().Count == 2 && repP.Eventos.Count == eventosAntes, "preparar la purga no elimina nada ni emite eventos");
+
+            VistaPreviaPurga vacia = new VistaPreviaPurga(Array.Empty<ElementoDeCuarentena>(),
+                TokenDeCambio.Emitir(Array.Empty<string>(), ahora));
+            rechazado = false;
+            try { await almP.AplicarPurgaAsync(pp, vacia.Token).ConfigureAwait(false); } catch (InvalidOperationException) { rechazado = true; }
+            Check(rechazado && almP.Listar().Count == 2, "rechaza purgar con el token de otra vista previa");
+
+            ResultadoPurga rpu = await almP.AplicarPurgaAsync(pp, pp.Token).ConfigureAwait(false);
+            Check(rpu.Purgados.Count == 1 && rpu.Omitidos.Count == 0, "purga la entrada vencida", string.Join("; ", rpu.Omitidos));
+            Check(almP.Listar().Count == 1 && almP.Listar()[0].Id == nuevo.Id
+                  && !File.Exists(Path.Combine(cuarP, viejo.Id + ".nxq")) && !File.Exists(Path.Combine(cuarP, viejo.Id + ".json")),
+                  "lo purgado desaparece del disco y lo reciente se conserva");
+            Check(repP.Eventos.Count == eventosAntes + 1 && repP.Eventos[^1].Tipo == TipoEvento.CuarentenaPurgada,
+                  "emite el evento de purga");
+            Check(!(await almP.RestaurarAsync(viejo.Id).ConfigureAwait(false)).Exito, "lo purgado ya no se puede restaurar");
+            Check(almP.PrepararPurga().HayCambios == false, "sin vencidos, la purga no propone nada");
+
+            // Entre la vista previa y aplicar, una entrada vencida se restaura: no se purga.
+            reloj = ahora + AlmacenDeCuarentena.Retencion + TimeSpan.FromDays(1);
+            VistaPreviaPurga pr = almP.PrepararPurga();
+            await almP.RestaurarAsync(nuevo.Id).ConfigureAwait(false);
+            ResultadoPurga rpr = await almP.AplicarPurgaAsync(pr, pr.Token).ConfigureAwait(false);
+            Check(rpr.Purgados.Count == 0 && rpr.Omitidos.Count == 1, "una entrada restaurada tras la vista previa se omite, no falla");
+
             Console.WriteLine();
         }
 

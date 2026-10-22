@@ -69,6 +69,48 @@ namespace Nexo.Modules.Threats.Cuarentena
 
     public sealed record ResultadoRestauracion(bool Exito, string? Ruta, string? Motivo);
 
+    /// <summary>Plan de purga: las entradas cuyo plazo de retencion ya vencio. Todavia sin aplicar.</summary>
+    public sealed class VistaPreviaPurga
+    {
+        public VistaPreviaPurga(IReadOnlyList<ElementoDeCuarentena> elementos, TokenDeCambio token)
+        {
+            Elementos = elementos;
+            Token = token;
+        }
+
+        public IReadOnlyList<ElementoDeCuarentena> Elementos { get; }
+        public TokenDeCambio Token { get; }
+        public bool HayCambios => Elementos.Count > 0;
+
+        public string Describir()
+        {
+            var sb = new StringBuilder("Purga de cuarentena" + Environment.NewLine);
+            if (Elementos.Count == 0) sb.Append("  (ninguna entrada ha superado el plazo de retencion)").Append(Environment.NewLine);
+            foreach (ElementoDeCuarentena e in Elementos)
+                sb.Append("  ").Append(e.Firma).Append("  ").Append(Eventos.FormatearBytes(e.Bytes)).Append("  ").Append(e.RutaOriginal)
+                  .Append("  (en cuarentena desde ").Append(e.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(")").Append(Environment.NewLine);
+            if (Elementos.Count > 0)
+                sb.Append("  Se eliminan de forma DEFINITIVA: despues de esto ya no se podran restaurar.").Append(Environment.NewLine);
+            return sb.ToString();
+        }
+
+        public static IEnumerable<string> Lineas(IEnumerable<ElementoDeCuarentena> elementos)
+            => elementos.Select(e => string.Create(CultureInfo.InvariantCulture,
+                   $"{e.Id}|{e.Sha256}|{e.Fecha.UtcTicks}"));
+    }
+
+    public sealed class ResultadoPurga
+    {
+        public ResultadoPurga(IReadOnlyList<ElementoDeCuarentena> purgados, IReadOnlyList<string> omitidos)
+        {
+            Purgados = purgados;
+            Omitidos = omitidos;
+        }
+
+        public IReadOnlyList<ElementoDeCuarentena> Purgados { get; }
+        public IReadOnlyList<string> Omitidos { get; }
+    }
+
     /// <summary>
     /// Cuarentena de archivos: los cifra en una carpeta propia y los retira de su
     /// sitio, de forma reversible.
@@ -315,6 +357,63 @@ namespace Nexo.Modules.Threats.Cuarentena
             {
                 return new ResultadoRestauracion(false, ruta, "no se pudo restaurar (" + ex.GetType().Name + ")");
             }
+        }
+
+        // ============================================================
+        //  PURGA: elimina lo que supero el plazo de retencion
+        // ============================================================
+        public static bool HaVencido(ElementoDeCuarentena e, DateTimeOffset ahora) => e.Fecha + Retencion <= ahora;
+
+        /// <summary>Lista las entradas vencidas. No elimina nada.</summary>
+        public VistaPreviaPurga PrepararPurga()
+        {
+            DateTimeOffset ahora = _reloj();
+            var vencidas = Listar().Where(e => HaVencido(e, ahora)).ToList();
+            return new VistaPreviaPurga(vencidas, TokenDeCambio.Emitir(VistaPreviaPurga.Lineas(vencidas), ahora));
+        }
+
+        public async Task<ResultadoPurga> AplicarPurgaAsync(
+            VistaPreviaPurga vista, TokenDeCambio token, CancellationToken ct = default)
+        {
+            if (vista is null) throw new ArgumentNullException(nameof(vista));
+            if (token is null) throw new ArgumentNullException(nameof(token));
+
+            if (!token.EsValidoPara(VistaPreviaPurga.Lineas(vista.Elementos), _reloj()))
+                throw new InvalidOperationException(
+                    "El token no corresponde a esta vista previa, o caduco. Hay que volver a previsualizar.");
+
+            var purgados = new List<ElementoDeCuarentena>();
+            var omitidos = new List<string>();
+
+            foreach (ElementoDeCuarentena e in vista.Elementos)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // El estado pudo cambiar desde la vista previa (p. ej. se restauro): se relee del disco.
+                string rutaMeta = Path.Combine(_carpeta, e.Id + ".json");
+                string rutaDatos = Path.Combine(_carpeta, e.Id + ".nxq");
+                Metadatos? m = IdValido.IsMatch(e.Id) && File.Exists(rutaMeta) ? LeerMeta(rutaMeta) : null;
+                if (m is null || !File.Exists(rutaDatos)) { omitidos.Add(e.RutaOriginal + " — ya no esta en la cuarentena"); continue; }
+                if (m.Fecha + Retencion > _reloj()) { omitidos.Add(e.RutaOriginal + " — aun no vence el plazo"); continue; }
+
+                // Primero los datos y despues los metadatos: si falla a medias, la entrada deja de
+                // listarse (Listar exige ambos) en vez de quedar "restaurable" sin contenido.
+                try
+                {
+                    File.Delete(rutaDatos);
+                    File.Delete(rutaMeta);
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    omitidos.Add(e.RutaOriginal + " — no se pudo eliminar (" + ex.GetType().Name + ")");
+                    continue;
+                }
+
+                purgados.Add(e);
+                await _reportes.EscribirAsync(Eventos.Amenazas.Purgado(e.RutaOriginal, e.Id, e.Bytes), ct).ConfigureAwait(false);
+            }
+
+            return new ResultadoPurga(purgados, omitidos);
         }
 
         // ============================================================
