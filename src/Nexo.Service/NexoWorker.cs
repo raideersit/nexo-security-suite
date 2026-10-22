@@ -1,12 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nexo.Ipc;
+using Nexo.Modules.Threats.Firewall;
+using Nexo.Modules.Threats.Windows;
 using Nexo.Reports;
 using Nexo.Reports.Model;
 using Nexo.Reports.Vault;
@@ -20,16 +25,34 @@ namespace Nexo.Service
     public sealed class NexoWorker : BackgroundService
     {
         private readonly IConfiguration _config;
-        private readonly IHostApplicationLifetime _vida;
+        private readonly IServiceProvider _servicios;
 
-        public NexoWorker(IConfiguration config, IHostApplicationLifetime vida)
+        public NexoWorker(IConfiguration config, IServiceProvider servicios)
         {
             _config = config;
-            _vida = vida;
+            _servicios = servicios;
         }
 
         public static string RutaDeVaultPorDefecto()
             => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "Vault");
+
+        private IReadOnlyList<IModuloDelServicio> CrearModulos(IReportWriter reportes)
+        {
+            // El almacen se puede sustituir por DI (las pruebas usan uno en memoria y no tocan el firewall real).
+            IAlmacenDeFirewall almacen = _servicios.GetService<IAlmacenDeFirewall>() ?? new AlmacenDeFirewallWindows();
+            bool admin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+
+            // Nombres extra que no se bloquean: solo AMPLIAN la proteccion (ver GuardiaDeReglas).
+            string protegidos = _config["Nexo:Protegidos"] is { Length: > 0 } cfg
+                ? cfg
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "firewall-protegidos.txt");
+            var guardia = new GuardiaDeReglas(adicionales: GuardiaDeReglas.LeerAdicionales(protegidos, out _));
+
+            return new IModuloDelServicio[]
+            {
+                new ModuloFirewall(new AdministradorDeFirewall(almacen, reportes, admin, guardia))
+            };
+        }
 
         protected override async Task ExecuteAsync(CancellationToken parada)
         {
@@ -50,7 +73,7 @@ namespace Nexo.Service
             string? aviso = null;
             try
             {
-                servidor = new ServidorDePipe(pipe, new ManejadorDelServicio(version));
+                servidor = new ServidorDePipe(pipe, new ManejadorDelServicio(version, CrearModulos(reportes)));
                 servidor.Iniciar();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)

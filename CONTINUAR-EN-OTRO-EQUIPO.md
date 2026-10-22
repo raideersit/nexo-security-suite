@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**356 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**385 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +14 del servicio, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +28 del IPC y +43 del servicio, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -40,7 +40,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 28 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 14 | El servicio en el mismo proceso: ciclo de vida, métodos expuestos, notas (solo Windows) |
+| `tools/Nexo.Service.Demo` | 43 | El servicio en el mismo proceso: ciclo de vida, firewall por el pipe con token de un solo uso, planes pendientes (solo Windows) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -339,10 +339,24 @@ Base de todo lo que falta (tiempo real, escaneo programado, cuarentena con ACL e
   negativo cierra la conexión sin reservar memoria), JSON y UTF-8 validados, 16
   conexiones como máximo, cierre por inactividad (30 s), tiempo máximo por petición, y
   una excepción del manejador se devuelve como «error interno» **sin** su mensaje.
-- **Hoy solo hay métodos de lectura** (`ping`, `estado`). Ninguna acción que borre,
-  cambie el firewall o mueva archivos se expone hasta que lleve su vista previa y su
-  token **validados en el servicio**. Una prueba comprueba que `limpiar`, `borrar`,
-  `firewall.bloquear` y `cuarentena.restaurar` no existen.
+- **Métodos expuestos:** `ping`, `estado`, `firewall.estado`, `firewall.previsualizar` y
+  `firewall.aplicar`. Ninguna otra acción que borre o cambie el sistema existe (una prueba
+  lo comprueba para `limpiar`, `borrar`, `firewall.bloquear` y `cuarentena.restaurar`);
+  cada una nueva debe llegar con su vista previa y su token.
+- **Token de confirmación (`PlanesPendientes`):** el plan vive en el servicio; el cliente
+  solo recibe un token aleatorio de 256 bits y pide aplicar **ese** plan, así que no
+  puede cambiar lo que se aplica entre la vista previa y la confirmación (los parámetros
+  extra de `firewall.aplicar` se ignoran). Es de **un solo uso** (se consume aunque la
+  aplicación falle), caduca a los 10 min y hay un máximo de 32 pendientes. Las guardias
+  de siempre (procesos protegidos, rutas, grupo de Nexo) siguen mandando. Un token falso,
+  ya usado o caducado da el mismo error, sin pistas.
+- **Límite que hay que tener presente:** el token prueba que quien aplica tiene el plan
+  previsualizado, **no que una persona lo aprobó**. Un proceso malicioso que corra como
+  el mismo usuario puede pedir la vista previa y aplicarla. Lo acota lo que un plan puede
+  llegar a hacer (no bloquea procesos del sistema ni Defender, solo toca reglas del grupo
+  «Nexo Security Suite», todo es reversible y queda en una nota), no el token. Impedirlo
+  de verdad exigiría una aprobación fuera de banda (p. ej. un aviso UAC o una ventana del
+  servicio), que no existe todavía.
 - El script de instalación se niega si la carpeta del `.exe` admite escritura a usuarios
   normales (sería una escalada a SYSTEM) y restringe el vault a SYSTEM y Administradores.
 
@@ -351,9 +365,11 @@ reinicio automático tras una caída, y la ACL contra un cliente de **otro** usu
 eso es para la VM `NexoVM` (snapshot `limpia`): `dotnet publish src\Nexo.Service -c
 Release -o "C:\Program Files\Nexo\service"` y `nexo-service.ps1 -Accion instalar`.
 
-**Huecos conocidos:** sin `INexoModule` ni `EventBus` (los módulos aún no se cargan en el
-servicio), sin bandeja (`Nexo.Ui.Tray`), sin token de confirmación en el protocolo, y el
-vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
+**Huecos conocidos:** el firewall es el único módulo cargado (la cuarentena, el escáner y
+la limpieza aún no); `IModuloDelServicio` es una versión mínima de `INexoModule` (sin
+`StartAsync`/`StopAsync` ni `EventBus`); sin bandeja (`Nexo.Ui.Tray`); el camino de
+aplicar **como administrador** solo está probado contra un almacén en memoria (el arnés
+corre sin elevar); y el vault por defecto del servicio es `%ProgramData%\Nexo\Vault` mientras que las
 herramientas de consola usan `%LOCALAPPDATA%\Nexo\Vault`.
 
 ---

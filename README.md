@@ -34,16 +34,16 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Cleanup` — triturador, inicio, S.M.A.R.T. | ✅ Implementado; verificado en Windows salvo lo listado abajo |
 | `Nexo.Modules.Threats` — firewall por aplicación y modo sigiloso | ✅ Implementado y verificado contra el Firewall de Windows real |
 | `Nexo.Modules.Threats` — escaneo bajo demanda y cuarentena (clamd) | ✅ Implementado; verificado contra un clamd falso, **sin probar con ClamAV real** |
-| `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio** (solo `ping` y `estado`) |
+| `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio** (`ping`, `estado` y el firewall con vista previa y token) |
 | `Nexo.Modules.Threats` — heurística YARA, tiempo real, anti-ransomware | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**356 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**385 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 66
 portables del firewall y 28 contra el Firewall de Windows real (como
-administrador; 9 sin serlo) y 82 del escáner y la cuarentena, 28 del protocolo IPC y 14 del servicio. Como administrador se cubren además la escritura
+administrador; 9 sin serlo) y 82 del escáner y la cuarentena, 28 del protocolo IPC y 43 del servicio. Como administrador se cubren además la escritura
 en `HKLM` y los enlaces simbólicos de archivo.
 
 **Todavía sin verificar:**
@@ -109,7 +109,7 @@ dotnet run --project tools/Nexo.Firewall.Windows.Demo
 dotnet run --project tools/Nexo.Scan.Demo
 
 # Protocolo IPC (named pipe) atacado con clientes buenos y malos: 28 comprobaciones.
-# Y el servicio levantado en el mismo proceso, sin instalarlo: 14 comprobaciones.
+# Y el servicio levantado en el mismo proceso, sin instalarlo (y con un firewall en memoria): 43 comprobaciones.
 dotnet run --project tools/Nexo.Ipc.Demo
 dotnet run --project tools/Nexo.Service.Demo
 ```

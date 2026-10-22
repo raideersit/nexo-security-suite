@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,10 +20,15 @@ namespace Nexo.Service
         private readonly string _version;
         private readonly DateTimeOffset _inicio;
         private readonly Func<DateTimeOffset> _reloj;
+        private readonly Dictionary<string, IModuloDelServicio> _porMetodo = new Dictionary<string, IModuloDelServicio>(StringComparer.Ordinal);
 
-        public ManejadorDelServicio(string version, Func<DateTimeOffset>? reloj = null)
+        public ManejadorDelServicio(string version, IEnumerable<IModuloDelServicio>? modulos = null, Func<DateTimeOffset>? reloj = null)
         {
             _version = version;
+            foreach (IModuloDelServicio m in modulos ?? Array.Empty<IModuloDelServicio>())
+                foreach (string metodo in m.Metodos)
+                    if (!_porMetodo.TryAdd(metodo, m))
+                        throw new ArgumentException("El metodo '" + metodo + "' lo atienden dos modulos.");
             _reloj = reloj ?? (() => DateTimeOffset.Now);
             _inicio = _reloj();
         }
@@ -39,12 +45,14 @@ namespace Nexo.Service
                     {
                         version = _version,
                         activo_segundos = (long)(_reloj() - _inicio).TotalSeconds,
-                        // Los modulos se registran aqui cuando existan como INexoModule.
-                        modulos = Array.Empty<string>(),
-                        metodos = new[] { "ping", "estado" }
+                                        modulos = _porMetodo.Values.Distinct().Select(m => m.GetType().Name).ToList(),
+                        metodos = new[] { "ping", "estado" }.Concat(_porMetodo.Keys.OrderBy(k => k, StringComparer.Ordinal)).ToList()
                     });
 
                 default:
+                    // Solo lo que un modulo declaro EXACTAMENTE: nada de prefijos ni busquedas parciales.
+                    if (_porMetodo.TryGetValue(metodo, out IModuloDelServicio? modulo))
+                        return modulo.ManejarAsync(metodo, parametros, ct);
                     throw new ErrorDeComando(CodigoDeError.MetodoDesconocido, "metodo desconocido");
             }
         }

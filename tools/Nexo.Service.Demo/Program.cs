@@ -11,13 +11,18 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nexo.Ipc;
+using Nexo.Modules.Threats.Firewall;
 using Nexo.Service;
 
 namespace Nexo.Service.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
+        private static readonly AlmacenEnMemoria Almacen = new AlmacenEnMemoria();
+        private static readonly bool EsAdmin =
+            new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent())
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
 
         public static async Task<int> Main()
         {
@@ -32,6 +37,8 @@ namespace Nexo.Service.Demo
                 await ProbarCicloDeVida(vault, pipe).ConfigureAwait(false);
                 await ProbarPipeOcupado(Path.Combine(raiz, "vault2")).ConfigureAwait(false);
                 ProbarManejador();
+                await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
+                ProbarPlanes();
             }
             finally
             {
@@ -60,6 +67,8 @@ namespace Nexo.Service.Demo
                 ["Nexo:Vault"] = vault,
                 ["Nexo:PipeName"] = pipe
             });
+            // El firewall REAL no se toca nunca desde el arnes: el servicio recibe un almacen en memoria.
+            b.Services.AddSingleton<IAlmacenDeFirewall>(Almacen);
             b.Services.AddHostedService<NexoWorker>();
             b.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(4));
             return b.Build();
@@ -88,8 +97,8 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 2,
-                      "estado lista los metodos que expone (solo lectura)");
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 5,
+                      "estado lista los metodos que expone: los basicos y los del firewall");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.restaurar", "ejecutar" })
                 {
@@ -150,7 +159,7 @@ namespace Nexo.Service.Demo
 
             var t0 = new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero);
             var ahora = t0;
-            var m = new ManejadorDelServicio("9.9.9", () => ahora);
+            var m = new ManejadorDelServicio("9.9.9", reloj: () => ahora);
             ahora = t0.AddSeconds(125);
             object? estado = m.ManejarAsync("estado", null, CancellationToken.None).GetAwaiter().GetResult();
             Check(JsonSerializer.SerializeToElement(estado).GetProperty("activo_segundos").GetInt64() == 125, "estado calcula el tiempo activo con el reloj inyectado");
