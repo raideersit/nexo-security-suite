@@ -29,6 +29,15 @@ namespace Nexo.Modules.Threats.Escaner
         /// incompleto, en vez de seguir marcando miles de archivos como omitidos.
         /// </summary>
         public int MaxErroresSeguidos { get; init; } = 5;
+
+        /// <summary>
+        /// Archivos analizados a la vez (una conexion a clamd por archivo). 1 = secuencial,
+        /// el comportamiento por omision. Se limita a 1..8: clamd atiende 10 hilos por
+        /// defecto (MaxThreads) y pasarse solo consigue que unas conexiones esperen a otras.
+        /// </summary>
+        public int Paralelismo { get; init; } = 1;
+
+        public const int ParalelismoMaximo = 8;
     }
 
     public sealed record Deteccion(string Ruta, string Firma, long Bytes, DateTimeOffset Modificado, string? Sha256);
@@ -115,30 +124,60 @@ namespace Nexo.Modules.Threats.Escaner
             bool incompleto = false;
             string? motivo = null;
 
-            foreach (string archivo in Recorrer(lista, omitidos, ct))
+            // Todo el estado compartido se protege con lock (omitidos): lo escriben los
+            // trabajadores y tambien el recorrido, que corre en el hilo que pide el siguiente archivo.
+            int grado = Math.Clamp(_opciones.Paralelismo, 1, OpcionesDeEscaneo.ParalelismoMaximo);
+            using var corte = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                progreso?.Report(new ProgresoDeEscaneo(analizados, archivo));
-
-                ResultadoDeArchivo r = await AnalizarArchivoAsync(archivo, ct).ConfigureAwait(false);
-
-                if (r.Omitido is not null)
-                {
-                    omitidos.Add(archivo + " — " + r.Omitido);
-                    // Solo los fallos del MOTOR cuentan para abortar; un archivo bloqueado no.
-                    erroresSeguidos = r.FalloDelMotor ? erroresSeguidos + 1 : 0;
-                    if (erroresSeguidos >= _opciones.MaxErroresSeguidos)
+                await Parallel.ForEachAsync(Recorrer(lista, omitidos, corte.Token),
+                    new ParallelOptions { MaxDegreeOfParallelism = grado, CancellationToken = corte.Token },
+                    async (archivo, token) =>
                     {
-                        incompleto = true;
-                        motivo = erroresSeguidos + " errores seguidos del motor; ultimo: " + r.Omitido;
-                        break;
-                    }
-                    continue;
-                }
+                        int hechos;
+                        lock (omitidos) hechos = analizados;
+                        progreso?.Report(new ProgresoDeEscaneo(hechos, archivo));
 
-                erroresSeguidos = 0;
-                analizados++;
-                if (r.Deteccion is not null) detecciones.Add(r.Deteccion);
+                        ResultadoDeArchivo r = await AnalizarArchivoAsync(archivo, token).ConfigureAwait(false);
+
+                        lock (omitidos)
+                        {
+                            if (incompleto) return;
+
+                            if (r.Omitido is not null)
+                            {
+                                omitidos.Add(archivo + " — " + r.Omitido);
+                                // Solo los fallos del MOTOR cuentan para abortar; un archivo bloqueado no.
+                                erroresSeguidos = r.FalloDelMotor ? erroresSeguidos + 1 : 0;
+                                if (erroresSeguidos >= _opciones.MaxErroresSeguidos)
+                                {
+                                    incompleto = true;
+                                    motivo = erroresSeguidos + " errores seguidos del motor; ultimo: " + r.Omitido;
+                                    corte.Cancel();
+                                }
+                                return;
+                            }
+
+                            erroresSeguidos = 0;
+                            analizados++;
+                            if (r.Deteccion is not null) detecciones.Add(r.Deteccion);
+                        }
+                    }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (incompleto && !ct.IsCancellationRequested)
+            {
+                // Corte propio por errores del motor: el escaneo queda marcado INCOMPLETO.
+            }
+
+            ct.ThrowIfCancellationRequested();
+
+            // Con varios trabajadores el orden de llegada no es el del recorrido: se ordena
+            // para que dos escaneos iguales den la misma lista.
+            if (grado > 1)
+            {
+                detecciones.Sort((a, b) => string.CompareOrdinal(a.Ruta, b.Ruta));
+                omitidos.Sort(StringComparer.Ordinal);
             }
 
             reloj.Stop();
@@ -252,7 +291,7 @@ namespace Nexo.Modules.Threats.Escaner
             foreach (string raiz in raices)
             {
                 if (File.Exists(raiz)) { yield return raiz; continue; }
-                if (!Directory.Exists(raiz)) { omitidos.Add(raiz + " — no existe"); continue; }
+                if (!Directory.Exists(raiz)) { lock (omitidos) omitidos.Add(raiz + " — no existe"); continue; }
 
                 var pendientes = new Stack<string>();
                 pendientes.Push(raiz);
@@ -272,7 +311,7 @@ namespace Nexo.Modules.Threats.Escaner
                         }
                         catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                         {
-                            omitidos.Add(actual + " — subcarpetas no leidas: " + ex.GetType().Name);
+                            lock (omitidos) omitidos.Add(actual + " — subcarpetas no leidas: " + ex.GetType().Name);
                         }
                     }
 
@@ -280,7 +319,7 @@ namespace Nexo.Modules.Threats.Escaner
                     try { it = Directory.EnumerateFiles(actual, "*", opciones).GetEnumerator(); }
                     catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                     {
-                        omitidos.Add(actual + " — carpeta no leida: " + ex.GetType().Name);
+                        lock (omitidos) omitidos.Add(actual + " — carpeta no leida: " + ex.GetType().Name);
                         continue;
                     }
 
@@ -296,7 +335,7 @@ namespace Nexo.Modules.Threats.Escaner
                             }
                             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                             {
-                                omitidos.Add(actual + " — carpeta no leida por completo: " + ex.GetType().Name);
+                                lock (omitidos) omitidos.Add(actual + " — carpeta no leida por completo: " + ex.GetType().Name);
                                 break;
                             }
                             yield return archivo;

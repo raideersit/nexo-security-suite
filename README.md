@@ -38,11 +38,11 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
 | `NexoFsMini` — driver minifiltro | ❌ Fuera de alcance |
 
-**303 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
+**309 comprobaciones automatizadas** pasan en Windows 10: 13 de reportes, 96 de
 la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 61
 portables del firewall y 28 contra el Firewall de Windows real (como
-administrador; 9 sin serlo) y 76 del escáner y la cuarentena. Como administrador se cubren además la escritura
+administrador; 9 sin serlo) y 82 del escáner y la cuarentena. Como administrador se cubren además la escritura
 en `HKLM` y los enlaces simbólicos de archivo.
 
 **Todavía sin verificar:**
@@ -104,7 +104,7 @@ dotnet run --project tools/Nexo.Firewall.Demo
 dotnet run --project tools/Nexo.Firewall.Windows.Demo
 
 # Escáner bajo demanda y cuarentena contra un clamd FALSO que habla el protocolo
-# real por TCP (76 comprobaciones; no requiere ClamAV)
+# real por TCP (82 comprobaciones; no requiere ClamAV)
 dotnet run --project tools/Nexo.Scan.Demo
 ```
 

@@ -27,9 +27,9 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**303 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**309 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas y +6 del escaneo en paralelo, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -38,7 +38,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 61 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
-| `tools/Nexo.Scan.Demo` | 76 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
+| `tools/Nexo.Scan.Demo` | 82 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 
 **Implementado esta sesión** (además de lo que ya estaba):
 
@@ -261,7 +261,7 @@ real). Todo en modo usuario; el motor es **ClamAV vía `clamd` por TCP** (no
 
 - `Nexo.Modules.Threats/Escaner`: `ClamdClient` (protocolo `zINSTREAM`),
   `EscanerBajoDemanda`. `Cuarentena/AlmacenDeCuarentena`.
-- `tools/Nexo.Scan.Demo` (76) con un **clamd falso** que implementa el protocolo
+- `tools/Nexo.Scan.Demo` (82) con un **clamd falso** que implementa el protocolo
   real; `tools/Nexo.Scan.Run` (`nexo-scan`).
 - Eventos: `Escaneo(...)` ahora informa `archivos_omitidos` e `incompleto`;
   nuevo `Restaurado(...)`.
@@ -308,7 +308,7 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 - Sin **tiempo real** (USN Journal), sin AMSI, sin escaneo programado.
 - ~~La cuarentena no purga~~ Hecho (2026-10-22): `nexo-scan cuarentena purgar` elimina lo que superó los 30 días, con vista previa, token y confirmación `PURGAR`. Es manual: nada la ejecuta sola hasta que exista el servicio.
 - Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
-- Escaneo secuencial, una conexión por archivo; no usa `IDSESSION` ni paraleliza.
+- ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8, por defecto 1) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Con clamd real falta medir si compensa.
 - Archivos > 25 MB no se analizan (quedan como omitidos): ISOs, VMs, instaladores grandes.
 - Los archivos comprimidos los abre `clamd`; no hay control de límites de recursión.
 

@@ -312,6 +312,46 @@ namespace Nexo.Scan.Demo
             Check(rep9.Eventos.Single(e => e.Tipo == TipoEvento.ResultadoEscaneo).Cuerpo?.Contains("INCOMPLETO") == true,
                   "la nota lo dice: INCOMPLETO");
 
+            // --- Paralelismo: mismo resultado que el secuencial, y el mismo rigor ante fallos ---
+            string mezcla = Path.Combine(raiz, "mezcla");
+            Directory.CreateDirectory(mezcla);
+            for (int i = 0; i < 40; i++)
+                File.WriteAllBytes(Path.Combine(mezcla, $"m{i:00}.dat"),
+                    i % 10 == 3 ? Bytes(Relleno(32), Marcador, Relleno(32)).ToArray() : Relleno(50));
+            File.WriteAllBytes(Path.Combine(mezcla, "grande.bin"), new byte[2000]);
+
+            ResultadoDeEscaneo sec = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(),
+                    new OpcionesDeEscaneo { MaxBytes = 1000 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
+            ResultadoDeEscaneo par = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(),
+                    new OpcionesDeEscaneo { MaxBytes = 1000, Paralelismo = 6 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
+            Check(par.Analizados == sec.Analizados && par.Analizados == 40 && par.Detecciones.Count == 4,
+                  "en paralelo analiza lo mismo que en secuencial",
+                  $"secuencial {sec.Analizados}/{sec.Detecciones.Count}, paralelo {par.Analizados}/{par.Detecciones.Count}");
+            Check(par.Detecciones.Select(d => d.Ruta).SequenceEqual(sec.Detecciones.Select(d => d.Ruta).OrderBy(x => x, StringComparer.Ordinal)),
+                  "y las detecciones salen ordenadas y completas");
+            Check(par.Omitidos.Count == 1 && par.Omitidos[0].Contains("grande.bin") && !par.CompletamenteLimpio,
+                  "un archivo no analizable sigue contando como omitido en paralelo");
+            ResultadoDeEscaneo desm = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(),
+                    new OpcionesDeEscaneo { MaxBytes = 1000, Paralelismo = 500 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
+            Check(desm.Analizados == 40 && desm.Detecciones.Count == 4, "un paralelismo desmesurado se limita y sigue funcionando");
+
+            using var fragil2 = new ClamdFalso { CaerseTras = 6 };
+            ResultadoDeEscaneo rp9 = await new EscanerBajoDemanda(
+                    new ClamdClient("127.0.0.1", fragil2.Puerto, timeout: TimeSpan.FromSeconds(3)), new ReportesEnMemoria(),
+                    new OpcionesDeEscaneo { MaxErroresSeguidos = 3, Paralelismo = 4 })
+                .EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
+            Check(rp9.Incompleto && !rp9.CompletamenteLimpio && rp9.Analizados < 40,
+                  "si el motor se cae con varios trabajadores, tambien queda INCOMPLETO",
+                  $"incompleto {rp9.Incompleto}, analizados {rp9.Analizados}");
+
+            using var ctsP = new CancellationTokenSource();
+            ctsP.Cancel();
+            bool canceladoP = false;
+            try { await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(), new OpcionesDeEscaneo { Paralelismo = 4 })
+                      .EscanearAsync(new[] { mezcla }, ct: ctsP.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { canceladoP = true; }
+            Check(canceladoP, "respeta la cancelacion tambien en paralelo");
+
             // --- Sin motor al empezar: no se finge un escaneo ---
             int libre;
             using (var t = new ClamdFalso()) libre = t.Puerto;

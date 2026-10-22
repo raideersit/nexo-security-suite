@@ -33,6 +33,8 @@ namespace Nexo.Scan.Run
 
             if (args.Length == 0 || args[0] is "--ayuda" or "-h") { Ayuda(); return args.Length == 0 ? 1 : 0; }
 
+            int paralelo = int.TryParse(Opcion(args, "--paralelo"), NumberStyles.None, CultureInfo.InvariantCulture, out int par) && par > 0
+                ? par : 1;
             string host = Opcion(args, "--host") ?? "127.0.0.1";
             int puerto = int.TryParse(Opcion(args, "--puerto"), NumberStyles.None, CultureInfo.InvariantCulture, out int p)
                 ? p : ClamdClient.PuertoPorDefecto;
@@ -56,7 +58,7 @@ namespace Nexo.Scan.Run
                     string[] rutas = args.Skip(1).Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal)
                                                                   && !EsValorDeOpcion(args, i + 1)).ToArray();
                     if (rutas.Length == 0) return Uso("Indica que escanear.");
-                    return await Escanear(motor, reportes, almacen, rutas, args.Contains("--cuarentena"), vaultRuta)
+                    return await Escanear(motor, reportes, almacen, rutas, args.Contains("--cuarentena"), vaultRuta, paralelo)
                         .ConfigureAwait(false);
 
                 case "cuarentena":
@@ -87,10 +89,10 @@ namespace Nexo.Scan.Run
 
         private static async Task<int> Escanear(
             ClamdClient motor, IReportWriter reportes, AlmacenDeCuarentena almacen,
-            string[] rutas, bool pedirCuarentena, string vaultRuta)
+            string[] rutas, bool pedirCuarentena, string vaultRuta, int paralelo)
         {
             var escaner = new EscanerBajoDemanda(motor, reportes,
-                new OpcionesDeEscaneo { Excluir = new[] { almacen.Carpeta } });
+                new OpcionesDeEscaneo { Excluir = new[] { almacen.Carpeta }, Paralelismo = paralelo });
 
             ResultadoDeEscaneo r;
             try
@@ -184,7 +186,7 @@ namespace Nexo.Scan.Run
         }
 
         private static bool EsValorDeOpcion(string[] args, int indice)
-            => indice > 0 && indice < args.Length && args[indice - 1] is "--host" or "--puerto" or "--vault" or "--carpeta-cuarentena" or "--destino";
+            => indice > 0 && indice < args.Length && args[indice - 1] is "--host" or "--puerto" or "--paralelo" or "--vault" or "--carpeta-cuarentena" or "--destino";
 
         private static int Uso(string mensaje)
         {
@@ -210,6 +212,7 @@ namespace Nexo.Scan.Run
             Console.WriteLine("  cuarentena purgar                   elimina lo que supero los 30 dias; pide PURGAR");
             Console.WriteLine();
             Console.WriteLine("  --host 127.0.0.1 --puerto 3310     solo se aceptan direcciones locales");
+            Console.WriteLine("  --paralelo N                       archivos a la vez (1-8, por defecto 1)");
             Console.WriteLine("  --carpeta-cuarentena <ruta>        por defecto %LOCALAPPDATA%\\Nexo\\Quarantine");
             Console.WriteLine();
             Console.WriteLine("Codigos de salida: 0 limpio; 10 con detecciones; 11 sin detecciones pero con archivos");
