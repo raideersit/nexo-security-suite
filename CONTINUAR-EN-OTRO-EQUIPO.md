@@ -29,7 +29,7 @@ errores).
 
 **314 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
-+84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas +6 del escaneo en paralelo y +5 de la lista de protegidos, 2026-10-22):
++84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
@@ -247,7 +247,7 @@ y no pasa por el filtro; hace falta otro equipo de la red.
   exige activar la auditoría de WFP): `Eventos.Amenazas.Firewall` existe pero
   nadie lo emite todavía. Hoy solo se reportan los *cambios de configuración*.
 - Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
-- ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%Nexoirewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
+- ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%\Nexo\firewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
 - Sin integración en `Nexo.Service` (no existe todavía) ni confirmación desde la UI.
 - ~~`bloquear` no detecta reglas ajenas~~ Hecho (2026-10-22): ahora las **avisa** (misma app y dirección, habilitadas) sin tocarlas ni impedir la creación. No distingue puertos: la regla ajena podría aplicar solo a algunos.
 
