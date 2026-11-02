@@ -530,6 +530,13 @@ Un archivo llamado `no.exe`, un hash corto que empieza en cero o una brecha con 
 
 Este equipo es Linux. **No he abierto el vault generado en Obsidian.** El formato sigue la especificación (front matter delimitado por `---` al inicio del archivo, wikilinks `[[nombre]]`, callouts nativos, etiquetas jerárquicas) y la redacción de rutas `%USERPROFILE%` no se ejerció porque las rutas de prueba son de Windows. **La comprobación en Obsidian sobre Windows es el paso 3 de §7 y es tu criterio de aceptación real**, no el mío.
 
+**Aceptado en Obsidian (2026-11-02, Obsidian 1.14.5 en Linux, revisado por el usuario):** vault generado por
+`Nexo.Reports.Demo` más detecciones reales de ClamAV. Todo bien en los 10 puntos revisados: front matter como
+propiedades, callouts, wikilinks, panel «Vínculos a esta nota» de una entidad, nota diaria, búsquedas del Panel,
+tablas de datos, la advertencia de seguridad, y que un título con saltos de línea (`\n`, `\r`, U+2028, U+0085) queda
+en una sola línea sin encabezados ni callouts inyectados. **Sigue sin verificar:** la redacción de `%USERPROFILE%`
+(necesita rutas de Windows) y abrirlo en Obsidian sobre Windows, que no debería cambiar nada del formato.
+
 ---
 
 ## 7. Cómo lo usa un módulo externo
@@ -653,7 +660,7 @@ Es **fase futura opcional, no parte de este MVP**, y en la práctica compite con
 
 ## 10. Verificación final del prompt
 
-- **(a) Markdown válido reconocible sin plugins** — front matter delimitado por `---` en la primera línea (sin BOM), callouts nativos, tablas GFM, etiquetas jerárquicas. Verificado en la salida generada; **pendiente de confirmar abriéndolo en Obsidian sobre Windows**, ver §6.
+- **(a) Markdown válido reconocible sin plugins** — front matter delimitado por `---` en la primera línea (sin BOM), callouts nativos, tablas GFM, etiquetas jerárquicas. Verificado en la salida generada y **aceptado en Obsidian 1.14.5 (Linux) el 2026-11-02**; falta solo Windows, ver §6.
 - **(b) Wikilinks con sintaxis correcta** — `[[nombre de nota]]` en notas de evento (entidades, día, panel) y en la nota diaria. Los nombres destino pasan por `NoteNaming.Sanear`, que elimina `[ ] # ^ |` y los caracteres prohibidos de NTFS. Verificado con un título que contiene los 13 caracteres prohibidos.
 - **(c) Nada sensible en texto plano sin advertir** — cortafuegos de campos secretos que lanza excepción (5 casos verificados, sin efectos en el vault), redacción de rutas y correos por política, y `ADVERTENCIA DE SEGURIDAD.md` generada dentro del propio vault con el `icacls` ya rellenado. La firma de `Eventos.Identidad.Brecha` **no admite** la credencial como parámetro.
 - **(d) Librería reutilizable, no código duplicado** — un `IReportWriter` con dos métodos, fábricas tipadas centralizadas, cero dependencias NuGet, `netstandard2.0` + `net8.0`.

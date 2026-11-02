@@ -666,6 +666,9 @@ repetir algo, hay que montarla de nuevo (resumen y trampas en `tools/vm/README.m
 ejecutaron, así que se tratan como sin probar**): 1.1, 1.2, 2.1–2.3, 3.1–3.2, **6.1–6.3** (limpieza y
 Papelera desde el servicio), **7.1–7.2** (diario USN bajo carga), además de 9 (desinstalar).
 
+**Vault aceptado en Obsidian (Linux, 2026-11-02):** el usuario revisó 10 puntos (propiedades, callouts, wikilinks,
+vínculos entrantes, nota diaria, búsquedas, títulos con salto de línea) y todo está bien. Ver Salida 5 §6.
+
 **8.1–8.3 (ClamAV real), hecho en Linux el 2026-11-02** con `nexo-scan` contra ClamAV 1.5.4 en Docker
 (`docker run -d --name nexo-clamd -p 127.0.0.1:3310:3310 clamav/clamav:1.5.4`; listo en ~20 s). Detalle en la
 tabla del guion. Lo importante:
