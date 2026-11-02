@@ -42,6 +42,7 @@ namespace Nexo.Cleanup.Run
 
             if (args.Contains("--ayuda") || args.Contains("-h")) { Ayuda(); return 0; }
             if (args.Length > 0 && args[0] == "arranque") return Arranque(args);
+            if (args.Length > 0 && args[0] == "tareas") return Tareas(args);
             if (modo != "simulado" && modo != "papelera" && modo != "real")
             {
                 Console.Error.WriteLine("Modo desconocido: " + modo + ". Usa simulado, papelera o real.");
@@ -210,6 +211,63 @@ namespace Nexo.Cleanup.Run
             return 0;
         }
 
+        /// <summary>
+        /// Tareas programadas que se ejecutan al arrancar o al iniciar sesion. SOLO LEE. Codigo de salida 2 = lista
+        /// incompleta (sin permisos para parte de la carpeta, tareas sin interpretar o truncada).
+        /// </summary>
+        private static int Tareas(string[] args)
+        {
+            bool admin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            string carpeta = Opcion(args, "--carpeta") ?? LectorDeTareas.CarpetaDelSistema();
+            InventarioDeTareas inv = LectorDeTareas.Leer(carpeta);
+
+            Console.WriteLine("Administrador: " + (admin ? "si" : "no (la mayoria de las tareas solo las lee un administrador)"));
+            Console.WriteLine("Carpeta: " + carpeta);
+            Console.WriteLine();
+
+            if (!inv.CarpetaDisponible)
+            {
+                Console.WriteLine("NO SE PUDO LEER: " + inv.Motivo);
+                return 2;
+            }
+
+            // El impacto es opcional: si no se puede leer, se muestran las tareas sin el.
+            ResultadoDeArranque arranque = new AnalizadorDeArranque(new FuenteDeArranqueWindows()).Leer(DateTimeOffset.UtcNow.AddDays(-30));
+
+            foreach (TareaDeInicio t in inv.Tareas)
+            {
+                string cuando = string.Join(" + ", t.Disparadores.Select(d => d == DisparadorDeInicio.Arranque ? "al arrancar" : "al iniciar sesion"));
+                var marcas = new System.Collections.Generic.List<string>();
+                if (!t.Habilitada) marcas.Add("DESHABILITADA");
+                if (t.Oculta) marcas.Add("oculta");
+                if (t.MaximosPrivilegios) marcas.Add("maximos privilegios");
+                if (t.Usuario == "S-1-5-18") marcas.Add("SYSTEM");
+                if (t.Retraso is { } r && r > TimeSpan.Zero) marcas.Add("retraso " + r);
+                Console.WriteLine($"  {t.Ruta}   [{cuando}]" + (marcas.Count > 0 ? "  (" + string.Join(", ", marcas) + ")" : ""));
+                foreach (string c in t.Comandos)
+                {
+                    DegradacionAgrupada? i = arranque.ImpactoDeComando(c);
+                    Console.WriteLine("      " + c + (i is null ? "" : $"   <- retraso el arranque {i.Veces}x, +{Seg(i.DegradacionMediaMs)} de media"));
+                }
+                if (t.TieneAccionCom) Console.WriteLine("      (accion COM: ejecuta codigo que no aparece como comando)");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"{inv.Tareas.Count} tareas de inicio en {inv.ArchivosLeidos} archivos leidos " +
+                              $"({inv.Tareas.Count(t => t.EnCarpetaDeMicrosoft)} bajo \\Microsoft\\: es una carpeta, no una garantia).");
+            foreach (string d in inv.Descartadas.Take(10)) Console.WriteLine("  sin interpretar: " + d);
+            if (inv.Ilegibles.Count > 0)
+                Console.WriteLine($"  {inv.Ilegibles.Count} archivos o carpetas sin permiso de lectura" + (admin ? "." : ": repite como administrador."));
+            if (inv.Truncado) Console.WriteLine($"AVISO: se alcanzo el maximo de {LectorDeTareas.MaximoArchivos} archivos.");
+
+            if (!inv.Completo)
+            {
+                Console.WriteLine("LISTA INCOMPLETA: puede haber tareas de inicio que no se ven aqui.");
+                return 2;
+            }
+            return 0;
+        }
+
         private static string Tipo(TipoDeDegradacion t) => t switch
         {
             TipoDeDegradacion.Aplicacion => "aplicacion",
@@ -251,6 +309,7 @@ namespace Nexo.Cleanup.Run
         {
             Console.WriteLine("nexo-cleanup [--modo simulado|papelera|real] [--reglas id1,id2] [--vault ruta]");
             Console.WriteLine("nexo-cleanup arranque [--dias N]   impacto de arranque medido por Windows (solo lee)");
+            Console.WriteLine("nexo-cleanup tareas [--carpeta ruta]   tareas programadas al arrancar o iniciar sesion (solo lee)");
             Console.WriteLine();
             Console.WriteLine("  simulado  (defecto) lista lo que se borraria; no toca el disco");
             Console.WriteLine("  papelera  envia a la Papelera; pide escribir BORRAR");

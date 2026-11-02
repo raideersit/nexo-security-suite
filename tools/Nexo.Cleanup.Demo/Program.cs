@@ -66,6 +66,7 @@ namespace Nexo.Cleanup.Demo
             await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
             await ProbarInicio().ConfigureAwait(false);
             ProbarArranque();
+            ProbarTareas();
             await ProbarSmart().ConfigureAwait(false);
 
             Console.WriteLine();

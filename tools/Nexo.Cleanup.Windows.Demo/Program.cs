@@ -237,6 +237,15 @@ namespace Nexo.Cleanup.Windows.Demo
                               $"{(r.MedianaMs is { } m ? m + " ms" : "-")}; {r.Degradaciones.Count} cosas que lo retrasaron; {r.Descartados} sin interpretar.");
             // El analizador debe entender lo que Windows escribe de verdad.
             Check(r.Descartados == 0, "los eventos 100-103 reales se interpretan todos (ninguno descartado)", "descartados: " + r.Descartados);
+
+            // Tareas programadas reales: el XML que escribe el Programador de tareas debe entenderse entero.
+            InventarioDeTareas inv = LectorDeTareas.Leer(LectorDeTareas.CarpetaDelSistema());
+            Check(inv.CarpetaDisponible && inv.ArchivosLeidos > 0, "la carpeta de tareas del sistema se recorre", inv.Motivo);
+            Check(inv.Descartadas.Count == 0, "las tareas reales se interpretan todas (ninguna descartada)",
+                  string.Join(" | ", inv.Descartadas.Take(3)));
+            Console.WriteLine($"      INFO: {inv.Tareas.Count} tareas de inicio en {inv.ArchivosLeidos} archivos; {inv.Ilegibles.Count} ilegibles" +
+                              (admin ? "" : " (sin administrador es lo esperado)") + ".");
+            if (admin) Check(inv.Ilegibles.Count == 0, "como administrador no queda nada ilegible", string.Join(" | ", inv.Ilegibles.Take(3)));
         }
 
         // ============================================================

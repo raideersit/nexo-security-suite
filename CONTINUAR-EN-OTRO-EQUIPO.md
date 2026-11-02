@@ -28,15 +28,15 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**678 comprobaciones automatizadas, todas en verde, en Windows 10** (722 con las portables hechas desde Linux el 2026-11-02 —11 de la traducción de rutas y 33 del impacto de arranque—, probadas solo en Linux; +3 en Windows sin ejecutar todavía) (127 al
+**678 comprobaciones automatizadas, todas en verde, en Windows 10** (748 con las portables hechas desde Linux el 2026-11-02 —11 de la traducción de rutas, 33 del impacto de arranque y 26 de las tareas programadas—, probadas solo en Linux; +6 en Windows sin ejecutar todavía) (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
 +84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +40 de la bandeja y +12 de la aprobacion por otro administrador, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
-| `tools/Nexo.Cleanup.Demo` | 129 | Guardia, limpieza, duplicados, triturador, inicio, impacto de arranque, S.M.A.R.T. e historial (portable) |
-| `tools/Nexo.Cleanup.Windows.Demo` | 29 (+2 sin ejecutar) | Tipo de disco, registro de inicio, impacto de arranque real, Papelera, archivos bloqueados, discos reales |
+| `tools/Nexo.Cleanup.Demo` | 155 | Guardia, limpieza, duplicados, triturador, inicio, impacto de arranque, tareas programadas, S.M.A.R.T. e historial (portable) |
+| `tools/Nexo.Cleanup.Windows.Demo` | 29 (+5 sin ejecutar) | Tipo de disco, registro de inicio, impacto de arranque y tareas reales, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 115 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 31 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
@@ -790,8 +790,22 @@ El código viaja por git; las máquinas no comparten nada más.
   dañado se aparta como `.corrupto` y el evento dice que no se evaluó el
   crecimiento. Es **estado, no un log**: no rompe la regla de §8. Falta decidir
   la ruta definitiva cuando exista el servicio (p. ej. `%ProgramData%\Nexo`).
-- **Servicios y tareas programadas** como fuentes de inicio (§1.4): solo se leen
-  `Run` y las carpetas de inicio.
+- **Servicios** como fuente de inicio (§1.4): no se leen (hace falta WMI, `Win32_Service`).
+- ~~**Tareas programadas** como fuente de inicio~~ Hecho (2026-11-02, desde Linux), **solo lectura**:
+  `nexo-cleanup tareas [--carpeta ruta]`. `LectorDeTareas` recorre `C:\Windows\System32\Tasks` (UTF-16) sin
+  seguir enlaces; una carpeta o archivo sin permisos se anota como ilegible y el recorrido sigue.
+  `ParserDeTareaProgramada` se queda con las de `LogonTrigger`/`BootTrigger` habilitados (sin `<Enabled>` =
+  habilitado, como dice el esquema; un valor desconocido rechaza la tarea), sus comandos `Exec`, si tienen
+  acciones COM, si están ocultas, el usuario, `HighestAvailable` y el retraso. La ruta sale del archivo, no del
+  `<URI>` del XML. «Bajo \Microsoft\» es una categoría, no una garantía. El comando de cada tarea se cruza con el
+  impacto de arranque (`ImpactoDeComando`).
+  - **«Lista completa»** solo si no quedó nada ilegible, sin interpretar ni truncado (código de salida 2 si no).
+  - +26 portables (`Nexo.Cleanup.Demo` §5c, con archivos UTF-16 reales, un enlace simbólico y `chmod 000`;
+    tres comprobadas quitando el arreglo).
+  - **SIN PROBAR en Windows:** que las tareas reales se entiendan todas y que como administrador no quede nada
+    ilegible (+3 en `Nexo.Cleanup.Windows.Demo`, solo compiladas).
+  - **Huecos:** deshabilitar tareas (haría falta la API COM del Programador de tareas) y las tareas que están en
+    el registro (`TaskCache`) pero cuyo XML se borró, una técnica conocida para esconderlas.
 - **§1.5 Perfiles de rendimiento** sigue en diseño. **§1.3 Desinstalar aplicaciones**
   no se construye, por recomendación de [[Salida 6 - Analisis de viabilidad del proyecto]].
 

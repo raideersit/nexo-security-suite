@@ -93,9 +93,12 @@ namespace Nexo.Modules.Cleanup.Inicio
         /// Lo que se sabe de una entrada de inicio, buscando su ejecutable entre las aplicaciones (evento 101).
         /// null = no hay datos (no se pudo sacar el ejecutable, es un acceso directo o no aparecio): NO "no pesa".
         /// </summary>
-        public DegradacionAgrupada? ImpactoDe(EntradaDeInicio entrada)
+        public DegradacionAgrupada? ImpactoDe(EntradaDeInicio entrada) => ImpactoDeComando(entrada.Comando);
+
+        /// <summary>Lo mismo para cualquier linea de comando (p. ej. la accion de una tarea programada).</summary>
+        public DegradacionAgrupada? ImpactoDeComando(string? comando)
         {
-            string? exe = NombreDeEjecutable(entrada.Comando);
+            string? exe = NombreDeEjecutable(comando);
             if (exe is null) return null;
             return Degradaciones.FirstOrDefault(d => d.Tipo == TipoDeDegradacion.Aplicacion
                                                      && string.Equals(NombreDeArchivo(d.Nombre), exe, StringComparison.OrdinalIgnoreCase));

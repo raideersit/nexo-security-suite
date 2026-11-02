@@ -95,7 +95,7 @@ El problema es **"sin uso"**, y es de fondo:
 
 Ninguna señal es fiable por sí sola, y recomendar desinstalar algo en uso destruye la confianza en toda la herramienta. **Coincide con la recomendación de [[Salida 6 - Analisis de viabilidad del proyecto]] de dejarlo fuera del MVP.** Si se construye, debe presentarse como "no lo he visto ejecutarse desde X", nunca como "sin uso".
 
-### 1.4 Optimización de inicio — **implementado** (impacto de arranque leído desde 2026-11-02, sin probar en Windows; faltan servicios y tareas programadas)
+### 1.4 Optimización de inicio — **implementado** (impacto de arranque y tareas programadas leídos desde 2026-11-02, sin probar en Windows; faltan los servicios)
 
 Fuentes a enumerar:
 
