@@ -64,6 +64,17 @@ namespace Nexo.Service.Demo
             Respuesta reg = await c.LlamarAsync("limpieza.reglas").ConfigureAwait(false);
             Check(reg.Exito && R(reg).GetProperty("reglas").GetArrayLength() == 3, "limpieza.reglas lista el catalogo (lo que Nexo tiene permiso para borrar)");
             Check((await ident.LlamarAsync("limpieza.reglas").ConfigureAwait(false)).Exito, "y listarlo no necesita suplantar a nadie");
+            Check(R(reg).GetProperty("modo").GetString() == "borrado-permanente",
+                  "el modo informado es el del borrador (el de prueba borra de verdad)");
+
+            // Regresion: el simulador tambien es "reversible", y el servicio lo informaba como "papelera".
+            foreach ((IBorrador borrador, string esperado) in new (IBorrador, string)[]
+                     { (new BorradorSimulado(), "simulado"), (new BorradorReal(), "borrado-permanente") })
+            {
+                var modulo = new ModuloLimpieza(CatalogoDePrueba(), borrador, new GrabadorDeReportes());
+                JsonElement info = JsonSerializer.SerializeToElement(await modulo.ManejarAsync("limpieza.reglas", null, CancellationToken.None).ConfigureAwait(false));
+                Check(info.GetProperty("modo").GetString() == esperado, "limpieza.reglas informa el modo '" + esperado + "' con " + borrador.GetType().Name);
+            }
 
             // --- Sin identidad utilizable: se rechaza ---
             Respuesta sinId = await ident.LlamarAsync("limpieza.previsualizar").ConfigureAwait(false);

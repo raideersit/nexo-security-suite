@@ -65,7 +65,10 @@ namespace Nexo.Service
                 case "limpieza.reglas":
                     return new
                     {
-                        modo = _borrador.EsReversible ? "papelera" : "borrado-permanente",
+                        // El simulador tambien es "reversible" (no borra nada); sin distinguirlo, el cliente leeria "papelera".
+                        modo = _borrador is Nexo.Modules.Cleanup.Platform.BorradorSimulado
+                            ? "simulado"
+                            : _borrador.EsReversible ? "papelera" : "borrado-permanente",
                         reversible = _borrador.EsReversible,
                         reglas = _catalogo.Reglas.Select(r => new
                         {
