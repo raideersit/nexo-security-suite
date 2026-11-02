@@ -505,6 +505,26 @@ administrador la fuente se **niega con claridad** y no emite nada.
 sin notificación en la bandeja (el evento `Detectado` existe, nadie lo escucha aún), sin
 análisis de comportamiento (ETW), y el diario USN es por volumen: solo NTFS.
 
+**Bajo carga con `clamd` real (Linux, 2026-11-02).** `VigilanteEnTiempoReal` + `FuenteFileSystemWatcher` (inotify)
++ ClamAV 1.5.4 en Docker, valores por defecto, con un arnés de un solo uso fuera del repo. **No cubre el diario USN
+ni Windows.**
+
+| Ráfaga | Resultado |
+|---|---|
+| 511 `.exe` (11 EICAR) + 170 `.txt` | 11/11 detectados, 0 falsos positivos, 0 perdidos, 12 s. Un EICAR escrito en dos mitades separadas por 1 s se detecta: la estabilización espera. Cuadra: 511 de 511. |
+| 6021 `.exe` (21 EICAR) | Pasa de 5000 pendientes: aviso «demasiados archivos pendientes», **3 EICAR sin ver**, 0 falsos positivos, 53 s. |
+| 2011 `.exe`, clamd parado a 0,5 s | `MotorCaido`, 1882 «no analizados», nada dado por limpio. Cuadra: 2011 de 2011. |
+
+**Hallazgos (anotados, SIN arreglar):**
+- **`Perdidos` cuenta eventos, no archivos.** Un archivo nuevo da ~3 eventos: con 6021 archivos salieron
+  5001 analizados + 2577 «perdidos» = 7578, cuando faltaron ~1020 archivos. Y un desborde del buffer de la fuente
+  (`AlPerder`) suma 1, aunque se pierdan cientos. La bandeja lo muestra como «N sin vigilar» (`ModeloDeBandeja`),
+  como si fueran archivos. Es conservador (siempre dice «cobertura incompleta») pero el número no significa nada.
+  Propuesta: contar rutas distintas perdidas (con tope) y, tras un desborde, decir «se perdieron cambios» sin número.
+- **Lo perdido no se vuelve a mirar.** Tras el aviso no hay nada que reescanee las carpetas afectadas: los 3 EICAR
+  se quedan ahí. Propuesta: al perder cambios, ofrecer (no lanzar solo) un escaneo bajo demanda de esas carpetas.
+- **Sin probar:** si el vigilante se recupera cuando clamd vuelve tras `MotorCaido`.
+
 ---
 
 ## 2h. Limpieza en el servicio (2026-10-22)
