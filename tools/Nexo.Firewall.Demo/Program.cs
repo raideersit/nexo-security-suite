@@ -16,7 +16,7 @@ namespace Nexo.Firewall.Demo
     /// Todo contra un almacen en memoria: no toca el Firewall de Windows. Lo que
     /// si lo toca esta en Nexo.Firewall.Windows.Demo.
     /// </summary>
-    public static class Program
+    public static partial class Program
     {
         private static int _fallos;
 
@@ -32,6 +32,7 @@ namespace Nexo.Firewall.Demo
             await ProbarAplicacion().ConfigureAwait(false);
             await ProbarAjenas().ConfigureAwait(false);
             await ProbarSigiloso().ConfigureAwait(false);
+            await ProbarBloqueos().ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0

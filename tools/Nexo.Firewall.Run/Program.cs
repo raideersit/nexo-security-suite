@@ -56,6 +56,7 @@ namespace Nexo.Firewall.Run
             {
                 case "estado": return Estado(adm, admin);
                 case "listar": return Listar(adm);
+                case "bloqueos": return await Bloqueos(args, reportes, admin).ConfigureAwait(false);
 
                 case "bloquear":
                 case "permitir":
@@ -100,6 +101,66 @@ namespace Nexo.Firewall.Run
                 Console.WriteLine($"  {(r.Habilitada ? " " : "x")} {r.Nombre}");
             Console.WriteLine();
             Console.WriteLine(reglas.Count + " reglas (x = deshabilitada).");
+            return 0;
+        }
+
+        /// <summary>
+        /// Conexiones que el firewall bloqueo (evento 5157). SOLO LEE: no activa la auditoria ni cambia nada;
+        /// escribe notas en el vault unicamente con --registrar. Codigo de salida 2 = no concluyente: no se pudo
+        /// leer o la auditoria esta apagada, asi que "ningun bloqueo" no es una afirmacion que se pueda hacer.
+        /// </summary>
+        private static async Task<int> Bloqueos(string[] args, IReportWriter reportes, bool admin)
+        {
+            double horas = 24;
+            if (Opcion(args, "--horas") is { } h && (!double.TryParse(h, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out horas) || horas <= 0 || horas > 24 * 365))
+                return Uso("--horas debe ser un numero entre 0 y 8760.");
+            int maximo = LectorDeBloqueos.MaximoPorDefecto;
+            if (Opcion(args, "--max") is { } m && (!int.TryParse(m, out maximo) || maximo < 1 || maximo > 100_000))
+                return Uso("--max debe ser un entero entre 1 y 100000.");
+
+            DateTimeOffset desde = DateTimeOffset.UtcNow.AddHours(-horas);
+            ResultadoDeBloqueos r = new LectorDeBloqueos(new FuenteDeBloqueosWindows()).Leer(desde, maximo);
+
+            Console.WriteLine("Administrador: " + (admin ? "si" : "no (el registro de Seguridad exige administrador)"));
+            Console.WriteLine("Auditoria de fallos de 'Filtering Platform Connection': " +
+                (r.AuditoriaActiva switch { true => "activa", false => "APAGADA", _ => "no se pudo comprobar" }));
+            Console.WriteLine($"Periodo: ultimas {horas.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} h");
+            Console.WriteLine();
+
+            if (r.Estado != EstadoDeFuente.Ok)
+            {
+                Console.WriteLine("NO SE PUDO LEER el registro de Seguridad: " + r.Motivo);
+                Console.WriteLine("Esto no significa que no haya habido bloqueos.");
+                return 2;
+            }
+
+            foreach (BloqueoAgrupado g in r.Grupos.Take(30))
+                Console.WriteLine($"  {g.Repeticiones,5}x  {(g.Direccion == DireccionDeRegla.Entrante ? "entrante" : "saliente")}  " +
+                                  $"{g.Protocolo,-6} {g.IpRemota}:{g.PuertoRemoto}  {g.Aplicacion}");
+            if (r.Grupos.Count > 30) Console.WriteLine($"  ... y {r.Grupos.Count - 30} grupos mas.");
+
+            Console.WriteLine();
+            Console.WriteLine($"{r.EventosLeidos} eventos leidos, {r.Grupos.Count} grupos distintos, {r.Descartados} sin interpretar.");
+            if (r.Truncada) Console.WriteLine($"AVISO: hay mas eventos de los leidos (maximo {maximo}); esto es lo mas reciente, no todo. Sube --max o baja --horas.");
+            if (r.Descartados > 0) Console.WriteLine("AVISO: eventos que no se pudieron interpretar no se cuentan como bloqueos.");
+
+            if (r.PuedeAfirmarQueNoHuboBloqueos)
+                Console.WriteLine("Sin bloqueos en el periodo (registro leido, auditoria activa).");
+            else if (r.Grupos.Count == 0)
+            {
+                Console.WriteLine("RESULTADO NO CONCLUYENTE: no hay bloqueos que mostrar, pero eso no prueba que no los hubiera.");
+                if (r.AuditoriaActiva != true)
+                    Console.WriteLine("Windows no escribe estos eventos si la auditoria esta apagada. Para activarla (decision tuya, llena el registro):\n" +
+                                      "  auditpol /set /subcategory:\"Filtering Platform Connection\" /failure:enable");
+                return 2;
+            }
+
+            if (args.Contains("--registrar"))
+            {
+                int sin = await LectorDeBloqueos.RegistrarAsync(r, reportes).ConfigureAwait(false);
+                Console.WriteLine($"Anotados en el vault: {Math.Min(r.Grupos.Count, 50)}" + (sin > 0 ? $" ({sin} grupos menos repetidos quedaron sin anotar)." : "."));
+            }
             return 0;
         }
 
@@ -154,6 +215,8 @@ namespace Nexo.Firewall.Run
             Console.WriteLine("  permitir <exe> [--entrante|--saliente]");
             Console.WriteLine("  quitar \"<nombre de la regla>\"        solo reglas de Nexo");
             Console.WriteLine("  sigiloso on|off                     bloquea el ping entrante (ICMPv4 e ICMPv6)");
+            Console.WriteLine("  bloqueos [--horas N] [--max N] [--registrar]   conexiones que el firewall bloqueo (solo lee;");
+            Console.WriteLine("                                      exige administrador y la auditoria de 'Filtering Platform Connection')");
             Console.WriteLine();
             Console.WriteLine("Los cambios muestran un plan y piden escribir APLICAR. Escribir en el");
             Console.WriteLine("firewall requiere una consola de administrador. Nunca bloquea procesos del");

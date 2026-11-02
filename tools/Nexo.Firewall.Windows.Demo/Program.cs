@@ -49,6 +49,8 @@ namespace Nexo.Firewall.Windows.Demo
                 await reportes.InicializarVaultAsync().ConfigureAwait(false);
                 var adm = new AdministradorDeFirewall(almacen, reportes, admin);
 
+                LecturaDeBloqueos(admin);
+
                 if (admin) await EscrituraReal(adm, almacen, exe, creadas, raiz).ConfigureAwait(false);
                 else await SinAdministrador(adm, exe).ConfigureAwait(false);
             }
@@ -223,6 +225,39 @@ namespace Nexo.Firewall.Windows.Demo
             Check(notas >= 6, "el vault tiene las notas de los cambios (reglas y modo sigiloso)", "notas: " + notas);
             Console.WriteLine("      NOTA: no se probo el ping real. El trafico hacia la propia maquina va por loopback");
             Console.WriteLine("            y no pasa por el filtro; hace falta otro equipo de la red para verlo.");
+        }
+
+        /// <summary>
+        /// Bloqueos reales (evento 5157) del registro de Seguridad. Solo lee. Sin administrador la fuente debe
+        /// decir "no pude leer"; con administrador debe leer de verdad y saber si la auditoria esta activa.
+        /// El resultado depende de la politica de auditoria del equipo, asi que se informa en vez de exigirlo.
+        /// </summary>
+        private static void LecturaDeBloqueos(bool admin)
+        {
+            Console.WriteLine("Bloqueos del firewall (registro de Seguridad, solo lectura)");
+
+            ResultadoDeBloqueos r = new LectorDeBloqueos(new FuenteDeBloqueosWindows())
+                .Leer(DateTimeOffset.UtcNow.AddDays(-7), maximo: 2000);
+
+            if (!admin)
+            {
+                Check(r.Estado == EstadoDeFuente.SinPermisos && r.Grupos.Count == 0,
+                      "sin administrador la fuente dice SinPermisos (no 'cero bloqueos')", "estado: " + r.Estado + " " + r.Motivo);
+                Check(!r.PuedeAfirmarQueNoHuboBloqueos && r.ResultadoNoConcluyente,
+                      "y el resultado es no concluyente");
+                Check(r.AuditoriaActiva is null, "y no inventa si la auditoria esta activa (sin permisos: no se sabe)",
+                      "auditoria: " + r.AuditoriaActiva);
+                return;
+            }
+
+            Check(r.Estado == EstadoDeFuente.Ok, "como administrador se lee el registro de Seguridad", "estado: " + r.Estado + " " + r.Motivo);
+            Check(r.AuditoriaActiva is not null, "como administrador se sabe si la auditoria de 'Filtering Platform Connection' esta activa");
+            Console.WriteLine($"      INFO: auditoria de fallos: {(r.AuditoriaActiva switch { true => "activa", false => "apagada", _ => "?" })}; " +
+                              $"{r.EventosLeidos} eventos en 7 dias, {r.Grupos.Count} grupos, {r.Descartados} sin interpretar.");
+            // Si hay eventos reales, ninguno deberia haberse descartado: el analizador debe entender lo que Windows escribe.
+            Check(r.Descartados == 0, "los eventos 5157 reales se interpretan todos (ninguno descartado)", "descartados: " + r.Descartados);
+            if (r.AuditoriaActiva == false && r.EventosLeidos == 0)
+                Console.WriteLine("      NOTA: con la auditoria apagada no hay eventos que probar; activala (auditpol, ver 'nexo-firewall bloqueos') y repite.");
         }
 
         private static string Corto(string s) => s.Length > 40 ? s[..40] + "..." : s;

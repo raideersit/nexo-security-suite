@@ -1,6 +1,7 @@
 # Continuar en otro equipo
 
-> Documento de traspaso **vigente** (2026-10-04). Si abres una sesión nueva de
+> Documento de traspaso **vigente** (2026-10-04; última actualización 2026-11-02, ver §2j:
+> la VM ya no existe). Si abres una sesión nueva de
 > Claude Code en este repositorio, léelo primero. Reemplaza a
 > [[CONTINUAR-EN-WINDOWS]], que queda como historia del paso Linux → Windows.
 
@@ -27,7 +28,7 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**634 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**678 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
 +84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +40 de la bandeja y +12 de la aprobacion por otro administrador, 2026-10-22):
 
@@ -36,11 +37,11 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
 | `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
-| `tools/Nexo.Firewall.Demo` | 66 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
-| `tools/Nexo.Firewall.Windows.Demo` | 28 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
+| `tools/Nexo.Firewall.Demo` | 104 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
+| `tools/Nexo.Firewall.Windows.Demo` | 31 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
-| `tools/Nexo.Service.Demo` | 170 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
+| `tools/Nexo.Service.Demo` | 173 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
 | `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
 | `tools/Nexo.Tray.Demo` | 40 | Bandeja: modelo de estados sin pantalla, consulta y acciones contra el servicio real, y el ejecutable arrancando de verdad (solo Windows) |
 
@@ -247,9 +248,32 @@ y no pasa por el filtro; hace falta otro equipo de la red.
 
 **Huecos conocidos del firewall (sin hacer):**
 
-- No lee los **bloqueos** efectivos (evento 5157 del registro de Seguridad, que
-  exige activar la auditoría de WFP): `Eventos.Amenazas.Firewall` existe pero
-  nadie lo emite todavía. Hoy solo se reportan los *cambios de configuración*.
+- ~~No lee los bloqueos efectivos~~ Hecho (2026-11-02), ver el recuadro de abajo. Siguen sin
+  hacer: exponerlo por el pipe (`firewall.bloqueos`), traducir `FilterRTID` al nombre de la regla,
+  convertir la ruta `\device\harddiskvolume3\...` a `C:\...`, y leerlo sin pedir administrador.
+
+**Bloqueos del firewall (evento 5157), 2026-11-02:** `nexo-firewall bloqueos [--horas N] [--max N] [--registrar]`.
+Solo lee. Windows **no escribe** el 5157 si no está activa la auditoría de fallos de «Filtering Platform
+Connection»; Nexo **no la activa** (cambia la política del equipo y llena el registro de Seguridad):
+`auditpol /set /subcategory:"Filtering Platform Connection" /failure:enable`.
+
+- Portable (`Nexo.Modules.Threats/Firewall`): `ParserDeEvento5157` (XML defensivo: sin DTD, tamaño acotado, IP y
+  puerto validados, rutas con caracteres de control rechazadas), `LectorDeBloqueos` (agrupa por app + dirección +
+  destino + puerto + protocolo; `RegistrarAsync` anota como máximo 50 notas, los más repetidos primero).
+- Windows: `FuenteDeBloqueosWindows` (`EventLogReader` sobre el registro `Security`; añade el paquete
+  `System.Diagnostics.EventLog` 8.0.1) y `Nexo.Native/Audit/PoliticaDeAuditoria` (`AuditQuerySystemPolicy`, solo lee).
+- **«No pude leer» ≠ «sin bloqueos»:** `PuedeAfirmarQueNoHuboBloqueos` exige registro leído, auditoría **activa**,
+  nada truncado y nada sin interpretar. Sin permisos, registro no disponible, auditoría apagada o desconocida, o
+  lectura truncada, el resultado es *no concluyente* (código de salida 2). Probado rompiendo a propósito la regla de
+  la auditoría y la de los caracteres de control: las pruebas fallan.
+- **Probado:** 38 comprobaciones portables (`Nexo.Firewall.Demo`), incluidas entidades externas y bombas de entidades,
+  3000 XML mutados al azar, y los casos «no sé». En el HP **sin administrador** (`Nexo.Firewall.Windows.Demo`, +3): la
+  fuente dice `SinPermisos` y no inventa el estado de la auditoría.
+- **SIN PROBAR — hace falta administrador y la auditoría activa:** leer eventos 5157 **reales** y que el analizador
+  los entienda todos (la prueba de administrador exige `Descartados == 0`); y `AuditQuerySystemPolicy` con permisos
+  (sin ellos solo se ha probado el camino «no se sabe»). Hasta entonces el formato real del evento es el que
+  documenta Microsoft, no uno observado: los campos `Direction` (`%%14592` saliente / `%%14593` entrante),
+  `SourceAddress`/`DestAddress`, `Protocol`, `FilterRTID`.
 - Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
 - ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%\Nexo\firewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
 - Sin integración en `Nexo.Service` (existe, pero solo expone `ping` y `estado`; ver §2f) ni confirmación desde la UI.
@@ -570,6 +594,50 @@ sin duplicarse. Se rompió a propósito la comprobación de aprobación y falló
 - **El instalador con `-Bandeja`:** `nexo-service.ps1 -Bandeja <nexo-tray.exe>` registra la bandeja en
   `HKLM\...\Run` (arranca con cada usuario) y quita la entrada al desinstalar. Solo se ha comprobado su
   **sintaxis**; nunca se ha ejecutado. También crea y restringe `%ProgramData%\Nexo` (vault y cuarentena).
+
+---
+
+## 2j. Prueba del servicio en la VM, y la VM ya no existe (2026-11-01)
+
+El guion `GUION-PRUEBA-VM.md` se ejecutó en `NexoVM` (Acer, Windows 10 22H2). **La VM, su snapshot
+`limpia` y el ISO se borraron al terminar** (el equipo principal es el HP; el Acer ya no se usa). El
+código y los scripts del montaje están en git (`tools/vm`, con su `README.md`); la VM, no. Si hay que
+repetir algo, hay que montarla de nuevo (resumen y trampas en `tools/vm/README.md`).
+
+**Anotado como hecho** (tabla de resultados del guion, commit `61f06f9`):
+
+| Pasos | Resultado | Detalle |
+|---|---|---|
+| 1.3 | Hallazgo corregido | `nexo-service.ps1` comparaba por **nombre** de grupo y en Windows en español no reconocía «Usuarios autentificados», así que no se negaba a instalar desde una carpeta modificable. Ahora compara por **SID**. |
+| 4.1–4.4 | OK | La bandeja se ve: icono ámbar «tiempo real apagado» al conectar, gris «sin conexión» con el servicio parado, y vuelve a conectado sin reiniciarla. Sin problemas visuales. |
+| 5.1–5.8 | OK (5.7 NOTA) | Tiempo real detecta (icono rojo y aviso); el plan no mueve nada; el UAC sale con credenciales del administrador («editor desconocido»: el `.exe` no está firmado); aceptar pone el archivo en cuarentena; cancelar no cambia nada; restaurar funciona; desde una ubicación no segura se niega sin UAC. |
+
+- **5.7:** con un usuario estándar el plan **sí se aplicó** aunque el UAC corre con el SID del
+  administrador. Coincide con el cambio `6aab183` (otro administrador puede aprobar el plan de otro
+  usuario y se ejecuta como el dueño), pero la tabla lo dejó como «pendiente de entender por qué»: no
+  está comprobado que sea exactamente por eso.
+- **La bandeja no escanea ni restaura.** Su menú «detecciones» solo muestra lo del tiempo real, que está
+  apagado por omisión. Restaurar se hace con `nexo-rpc` desde una consola elevada.
+- Con esto quedan **probados** (antes figuraban «SIN PROBAR» en §2i): la parte visual de la bandeja y el
+  camino elevado real con UAC.
+
+**Sin resultado anotado** (el guion y los scripts existen, pero la tabla quedó vacía; **no se sabe si se
+ejecutaron, así que se tratan como sin probar**): 1.1, 1.2, 2.1–2.3, 3.1–3.2, **6.1–6.3** (limpieza y
+Papelera desde el servicio), **7.1–7.2** (diario USN bajo carga) y **8.1–8.3** (ClamAV real: protocolo,
+rendimiento, convivencia con Defender), además de 9 (desinstalar).
+
+**Hallazgo en el HP (2026-11-02, corregido):** con `Nexo:Limpieza:Modo = simulado`, `limpieza.reglas` informaba
+`"modo":"papelera"`, porque el modo se deducía solo de `EsReversible` y el simulador también es reversible (no borra
+nada). Ahora informa `"simulado"`. Prueba de regresión en `Nexo.Service.Demo` (+3); falla si se quita el arreglo.
+
+**Pendiente:**
+
+- `tools/Nexo.Ipc.Cli` (`nexo-rpc`) reescribe el cliente del pipe cuyo código se perdió. Compila con 0/0
+  pero **en el Acer no se pudo ejecutar** (bloqueaba el `.dll` recién compilado). En el HP
+  (2026-11-02) compila y arranca, y sin servicio dice «El servicio no esta escuchando en el pipe
+  'NexoIpc'». **Falta probarlo contra un servicio de verdad** (llamada y flujo previsualizar/aplicar).
+- Todo lo de «Sin resultado anotado» necesita volver a montar una VM. Hasta entonces, §2e–§2h siguen con
+  sus avisos de «NO probado».
 
 ---
 
