@@ -120,7 +120,7 @@ namespace Nexo.Firewall.Run
                 return Uso("--max debe ser un entero entre 1 y 100000.");
 
             DateTimeOffset desde = DateTimeOffset.UtcNow.AddHours(-horas);
-            ResultadoDeBloqueos r = new LectorDeBloqueos(new FuenteDeBloqueosWindows()).Leer(desde, maximo);
+            ResultadoDeBloqueos r = new LectorDeBloqueos(new FuenteDeBloqueosWindows(), FuenteDeBloqueosWindows.TraductorDelEquipo()).Leer(desde, maximo);
 
             Console.WriteLine("Administrador: " + (admin ? "si" : "no (el registro de Seguridad exige administrador)"));
             Console.WriteLine("Auditoria de fallos de 'Filtering Platform Connection': " +

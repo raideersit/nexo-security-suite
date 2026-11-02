@@ -158,6 +158,50 @@ namespace Nexo.Firewall.Demo
             Check(res.EventosLeidos == 10 && res.Truncada && res.Grupos.Sum(g => g.Repeticiones) == 10,
                   "una fuente que devuelve mas del maximo pedido se recorta y se marca truncada");
 
+            // --- Rutas de dispositivo -> C:\ ---
+            var rutas = new TraductorDeRutasNt(new Dictionary<string, string>
+            {
+                ["C:"] = @"\Device\HarddiskVolume3",
+                ["d:"] = @"\Device\HarddiskVolume30",
+                ["E:"] = @"\Device\HarddiskVolume3",                                  // mismo dispositivo que C:
+                ["Z:"] = @"\Device\LanmanRedirector\;Z:0000000000012345\srv\datos",   // unidad de red: se ignora
+                ["S:"] = @"\??\C:\carpeta",                                           // subst: se ignora
+                ["CC"] = @"\Device\HarddiskVolume9",                                  // letra mal formada
+                ["F:"] = "\\Device\\Harddisk\nVolume4"                                // control: se ignora
+            });
+            Check(rutas.Unidades == 2, "solo se aceptan letras validas que apuntan a un \\Device\\ de un componente", "unidades: " + rutas.Unidades);
+            Check(rutas.Traducir(@"\device\harddiskvolume3\apps\navegador.exe") == @"C:\apps\navegador.exe",
+                  "\\device\\harddiskvolume3\\... se traduce a C:\\... sin distinguir mayusculas");
+            Check(rutas.Traducir(@"\Device\HarddiskVolume30\x.exe") == @"D:\x.exe",
+                  "harddiskvolume30 va a su propia letra: no lo captura el prefijo de harddiskvolume3");
+            Check(rutas.Traducir(@"\Device\HarddiskVolume3x\x.exe") == @"\Device\HarddiskVolume3x\x.exe",
+                  "un dispositivo que solo comparte el comienzo del nombre no se traduce");
+            Check(rutas.Traducir(@"\Device\HarddiskVolume3") == @"C:\", "el dispositivo solo es la raiz de la unidad");
+            Check(rutas.Traducir(@"\device\harddiskvolume7\otro.exe") == @"\device\harddiskvolume7\otro.exe",
+                  "un volumen desconocido (USB desconectado) queda TAL CUAL: no se adivina la letra");
+            Check(rutas.Traducir(@"\device\mup\servidor\recurso\app.exe") == @"\\servidor\recurso\app.exe",
+                  "una ruta de red (\\device\\mup\\...) se traduce a UNC");
+            Check(rutas.Traducir(@"\device\mup\servidor") == @"\device\mup\servidor" && rutas.Traducir(@"\device\mup\servidor\") == @"\device\mup\servidor\",
+                  "una ruta de red sin recurso no se convierte en un UNC invalido");
+            Check(rutas.Traducir("(sistema)") == "(sistema)" && rutas.Traducir(@"C:\ya\es.exe") == @"C:\ya\es.exe" && rutas.Traducir("") == "",
+                  "lo que no es una ruta de dispositivo no se toca");
+            Check(TraductorDeRutasNt.Vacio.Traducir(@"\device\harddiskvolume3\a.exe") == @"\device\harddiskvolume3\a.exe"
+                  && TraductorDeRutasNt.Vacio.Traducir(@"\device\mup\s\r\a.exe") == @"\\s\r\a.exe",
+                  "sin tabla de unidades solo se traducen las rutas de red");
+
+            var mezcla = new FuenteFalsa { Auditoria = true };
+            mezcla.Xml.AddRange(new[]
+            {
+                Evento5157(cuando: T0),
+                Evento5157(app: @"C:\apps\navegador.exe", cuando: T0.AddMinutes(1)),
+                Evento5157(app: @"\device\harddiskvolume7\usb.exe", cuando: T0.AddMinutes(2))
+            });
+            res = new LectorDeBloqueos(mezcla, rutas).Leer(T0.AddHours(-1));
+            Check(res.Grupos.Count == 2 && res.Grupos[0].Aplicacion == @"C:\apps\navegador.exe" && res.Grupos[0].Repeticiones == 2
+                  && res.Grupos[1].Aplicacion == @"\device\harddiskvolume7\usb.exe",
+                  "el lector traduce antes de agrupar: la misma app en las dos formas es un solo grupo, y la desconocida se conserva",
+                  string.Join(" | ", res.Grupos.Select(g => g.Aplicacion + "x" + g.Repeticiones)));
+
             // --- Registro en el vault: acotado ---
             var grandes = new FuenteFalsa { Auditoria = true };
             for (int i = 0; i < 60; i++) grandes.Xml.Add(Evento5157(destino: "203.0.113." + (i + 1), cuando: T0));

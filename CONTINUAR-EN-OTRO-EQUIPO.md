@@ -28,7 +28,7 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**678 comprobaciones automatizadas, todas en verde, en Windows 10** (127 al
+**678 comprobaciones automatizadas, todas en verde, en Windows 10** (689 con las 11 portables de la traducción de rutas, 2026-11-02, probadas solo en Linux; +1 en Windows sin ejecutar todavía) (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
 +84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +40 de la bandeja y +12 de la aprobacion por otro administrador, 2026-10-22):
 
@@ -37,7 +37,7 @@ traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible 
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
 | `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
-| `tools/Nexo.Firewall.Demo` | 104 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
+| `tools/Nexo.Firewall.Demo` | 115 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 31 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
@@ -250,7 +250,8 @@ y no pasa por el filtro; hace falta otro equipo de la red.
 
 - ~~No lee los bloqueos efectivos~~ Hecho (2026-11-02), ver el recuadro de abajo. Siguen sin
   hacer: exponerlo por el pipe (`firewall.bloqueos`), traducir `FilterRTID` al nombre de la regla,
-  convertir la ruta `\device\harddiskvolume3\...` a `C:\...`, y leerlo sin pedir administrador.
+  y leerlo sin pedir administrador. ~~Convertir la ruta `\device\harddiskvolume3\...` a `C:\...`~~ Hecho
+  (2026-11-02, desde Linux): ver «Rutas de dispositivo» abajo.
 
 **Bloqueos del firewall (evento 5157), 2026-11-02:** `nexo-firewall bloqueos [--horas N] [--max N] [--registrar]`.
 Solo lee. Windows **no escribe** el 5157 si no está activa la auditoría de fallos de «Filtering Platform
@@ -274,6 +275,16 @@ Connection»; Nexo **no la activa** (cambia la política del equipo y llena el r
   (sin ellos solo se ha probado el camino «no se sabe»). Hasta entonces el formato real del evento es el que
   documenta Microsoft, no uno observado: los campos `Direction` (`%%14592` saliente / `%%14593` entrante),
   `SourceAddress`/`DestAddress`, `Protocol`, `FilterRTID`.
+**Rutas de dispositivo (2026-11-02, hecho desde Linux):** el 5157 escribe la aplicación como
+`\device\harddiskvolume3\apps\x.exe`. `TraductorDeRutasNt` (portable) la convierte en `C:\apps\x.exe` con la
+tabla letra → dispositivo, que en Windows sale de `Nexo.Native/Storage/DispositivosDeUnidad` (`QueryDosDevice`, sin
+administrador). `\device\mup\servidor\recurso\...` pasa a `\\servidor\recurso\...`. Un volumen que no está en la
+tabla (USB desconectado) queda **tal cual**: no se adivina la letra. Unidades de red mapeadas y `subst` no entran en
+la tabla. `LectorDeBloqueos` traduce antes de agrupar, así que la misma app en las dos formas es un solo grupo;
+`nexo-firewall bloqueos` ya lo usa. +11 portables (`Nexo.Firewall.Demo`; dos de ellas comprobadas quitando el arreglo).
+**SIN PROBAR en Windows:** la comprobación nueva de `Nexo.Firewall.Windows.Demo` (la unidad del sistema se traduce con
+`QueryDosDevice` real) solo se compiló desde Linux.
+
 - Reglas por puerto/IP/protocolo y listas de bloqueo: solo por aplicación.
 - ~~Lista de protegidos fija~~ Hecho (2026-10-22): `%LOCALAPPDATA%\Nexo\firewall-protegidos.txt` (o `--protegidos`) añade nombres; solo suma, nunca quita svchost ni Defender.
 - Sin integración en `Nexo.Service` (existe, pero solo expone `ping` y `estado`; ver §2f) ni confirmación desde la UI.

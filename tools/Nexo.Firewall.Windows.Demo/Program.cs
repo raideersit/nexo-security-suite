@@ -236,6 +236,14 @@ namespace Nexo.Firewall.Windows.Demo
         {
             Console.WriteLine("Bloqueos del firewall (registro de Seguridad, solo lectura)");
 
+            // Las rutas del 5157 vienen como \device\harddiskvolumeN\...: la tabla real debe traducir la unidad del sistema.
+            string sistema = Path.GetPathRoot(Environment.SystemDirectory)!.TrimEnd('\\');
+            string? dispositivo = Nexo.Native.Storage.DispositivosDeUnidad.Consultar(sistema);
+            TraductorDeRutasNt rutas = FuenteDeBloqueosWindows.TraductorDelEquipo();
+            Check(dispositivo is not null && rutas.Traducir(dispositivo.ToLowerInvariant() + @"\windows\system32\svchost.exe")
+                      .Equals(sistema + @"\windows\system32\svchost.exe", StringComparison.OrdinalIgnoreCase),
+                  $"QueryDosDevice: la ruta de dispositivo de {sistema} se traduce a {sistema}\\...", "dispositivo: " + dispositivo);
+
             ResultadoDeBloqueos r = new LectorDeBloqueos(new FuenteDeBloqueosWindows())
                 .Leer(DateTimeOffset.UtcNow.AddDays(-7), maximo: 2000);
 

@@ -109,10 +109,16 @@ namespace Nexo.Modules.Threats.Firewall
         public const int MaximoPorDefecto = 5000;
 
         private readonly IFuenteDeBloqueos _fuente;
+        private readonly TraductorDeRutasNt _rutas;
 
-        public LectorDeBloqueos(IFuenteDeBloqueos fuente)
+        /// <param name="rutas">
+        /// Convierte \device\harddiskvolumeN\... en C:\... antes de agrupar. Sin el solo se traducen las rutas de red;
+        /// las demas quedan en forma de dispositivo, que es cierta aunque menos legible.
+        /// </param>
+        public LectorDeBloqueos(IFuenteDeBloqueos fuente, TraductorDeRutasNt? rutas = null)
         {
             _fuente = fuente;
+            _rutas = rutas ?? TraductorDeRutasNt.Vacio;
         }
 
         public ResultadoDeBloqueos Leer(DateTimeOffset desde, int maximo = MaximoPorDefecto)
@@ -138,6 +144,8 @@ namespace Nexo.Modules.Threats.Firewall
                     continue;
                 }
 
+                // Se traduce antes de agrupar: la misma app vista como \device\... y como C:\... es un solo grupo.
+                c = c with { Aplicacion = _rutas.Traducir(c.Aplicacion) };
                 string clave = string.Join('\u001f', c.Aplicacion.ToLowerInvariant(), c.Direccion, c.IpRemota, c.PuertoRemoto, c.Protocolo);
                 acumulado[clave] = acumulado.TryGetValue(clave, out BloqueoAgrupado? g)
                     ? g with

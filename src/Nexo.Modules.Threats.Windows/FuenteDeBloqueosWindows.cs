@@ -4,6 +4,7 @@ using System.Diagnostics.Eventing.Reader;
 using System.Globalization;
 using Nexo.Modules.Threats.Firewall;
 using Nexo.Native.Audit;
+using Nexo.Native.Storage;
 
 namespace Nexo.Modules.Threats.Windows
 {
@@ -18,6 +19,9 @@ namespace Nexo.Modules.Threats.Windows
     /// </summary>
     public sealed class FuenteDeBloqueosWindows : IFuenteDeBloqueos
     {
+        /// <summary>Traductor con las unidades presentes ahora (el 5157 escribe \device\harddiskvolumeN\...).</summary>
+        public static TraductorDeRutasNt TraductorDelEquipo() => new(DispositivosDeUnidad.Leer());
+
         public bool? AuditoriaActiva()
         {
             AuditoriaActiva? a = PoliticaDeAuditoria.Consultar(PoliticaDeAuditoria.FiltradoDeConexiones);
