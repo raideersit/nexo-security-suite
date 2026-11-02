@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Cliente generico del pipe del servicio, para probar a mano en la VM (nexo-rpc.exe).
+         No es parte del producto: no instala nada ni se distribuye. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Ipc.Cli</RootNamespace>
+    <AssemblyName>nexo-rpc</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Ipc\Nexo.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>
