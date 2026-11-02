@@ -9,6 +9,7 @@ using Nexo.Modules.Threats.Cuarentena;
 using Nexo.Modules.Threats.Escaner;
 using Nexo.Reports;
 using Nexo.Reports.Vault;
+using Nexo.Reports.Model;
 
 namespace Nexo.Scan.Run
 {
@@ -111,11 +112,14 @@ namespace Nexo.Scan.Run
 
             Console.WriteLine($"Motor: {r.Motor} — {r.MotorVersion}");
             Console.WriteLine($"Analizados: {r.Analizados}   Detecciones: {r.Detecciones.Count}   " +
-                              $"NO analizados: {r.Omitidos.Count}   Duracion: {r.Duracion.TotalSeconds:0.0} s");
-            if (r.Incompleto) Console.WriteLine("ESCANEO INCOMPLETO: " + r.MotivoIncompleto);
+                              $"NO analizados: {r.Omitidos.Count}{(r.Incompleto ? " + todo lo que faltaba por recorrer" : "")}   " +
+                              $"Duracion: {r.Duracion.TotalSeconds:0.0} s");
+            // Se detuvo a mitad: lo que quedaba ni se intento, y no se sabe cuanto era (se recorre sobre la marcha).
+            if (r.Incompleto) Console.WriteLine("ESCANEO INCOMPLETO: " + r.MotivoIncompleto +
+                                                "\n  Se detuvo antes de recorrerlo todo: lo que faltaba NO se analizo.");
 
-            foreach (Deteccion d in r.Detecciones) Console.WriteLine($"  DETECTADO  {d.Firma}  {d.Ruta}");
-            foreach (string o in r.Omitidos.Take(15)) Console.WriteLine("  no analizado: " + o);
+            foreach (Deteccion d in r.Detecciones) Console.WriteLine($"  DETECTADO  {d.Firma}  {TextoVisible.UnaLinea(d.Ruta)}");
+            foreach (string o in r.Omitidos.Take(15)) Console.WriteLine("  no analizado: " + TextoVisible.UnaLinea(o));
             if (r.Omitidos.Count > 15) Console.WriteLine($"  ... y {r.Omitidos.Count - 15} mas");
 
             Console.WriteLine();
@@ -123,7 +127,8 @@ namespace Nexo.Scan.Run
                 ? "Sin hallazgos, y se pudo analizar todo."
                 : r.Detecciones.Count == 0
                     ? "Sin detecciones, PERO hay archivos que no se pudieron analizar: no se puede asegurar que este limpio."
-                    : "Hay detecciones. Revisalas antes de actuar: un falso positivo existe.");
+                    : "Hay detecciones. Revisalas antes de actuar: un falso positivo existe." +
+                      (r.Incompleto ? "\nY el escaneo quedo INCOMPLETO: puede haber mas en lo que no se analizo." : ""));
             Console.WriteLine("Vault: " + vaultRuta);
 
             if (r.Detecciones.Count == 0 || !pedirCuarentena) return r.Detecciones.Count > 0 ? 10 : (r.CompletamenteLimpio ? 0 : 11);
@@ -140,8 +145,8 @@ namespace Nexo.Scan.Run
             ResultadoCuarentena rq = await almacen.AplicarAsync(vista, vista.Token).ConfigureAwait(false);
             Console.WriteLine();
             Console.WriteLine($"En cuarentena: {rq.Movidos.Count}. Omitidos: {rq.Omitidos.Count}.");
-            foreach (ElementoDeCuarentena e in rq.Movidos) Console.WriteLine($"  {e.Id}  {e.RutaOriginal}");
-            foreach (string o in rq.Omitidos) Console.WriteLine("  omitido: " + o);
+            foreach (ElementoDeCuarentena e in rq.Movidos) Console.WriteLine($"  {e.Id}  {TextoVisible.UnaLinea(e.RutaOriginal)}");
+            foreach (string o in rq.Omitidos) Console.WriteLine("  omitido: " + TextoVisible.UnaLinea(o));
             if (rq.Movidos.Count > 0) Console.WriteLine("Para deshacerlo: nexo-scan cuarentena restaurar <id>");
             return rq.Omitidos.Count == 0 ? 10 : 5;
         }
@@ -155,7 +160,7 @@ namespace Nexo.Scan.Run
                     var items = almacen.Listar();
                     if (items.Count == 0) { Console.WriteLine("La cuarentena esta vacia (" + almacen.Carpeta + ")."); return 0; }
                     foreach (ElementoDeCuarentena e in items)
-                        Console.WriteLine($"  {e.Id}  {e.Fecha:yyyy-MM-dd HH:mm}  {e.Firma}  {e.RutaOriginal}");
+                        Console.WriteLine($"  {e.Id}  {e.Fecha:yyyy-MM-dd HH:mm}  {e.Firma}  {TextoVisible.UnaLinea(e.RutaOriginal)}");
                     return 0;
 
                 case "restaurar":
@@ -216,7 +221,7 @@ namespace Nexo.Scan.Run
             Console.WriteLine("  --carpeta-cuarentena <ruta>        por defecto %LOCALAPPDATA%\\Nexo\\Quarantine");
             Console.WriteLine();
             Console.WriteLine("Codigos de salida: 0 limpio; 10 con detecciones; 11 sin detecciones pero con archivos");
-            Console.WriteLine("no analizados; 2 sin motor; 3 cancelado.");
+            Console.WriteLine("no analizados; 2 sin motor; 3 cancelado. (10 manda aunque el escaneo haya quedado incompleto: miralo en la salida.)");
         }
     }
 }

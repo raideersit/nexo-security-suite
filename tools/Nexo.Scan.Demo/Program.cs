@@ -406,6 +406,16 @@ namespace Nexo.Scan.Demo
             Check(File.Exists(d1.Ruta) && !Directory.Exists(cuarentena) && reportes.Eventos.Count == 0,
                   "preparar no mueve nada, no crea la carpeta y no emite eventos");
 
+            // Un nombre con salto de linea no puede anadir lineas falsas al plan que el usuario confirma
+            // (encontrado con clamd real en Linux, 2026-11-02). La deteccion es sintetica: en Windows ese nombre
+            // solo se crea por la API nativa.
+            var trampa = new Deteccion(Path.Combine(datos, "factura\n  RECHAZADO: nada que ver.pdf.exe"), ClamdFalso.Firma, 68,
+                DateTimeOffset.UtcNow, new string('0', 64));
+            string plan = almacen.Preparar(new[] { d1, trampa }).Describir();
+            Check(!plan.Split('\n').Any(l => l.StartsWith("  RECHAZADO: nada que ver", StringComparison.Ordinal))
+                  && plan.Contains("factura\\n  RECHAZADO: nada que ver", StringComparison.Ordinal),
+                  "un salto de linea en el nombre no anade lineas al plan: se ve escapado", plan);
+
             // --- Token ---
             VistaPreviaCuarentena otra = almacen.Preparar(new[] { Crear(datos, "otro.exe") });
             bool rechazado = false;

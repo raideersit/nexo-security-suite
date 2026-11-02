@@ -6,6 +6,7 @@ using System.Text;
 using Nexo.Modules.Cleanup.Abstractions;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Seguridad;
+using Nexo.Reports.Model;
 
 namespace Nexo.Modules.Cleanup.Trituracion
 {
@@ -72,7 +73,7 @@ namespace Nexo.Modules.Cleanup.Trituracion
               .Append("). Esto NO se puede deshacer, ni siquiera desde la Papelera.\n\n");
 
             foreach (ElementoATriturar e in Elementos)
-                sb.Append("  ").Append(e.Ruta).Append("  (").Append(Formato.Bytes(e.Bytes)).Append(")\n");
+                sb.Append("  ").Append(TextoVisible.UnaLinea(e.Ruta)).Append("  (").Append(Formato.Bytes(e.Bytes)).Append(")\n");
 
             if (Advertencias.Count > 0)
             {
@@ -83,7 +84,7 @@ namespace Nexo.Modules.Cleanup.Trituracion
             if (RutasOmitidas.Count > 0)
             {
                 sb.Append("\nOmitido por el guardia de rutas:\n");
-                foreach (string o in RutasOmitidas) sb.Append("  - ").Append(o).Append('\n');
+                foreach (string o in RutasOmitidas) sb.Append("  - ").Append(TextoVisible.UnaLinea(o)).Append('\n');
             }
             return sb.ToString();
         }

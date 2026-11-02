@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using Nexo.Reports.Model;
 
 namespace Nexo.Modules.Threats.Firewall
 {
@@ -25,8 +26,8 @@ namespace Nexo.Modules.Threats.Firewall
             string accion = Regla.Accion == AccionDeRegla.Bloquear ? "BLOQUEAR" : "PERMITIR";
             string dir = Regla.Direccion == DireccionDeRegla.Entrante ? "entrante" : "saliente";
             string objetivo = Regla.RutaApp ?? (Regla.Protocolo is 1 ? "ICMPv4 Echo Request" : Regla.Protocolo is 58 ? "ICMPv6 Echo Request" : "(todo)");
-            return (Tipo == TipoDeCambio.Agregar ? "+ " : "- ") + accion + " " + dir + "  " + objetivo
-                   + "   [" + Regla.Nombre + "]";
+            return (Tipo == TipoDeCambio.Agregar ? "+ " : "- ") + accion + " " + dir + "  " + TextoVisible.UnaLinea(objetivo)
+                   + "   [" + TextoVisible.UnaLinea(Regla.Nombre) + "]";
         }
     }
 
@@ -122,8 +123,8 @@ namespace Nexo.Modules.Threats.Firewall
             sb.Append(Titulo).Append('\n');
             if (Cambios.Count == 0) sb.Append("  (sin cambios)\n");
             foreach (CambioDeFirewall c in Cambios) sb.Append("  ").Append(c.Describir()).Append('\n');
-            foreach (string r in Rechazos) sb.Append("  RECHAZADO: ").Append(r).Append('\n');
-            foreach (string a in Advertencias) sb.Append("  AVISO: ").Append(a).Append('\n');
+            foreach (string r in Rechazos) sb.Append("  RECHAZADO: ").Append(TextoVisible.UnaLinea(r)).Append('\n');
+            foreach (string a in Advertencias) sb.Append("  AVISO: ").Append(TextoVisible.UnaLinea(a)).Append('\n');
             return sb.ToString();
         }
     }

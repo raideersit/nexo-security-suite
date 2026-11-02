@@ -43,8 +43,8 @@ namespace Nexo.Modules.Threats.Cuarentena
             var sb = new StringBuilder("Cuarentena\n");
             if (Elementos.Count == 0) sb.Append("  (nada que poner en cuarentena)\n");
             foreach (Deteccion d in Elementos)
-                sb.Append("  ").Append(d.Firma).Append("  ").Append(Eventos.FormatearBytes(d.Bytes)).Append("  ").Append(d.Ruta).Append('\n');
-            foreach (string r in Rechazos) sb.Append("  RECHAZADO: ").Append(r).Append('\n');
+                sb.Append("  ").Append(d.Firma).Append("  ").Append(Eventos.FormatearBytes(d.Bytes)).Append("  ").Append(TextoVisible.UnaLinea(d.Ruta)).Append('\n');
+            foreach (string r in Rechazos) sb.Append("  RECHAZADO: ").Append(TextoVisible.UnaLinea(r)).Append('\n');
             if (Elementos.Count > 0)
                 sb.Append("  Los archivos se cifran en la carpeta de cuarentena y se retiran de su sitio. No se eliminan.\n");
             return sb.ToString();
@@ -87,7 +87,7 @@ namespace Nexo.Modules.Threats.Cuarentena
             var sb = new StringBuilder("Purga de cuarentena" + Environment.NewLine);
             if (Elementos.Count == 0) sb.Append("  (ninguna entrada ha superado el plazo de retencion)").Append(Environment.NewLine);
             foreach (ElementoDeCuarentena e in Elementos)
-                sb.Append("  ").Append(e.Firma).Append("  ").Append(Eventos.FormatearBytes(e.Bytes)).Append("  ").Append(e.RutaOriginal)
+                sb.Append("  ").Append(e.Firma).Append("  ").Append(Eventos.FormatearBytes(e.Bytes)).Append("  ").Append(TextoVisible.UnaLinea(e.RutaOriginal))
                   .Append("  (en cuarentena desde ").Append(e.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(")").Append(Environment.NewLine);
             if (Elementos.Count > 0)
                 sb.Append("  Se eliminan de forma DEFINITIVA: despues de esto ya no se podran restaurar.").Append(Environment.NewLine);

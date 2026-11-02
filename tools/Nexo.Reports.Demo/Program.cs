@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Nexo.Reports;
 using Nexo.Reports.Model;
@@ -266,6 +267,24 @@ namespace Nexo.Reports.Demo
                     Console.WriteLine($"          -> {Path.GetFileName(nota.RutaAbsoluta)}");
                 }
             }
+
+            // Un titulo con salto de linea (p. ej. un nombre de archivo creado a proposito) no puede anadir un
+            // encabezado ni lineas falsas a la nota: queda en una linea y el caracter se ve escapado.
+            var inyectado = new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.AmenazaDetectada,
+                "Eicar en factura\n# Titulo falso\r\n> [!danger] falso\u2028x\u0085y.pdf.exe") { Severidad = Severidad.Alta };
+            NoteRef notaInyectada = await w.EscribirAsync(inyectado).ConfigureAwait(false);
+            string[] lineas = File.ReadAllLines(notaInyectada.RutaAbsoluta);
+            bool unaLinea = !lineas.Any(l => l.StartsWith("# Titulo falso", StringComparison.Ordinal) || l.StartsWith("> [!danger] falso", StringComparison.Ordinal))
+                            && lineas.Count(l => l.StartsWith("# ", StringComparison.Ordinal)) == 1
+                            && lineas.Any(l => l == @"# Eicar en factura\n# Titulo falso\r\n> [!danger] falso\u2028x\u0085y.pdf.exe");
+            ok &= unaLinea;
+            Console.WriteLine($"  [{(unaLinea ? "OK" : "FALLO")}]    un titulo con saltos de linea queda en UNA linea, con los caracteres escapados");
+            if (!unaLinea) foreach (string l in lineas.Where(l => l.Contains("falso"))) Console.WriteLine("          " + l);
+
+            bool igual = TextoVisible.UnaLinea("C:\\normal\\ruta.exe") == "C:\\normal\\ruta.exe" && TextoVisible.UnaLinea(null) == ""
+                         && TextoVisible.UnaLinea("a\tb") == "a\\tb";
+            ok &= igual;
+            Console.WriteLine($"  [{(igual ? "OK" : "FALLO")}]    un texto sin caracteres de control no cambia; un tabulador se escapa");
 
             // El front matter de la ultima nota debe tener los escalares citados.
             string contenido = File.ReadAllText(

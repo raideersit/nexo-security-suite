@@ -19,7 +19,8 @@ namespace Nexo.Reports.Model
 
             Modulo = modulo;
             Tipo = tipo;
-            Titulo = titulo.Trim();
+            // Una sola linea: un salto de linea en un nombre de archivo crearia un encabezado falso en la nota.
+            Titulo = TextoVisible.UnaLinea(titulo.Trim());
         }
 
         /// <summary>
@@ -37,7 +38,7 @@ namespace Nexo.Reports.Model
         /// <summary>Una de las constantes de <see cref="TipoEvento"/>.</summary>
         public string Tipo { get; }
 
-        /// <summary>Titulo legible. Se usa como parte del nombre de archivo, ya saneado.</summary>
+        /// <summary>Titulo legible, en una linea (ver <see cref="TextoVisible"/>). Se usa como parte del nombre de archivo, ya saneado.</summary>
         public string Titulo { get; }
 
         public Severidad Severidad { get; init; } = Severidad.Info;

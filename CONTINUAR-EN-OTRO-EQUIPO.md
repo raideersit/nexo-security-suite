@@ -28,18 +28,18 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**678 comprobaciones automatizadas, todas en verde, en Windows 10** (748 con las portables hechas desde Linux el 2026-11-02 —11 de la traducción de rutas, 33 del impacto de arranque y 26 de las tareas programadas—, probadas solo en Linux; +6 en Windows sin ejecutar todavía) (127 al
+**678 comprobaciones automatizadas, todas en verde, en Windows 10** (751 con las portables hechas desde Linux el 2026-11-02 —11 de la traducción de rutas, 33 del impacto de arranque, 26 de las tareas programadas y 3 del texto en una línea—, probadas solo en Linux; +6 en Windows sin ejecutar todavía) (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
 +84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +40 de la bandeja y +12 de la aprobacion por otro administrador, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
-| `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
+| `tools/Nexo.Reports.Demo` | 15 | Notas, vault, redacción, nombres NTFS |
 | `tools/Nexo.Cleanup.Demo` | 155 | Guardia, limpieza, duplicados, triturador, inicio, impacto de arranque, tareas programadas, S.M.A.R.T. e historial (portable) |
 | `tools/Nexo.Cleanup.Windows.Demo` | 29 (+5 sin ejecutar) | Tipo de disco, registro de inicio, impacto de arranque y tareas reales, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 115 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 31 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
-| `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
+| `tools/Nexo.Scan.Demo` | 93 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
 | `tools/Nexo.Ipc.Demo` | 43 | Protocolo del pipe: tramas, entradas malas, límites, ACL (solo Windows) |
 | `tools/Nexo.Service.Demo` | 173 | El servicio en el mismo proceso: ciclo de vida, firewall, escaneo y cuarentena por el pipe con token de un solo uso, planes pendientes (solo Windows), tiempo real y diario USN (la parte elevada se omite sin administrador) |
 | `tools/Nexo.RealTime.Demo` | 57 | Vigilante en tiempo real (filtro, estabilización, bloqueados, motor caído, desborde), parser USN con buffers malformados y un FileSystemWatcher real (portable) |
@@ -634,8 +634,25 @@ repetir algo, hay que montarla de nuevo (resumen y trampas en `tools/vm/README.m
 
 **Sin resultado anotado** (el guion y los scripts existen, pero la tabla quedó vacía; **no se sabe si se
 ejecutaron, así que se tratan como sin probar**): 1.1, 1.2, 2.1–2.3, 3.1–3.2, **6.1–6.3** (limpieza y
-Papelera desde el servicio), **7.1–7.2** (diario USN bajo carga) y **8.1–8.3** (ClamAV real: protocolo,
-rendimiento, convivencia con Defender), además de 9 (desinstalar).
+Papelera desde el servicio), **7.1–7.2** (diario USN bajo carga), además de 9 (desinstalar).
+
+**8.1–8.3 (ClamAV real), hecho en Linux el 2026-11-02** con `nexo-scan` contra ClamAV 1.5.4 en Docker
+(`docker run -d --name nexo-clamd -p 127.0.0.1:3310:3310 clamav/clamav:1.5.4`; listo en ~20 s). Detalle en la
+tabla del guion. Lo importante:
+- El protocolo INSTREAM real funciona: EICAR detectado, también dentro de 5 zips anidados; el límite de 25 MB se
+  respeta y se anota. Parar clamd a mitad da «ESCANEO INCOMPLETO», nunca «limpio»; sin motor, código 2.
+- **Hallazgo (corregido):** un nombre de archivo con salto de línea (Linux siempre; NTFS por la API nativa)
+  metía un encabezado falso en la nota (`# Titulo falso`), partía la consola y podía **añadir líneas falsas al
+  plan de cuarentena que el usuario confirma**. Ahora `Nexo.Reports.Model.TextoVisible.UnaLinea` escapa los
+  caracteres de control (se ven como `\n`): en el título de toda nota (`NexoEvent`), en los `Describir()` de
+  cuarentena, purga, limpieza, triturador y firewall, y en la consola de `nexo-scan`. +2 en
+  `Nexo.Reports.Demo` y +1 en `Nexo.Scan.Demo`, comprobadas quitando el arreglo.
+- **Nota (corregida):** con el escaneo cortado, el resumen decía «NO analizados: 5» sin aclarar que lo que
+  faltaba ni se intentó. Ahora lo dice; el código de salida sigue siendo 10 si hubo detecciones.
+- **Rendimiento (4 núcleos, 1017 binarios, en frío):** `--paralelo 1` 38,9 s, `4` 8,5 s (4,6× más rápido),
+  `8` 8,2 s. **El valor por omisión (1) es el peor**; falta decidir si pasa a `min(núcleos, 4)`. Ojo al medir:
+  clamd cachea los limpios (la segunda pasada tardó 4,6 s), hay que cambiar los archivos para medir en frío.
+- **Sin probar:** convivencia con Defender y el escaneo por el servicio (pipe) en Windows.
 
 **Hallazgo en el HP (2026-11-02, corregido):** con `Nexo:Limpieza:Modo = simulado`, `limpieza.reglas` informaba
 `"modo":"papelera"`, porque el modo se deducía solo de `EsReversible` y el simulador también es reversible (no borra

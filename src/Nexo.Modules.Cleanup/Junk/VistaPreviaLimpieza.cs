@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using Nexo.Modules.Cleanup.Seguridad;
+using Nexo.Reports.Model;
 
 namespace Nexo.Modules.Cleanup.Junk
 {
@@ -68,7 +69,7 @@ namespace Nexo.Modules.Cleanup.Junk
                              .OrderByDescending(x => x.Bytes)
                              .Take(maxEjemplos))
                 {
-                    sb.Append("      ").Append(e.Ruta).Append("  (").Append(Formato.Bytes(e.Bytes)).Append(")\n");
+                    sb.Append("      ").Append(TextoVisible.UnaLinea(e.Ruta)).Append("  (").Append(Formato.Bytes(e.Bytes)).Append(")\n");
                 }
 
                 int resto = archivos - Math.Min(archivos, maxEjemplos);
