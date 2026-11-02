@@ -132,8 +132,8 @@ Esperado: servicio y clave Run eliminados; vault y cuarentena se conservan (el s
 | 2.3 | | |
 | 3.1 | | |
 | 3.2 | | |
-| 4.1–4.4 | | |
-| 5.1–5.8 | | |
+| 4.1–4.4 | OK | Icono ámbar «tiempo real apagado» al conectar; gris «sin conexión» con el servicio parado; vuelve a conectado sin reiniciar la bandeja. Sin problemas visuales. |
+| 5.1–5.8 | OK (5.7 NOTA) | 5.1: tiempo real detecta, icono rojo y aviso. 5.2: plan sin mover nada. 5.3: UAC con credenciales de `nexo` (NOTA: «editor desconocido», ejecutable sin firmar). 5.4: «1 archivo en cuarentena». 5.5: «No se aprobó: el aviso de UAC se canceló. No se ha cambiado nada», archivo intacto. 5.6: restaurado vía pipe desde PowerShell elevado (68 B). 5.7: con usuario estándar el plan SÍ se aplicó (no se rechazó por SID): pendiente entender por qué. 5.8: se niega por ubicación no segura, sin UAC. Nota: la bandeja no tiene restaurar ni escanear. |
 | 6.1–6.3 | | |
 | 7.1–7.2 | | |
 | 8.1–8.3 | | |

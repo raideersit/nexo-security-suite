@@ -39,14 +39,22 @@ function Test-Admin {
     $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Get-SidDeIdentidad($Identidad) {
+    try { $Identidad.Translate([Security.Principal.SecurityIdentifier]).Value } catch { $null }
+}
+
 # Un ejecutable que se va a lanzar con permisos altos no debe poder reemplazarlo un usuario normal.
 # Se rechaza si el archivo o su carpeta permiten escribir/borrar/cambiar permisos a Users, Everyone o Authenticated Users.
 function Assert-UbicacionSegura([string]$Exe, [string]$Para) {
+    # Por SID y no por nombre: en Windows en espanol esas cuentas se llaman "Usuarios",
+    # "Todos", "Usuarios autentificados"... y un filtro por nombre en ingles las dejaba pasar.
+    # Users, Everyone, Authenticated Users, INTERACTIVE.
+    $sidsAbiertos = @('S-1-5-32-545', 'S-1-1-0', 'S-1-5-11', 'S-1-5-4')
     $objetivos = @($Exe, (Split-Path $Exe))
     foreach ($o in $objetivos) {
         $abierta = (Get-Acl -LiteralPath $o).Access | Where-Object {
             $_.AccessControlType -eq 'Allow' -and
-            $_.IdentityReference.Value -match '(BUILTIN\\Users|Everyone|Authenticated Users|NT AUTHORITY\\INTERACTIVE)$' -and
+            (Get-SidDeIdentidad $_.IdentityReference) -in $sidsAbiertos -and
             $_.FileSystemRights.ToString() -match 'Write|Modify|FullControl|Delete|ChangePermissions|TakeOwnership'
         }
         if ($abierta) {
