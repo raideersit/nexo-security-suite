@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,8 +26,13 @@ namespace Nexo.Ui.Tray.Nucleo
         long NoAnalizados,
         IReadOnlyList<DeteccionVista> Detecciones,
         string? UltimoAviso,
-        string? Error)
+        string? Error,
+        IReadOnlyList<string>? PorRevisar = null,
+        long DesbordesDeFuente = 0)
     {
+        /// <summary>Carpetas donde el tiempo real perdio o no pudo analizar algo; se revisan con un escaneo bajo demanda.</summary>
+        public IReadOnlyList<string> CarpetasPorRevisar => PorRevisar ?? Array.Empty<string>();
+
         public static InstantaneaDelServicio SinConexion(string motivo)
             => new InstantaneaDelServicio(false, null, false, false, false, 0, 0, Array.Empty<DeteccionVista>(), null, motivo);
     }
@@ -64,7 +70,11 @@ namespace Nexo.Ui.Tray.Nucleo
                     NoAnalizados: e.TryGetProperty("no_analizados", out JsonElement na) ? na.GetInt64() : 0,
                     Detecciones: lista,
                     UltimoAviso: e.TryGetProperty("ultimo_aviso", out JsonElement ua) ? ua.GetString() : null,
-                    Error: null);
+                    Error: null,
+                    PorRevisar: e.TryGetProperty("por_revisar", out JsonElement pr) && pr.ValueKind == JsonValueKind.Array
+                        ? pr.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList()
+                        : null,
+                    DesbordesDeFuente: e.TryGetProperty("desbordes_de_fuente", out JsonElement de) ? de.GetInt64() : 0);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
                                        || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)

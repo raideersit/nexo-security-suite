@@ -228,6 +228,9 @@ namespace Nexo.Scan.Demo
             ResultadoDeEscaneo r5 = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria())
                 .EscanearAsync(new[] { Path.Combine(raiz, "no-existe") }).ConfigureAwait(false);
             Check(r5.Omitidos.Count == 1 && !r5.CompletamenteLimpio, "una ruta que no existe se anota, no se da por limpia");
+            Check(r5.CarpetasNoLeidas.SequenceEqual(new[] { Path.Combine(raiz, "no-existe") }),
+                  "y queda en CarpetasNoLeidas: el tiempo real no la da por revisada",
+                  string.Join(" | ", r5.CarpetasNoLeidas));
 
             // --- Carpeta sin permisos: se omite y el resto sigue ---
             if (OperatingSystem.IsWindows())

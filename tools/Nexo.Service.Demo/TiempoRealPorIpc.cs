@@ -94,8 +94,25 @@ namespace Nexo.Service.Demo
             // --- Cobertura honesta ---
             fuente.Perder("buffer desbordado");
             Respuesta e2 = await c.LlamarAsync("tiempo-real.estado").ConfigureAwait(false);
-            Check(R(e2).GetProperty("perdidos").GetInt64() == 1 && !R(e2).GetProperty("cobertura_completa").GetBoolean(),
-                  "si la fuente pierde eventos, la cobertura deja de ser completa y se dice");
+            string[] porRevisar = R(e2).GetProperty("por_revisar").EnumerateArray().Select(x => x.GetString()!).ToArray();
+            Check(R(e2).GetProperty("desbordes_de_fuente").GetInt64() == 1 && R(e2).GetProperty("perdidos").GetInt64() == 0
+                  && porRevisar.Length > 0 && !R(e2).GetProperty("cobertura_completa").GetBoolean(),
+                  "si la fuente pierde eventos se cuenta el desborde (sin inventar archivos), las raices quedan por revisar y la cobertura no es completa");
+
+            // Un escaneo bajo demanda COMPLETO de lo que esta por revisar devuelve la cobertura (hallazgo 2026-11-02).
+            Respuesta ini = await c.LlamarAsync("escaneo.iniciar", new { rutas = porRevisar }).ConfigureAwait(false);
+            bool listo = false;
+            for (int i = 0; ini.Exito && i < 200 && !listo; i++)
+            {
+                await Task.Delay(50).ConfigureAwait(false);
+                Respuesta res = await c.LlamarAsync("escaneo.resultado", new { id = R(ini).GetProperty("id").GetString() }).ConfigureAwait(false);
+                listo = res.Exito && R(res).GetProperty("listo").GetBoolean();
+            }
+            Respuesta e3 = await c.LlamarAsync("tiempo-real.estado").ConfigureAwait(false);
+            Check(listo && R(e3).GetProperty("por_revisar").GetArrayLength() == 0 && R(e3).GetProperty("cobertura_completa").GetBoolean()
+                  && R(e3).GetProperty("desbordes_de_fuente").GetInt64() == 1,
+                  "tras escanear lo que estaba por revisar, la cobertura vuelve a ser completa (el contador historico se conserva)",
+                  ini.Exito ? R(e3).ToString() : ini.Error!.Mensaje);
 
             // --- A cuarentena por el flujo de siempre, con el id 'tiempo-real' ---
             Respuesta pv = await c.LlamarAsync("cuarentena.previsualizar", new { escaneo = ModuloTiempoReal.IdDeEscaneo }).ConfigureAwait(false);

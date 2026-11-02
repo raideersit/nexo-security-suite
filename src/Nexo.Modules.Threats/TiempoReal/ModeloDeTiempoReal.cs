@@ -70,7 +70,11 @@ namespace Nexo.Modules.Threats.TiempoReal
         public TimeSpan Sondeo { get; init; } = TimeSpan.FromMilliseconds(100);
     }
 
-    /// <summary>Contadores del vigilante. «Perdidos» y «no analizados» son tan importantes como «analizados».</summary>
+    /// <summary>
+    /// Contadores del vigilante. «Perdidos» y «no analizados» son tan importantes como «analizados».
+    /// <c>Perdidos</c> son ARCHIVOS distintos descartados por exceso de pendientes y no analizados despues (un minimo si <c>PerdidosEsMinimo</c>);
+    /// <c>DesbordesDeFuente</c>, las veces que la fuente perdio eventos sin decir cuales (no hay numero de archivos).
+    /// </summary>
     public sealed record EstadoDeTiempoReal(
         bool Activo,
         long CambiosVistos,
@@ -81,5 +85,15 @@ namespace Nexo.Modules.Threats.TiempoReal
         int Pendientes,
         bool MotorCaido,
         int Detecciones,
-        string? UltimoAviso);
+        string? UltimoAviso,
+        long DesbordesDeFuente = 0,
+        int CarpetasPorRevisar = 0,
+        bool RevisarTodo = false,
+        bool PerdidosEsMinimo = false);
+
+    /// <summary>Lo que hay que volver a mirar con un escaneo bajo demanda. <c>Todo</c>: todas las raices vigiladas.</summary>
+    public sealed record PorRevisar(IReadOnlyList<string> Carpetas, bool Todo)
+    {
+        public bool Vacio => Carpetas.Count == 0 && !Todo;
+    }
 }

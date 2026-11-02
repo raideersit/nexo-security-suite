@@ -196,6 +196,47 @@ namespace Nexo.RealTime.Demo
         }
 
         // ============================================================
+        /// <summary>Lo perdido o no analizado queda por revisar hasta que un escaneo COMPLETO lo cubre (hallazgo 2026-11-02).</summary>
+        private static async Task ProbarPorRevisar(string carpeta)
+        {
+            string a = Path.Combine(carpeta, "a"), b = Path.Combine(carpeta, "b"), ab = Path.Combine(carpeta, "ab");
+            Check(VigilanteEnTiempoReal.Contiene(a, a) && VigilanteEnTiempoReal.Contiene(a, Path.Combine(a, "x"))
+                  && !VigilanteEnTiempoReal.Contiene(a, ab) && VigilanteEnTiempoReal.Contiene(a + Path.DirectorySeparatorChar, a),
+                  "'contiene' respeta el limite de carpeta (a no contiene ab)");
+
+            var motor = new MotorFalso { Fallar = true };
+            var fuente = new FuenteManual();
+            using var v = new VigilanteEnTiempoReal(motor, new ReportesEnMemoria(), Rapido(errores: 100));
+            v.Iniciar(fuente);
+            fuente.Emitir(Archivo(a, "x.exe", Encoding.ASCII.GetBytes("1")));
+            fuente.Emitir(Archivo(b, "y.exe", Encoding.ASCII.GetBytes("2")));
+            fuente.Emitir(Archivo(ab, "z.exe", Encoding.ASCII.GetBytes("3")));
+            Check(await EsperarAsync(() => v.CarpetasPorRevisar().Carpetas.Count == 3).ConfigureAwait(false),
+                  "lo que el motor no pudo analizar deja su carpeta por revisar", string.Join(" | ", v.CarpetasPorRevisar().Carpetas));
+
+            DateTimeOffset despues = DateTimeOffset.Now.AddSeconds(1);
+            v.MarcarRevisado(new[] { a }, Array.Empty<string>(), false, despues);
+            Check(v.CarpetasPorRevisar().Carpetas.SequenceEqual(new[] { ab, b }),
+                  "un escaneo completo de 'a' la da por revisada; 'ab' y 'b' siguen", string.Join(" | ", v.CarpetasPorRevisar().Carpetas));
+
+            v.MarcarRevisado(new[] { carpeta }, new[] { b }, false, despues);
+            Check(v.CarpetasPorRevisar().Carpetas.SequenceEqual(new[] { b }),
+                  "una carpeta que el escaneo NO pudo leer sigue por revisar aunque este dentro de lo escaneado");
+
+            v.MarcarRevisado(new[] { carpeta }, Array.Empty<string>(), false, DateTimeOffset.Now.AddHours(-1));
+            Check(v.CarpetasPorRevisar().Carpetas.Count == 1,
+                  "un escaneo que empezo ANTES de la perdida no la cubre");
+
+            fuente.Perder("desborde");
+            v.MarcarRevisado(new[] { carpeta }, Array.Empty<string>(), cubreTodasLasRaices: false, despues.AddSeconds(5));
+            Check(v.CarpetasPorRevisar().Todo && v.CarpetasPorRevisar().Carpetas.Count == 0,
+                  "tras un desborde de la fuente, 'todo' solo se limpia si el escaneo cubrio TODAS las raices");
+            v.MarcarRevisado(new[] { carpeta }, Array.Empty<string>(), cubreTodasLasRaices: true, despues.AddSeconds(5));
+            Check(v.CarpetasPorRevisar().Vacio && v.Estado().CarpetasPorRevisar == 0 && !v.Estado().RevisarTodo,
+                  "y con todas las raices, ya no queda nada por revisar");
+        }
+
+        // ============================================================
         private static async Task ProbarNoSeFingeCobertura(string raiz)
         {
             Console.WriteLine("4. No se finge cobertura: motor caido, desborde y eventos perdidos");
@@ -230,6 +271,12 @@ namespace Nexo.RealTime.Demo
                 Check(v2.Estado().Pendientes == 3 && v2.Estado().Perdidos == 7,
                       "al pasar el maximo de pendientes, lo que se descarta se CUENTA como perdido (no se calla)", v2.Estado().ToString());
                 Check(v2.Estado().UltimoAviso?.Contains("perdidos") == true, "y queda un aviso");
+                // Encontrado con clamd real (2026-11-02): cada archivo emite varios eventos y se contaban todos.
+                for (int i = 0; i < 10; i++) { fuente2.Emitir(Path.Combine(carpeta, $"p{i}.exe")); fuente2.Emitir(Path.Combine(carpeta, $"p{i}.exe")); }
+                Check(v2.Estado().Perdidos == 7, "Perdidos cuenta ARCHIVOS: mas eventos del mismo archivo no lo suben", v2.Estado().ToString());
+                PorRevisar pr2 = v2.CarpetasPorRevisar();
+                Check(pr2.Carpetas.SequenceEqual(new[] { carpeta }) && !pr2.Todo && v2.Estado().CarpetasPorRevisar == 1,
+                      "y la carpeta de lo perdido queda POR REVISAR", string.Join(" | ", pr2.Carpetas));
             }
 
             // La fuente pierde eventos
@@ -238,8 +285,10 @@ namespace Nexo.RealTime.Demo
             {
                 v3.Iniciar(fuente3);
                 fuente3.Perder("desbordo el buffer");
-                Check(v3.Estado().Perdidos == 1 && v3.Estado().UltimoAviso!.Contains("desbordo"),
-                      "si la fuente avisa de eventos perdidos, se cuentan");
+                Check(v3.Estado().DesbordesDeFuente == 1 && v3.Estado().Perdidos == 0 && v3.Estado().UltimoAviso!.Contains("desbordo"),
+                      "si la fuente pierde eventos se cuenta el DESBORDE, no un numero inventado de archivos", v3.Estado().ToString());
+                Check(v3.CarpetasPorRevisar().Todo && v3.Estado().RevisarTodo,
+                      "y como no se sabe donde, queda TODO por revisar");
             }
 
             // Archivo demasiado grande
@@ -249,7 +298,11 @@ namespace Nexo.RealTime.Demo
                 v4.Iniciar(f4);
                 f4.Emitir(Archivo(carpeta, "grande.exe", new byte[100]));
                 Check(await EsperarAsync(() => v4.Estado().NoAnalizados == 1).ConfigureAwait(false), "un archivo mayor que el limite queda como NO ANALIZADO");
+                Check(v4.CarpetasPorRevisar().Vacio,
+                      "pero no queda por revisar: el escaneo bajo demanda tiene el mismo limite y no lo arreglaria");
             }
+
+            await ProbarPorRevisar(carpeta).ConfigureAwait(false);
 
             // Parar rapido
             var sw = System.Diagnostics.Stopwatch.StartNew();

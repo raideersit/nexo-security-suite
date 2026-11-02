@@ -515,14 +515,24 @@ ni Windows.**
 | 6021 `.exe` (21 EICAR) | Pasa de 5000 pendientes: aviso «demasiados archivos pendientes», **3 EICAR sin ver**, 0 falsos positivos, 53 s. |
 | 2011 `.exe`, clamd parado a 0,5 s | `MotorCaido`, 1882 «no analizados», nada dado por limpio. Cuadra: 2011 de 2011. |
 
-**Hallazgos (anotados, SIN arreglar):**
-- **`Perdidos` cuenta eventos, no archivos.** Un archivo nuevo da ~3 eventos: con 6021 archivos salieron
-  5001 analizados + 2577 «perdidos» = 7578, cuando faltaron ~1020 archivos. Y un desborde del buffer de la fuente
-  (`AlPerder`) suma 1, aunque se pierdan cientos. La bandeja lo muestra como «N sin vigilar» (`ModeloDeBandeja`),
-  como si fueran archivos. Es conservador (siempre dice «cobertura incompleta») pero el número no significa nada.
-  Propuesta: contar rutas distintas perdidas (con tope) y, tras un desborde, decir «se perdieron cambios» sin número.
-- **Lo perdido no se vuelve a mirar.** Tras el aviso no hay nada que reescanee las carpetas afectadas: los 3 EICAR
-  se quedan ahí. Propuesta: al perder cambios, ofrecer (no lanzar solo) un escaneo bajo demanda de esas carpetas.
+**Hallazgos (corregidos el 2026-11-02, desde Linux):**
+- ~~`Perdidos` cuenta eventos, no archivos~~. Ahora son **archivos distintos** descartados y no analizados después
+  (con tope de 100 000; `PerdidosEsMinimo` si se pasa). Un desborde de la fuente va en `DesbordesDeFuente`, sin
+  número de archivos. Repetido con clamd real: 6021 archivos → 5004 analizados + **1017 perdidos = 6021** (antes
+  2577). La bandeja ya no muestra «N sin vigilar»: dice «N carpetas por revisar» o solo «cobertura incompleta».
+- ~~Lo perdido no se vuelve a mirar~~. La carpeta de todo lo perdido o no analizado queda **por revisar**
+  (`VigilanteEnTiempoReal.CarpetasPorRevisar`; tras un desborde de la fuente, todas las raíces). El servicio la
+  expone en `tiempo-real.estado` (`por_revisar`) y `cobertura_completa` pasa a depender de ella (los contadores
+  quedan como histórico). La bandeja **ofrece** «Revisar lo que no se vio (N carpetas)…»: lanza `escaneo.iniciar`
+  (solo lee; hasta 8 rutas, sin subcarpetas repetidas) y avisa del resultado sin decir «limpio» si algo no se
+  analizó. Cuando un escaneo **completo** termina, `ModuloEscaneo.EscaneoCompleto` → `ModuloTiempoReal` da por
+  revisado lo que cubrió, **salvo** las carpetas que no pudo leer (`ResultadoDeEscaneo.CarpetasNoLeidas`, nuevo) y
+  lo que se perdió después de empezar. Un archivo > 25 MB no queda por revisar (el escaneo tiene el mismo límite).
+  Con clamd real: la revisión encontró **los 3 EICAR** que el tiempo real no vio, y luego no quedó nada por revisar.
+- Pruebas: +11 en `Nexo.RealTime.Demo` (dos comprobadas quitando el arreglo), +1 en `Nexo.Scan.Demo`. La lógica
+  nueva de la bandeja (texto, `RutasParaRevisar`, `ResumirRevision`) se ejecutó en Linux compilando esos archivos
+  aparte. **SIN EJECUTAR (solo Windows):** +3 en `Nexo.Tray.Demo`, la prueba cambiada y +1 en `Nexo.Service.Demo`
+  (desborde → escaneo → cobertura completa), y el menú de la bandeja de verdad.
 - **Sin probar:** si el vigilante se recupera cuando clamd vuelve tras `MotorCaido`.
 
 ---

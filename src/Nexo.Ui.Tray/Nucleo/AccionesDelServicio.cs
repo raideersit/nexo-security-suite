@@ -108,6 +108,57 @@ namespace Nexo.Ui.Tray.Nucleo
             return new ResultadoDeAplicar(false, false, r.Error.Mensaje);
         }
 
+        /// <summary>Lo que acepta escaneo.iniciar por peticion (ModuloEscaneo.MaxRutas).</summary>
+        public const int MaxRutasPorEscaneo = 8;
+
+        /// <summary>
+        /// Las carpetas a escanear para revisar lo que el tiempo real no vio: sin las que ya estan dentro de otra, y como
+        /// maximo <see cref="MaxRutasPorEscaneo"/>. Lo que no quepa sigue por revisar y se hace en otra pasada.
+        /// </summary>
+        public static IReadOnlyList<string> RutasParaRevisar(IEnumerable<string> carpetas)
+        {
+            var distintas = carpetas.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.TrimEnd('\\'))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c.Length).ToList();
+            var elegidas = new List<string>();
+            foreach (string c in distintas)
+                if (!elegidas.Any(e => c.StartsWith(e + "\\", StringComparison.OrdinalIgnoreCase)))
+                    elegidas.Add(c);
+            return elegidas.Take(MaxRutasPorEscaneo).ToList();
+        }
+
+        /// <summary>Lanza un escaneo bajo demanda (solo lee). Devuelve su id, o null y el motivo.</summary>
+        public static async Task<(string? Id, string? Motivo)> IniciarRevisionAsync(
+            string pipe, IReadOnlyList<string> rutas, TimeSpan espera, CancellationToken ct = default)
+        {
+            if (rutas.Count == 0) return (null, "no hay nada por revisar");
+            await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
+            Respuesta r = await c.LlamarAsync("escaneo.iniciar", new { rutas }, ct).ConfigureAwait(false);
+            return r.Exito ? (r.Resultado!.Value.GetProperty("id").GetString(), null) : (null, r.Error!.Mensaje);
+        }
+
+        /// <summary>Resumen del escaneo si ya termino; null si sigue en marcha.</summary>
+        public static async Task<string?> ResultadoDeRevisionAsync(string pipe, string id, TimeSpan espera, CancellationToken ct = default)
+        {
+            await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
+            Respuesta r = await c.LlamarAsync("escaneo.resultado", new { id }, ct).ConfigureAwait(false);
+            if (!r.Exito) return "No se pudo consultar la revision: " + r.Error!.Mensaje;
+            JsonElement e = r.Resultado!.Value;
+            if (!e.GetProperty("listo").GetBoolean())
+                return e.GetProperty("estado").GetString() == "corriendo" ? null
+                     : "La revision no termino (" + e.GetProperty("estado").GetString() + "): sigue habiendo carpetas por revisar.";
+            return ResumirRevision(e.GetProperty("detecciones").GetArrayLength(), e.GetProperty("omitidos_total").GetInt32(),
+                                   e.GetProperty("incompleto").GetBoolean());
+        }
+
+        /// <summary>Nunca dice «limpio» si algo no se analizo o el escaneo quedo a medias.</summary>
+        public static string ResumirRevision(int detecciones, int omitidos, bool incompleto)
+        {
+            if (incompleto) return "La revision quedo INCOMPLETA: lo que faltaba sigue por revisar." + (detecciones > 0 ? " Ya hay " + detecciones + " detecciones." : "");
+            if (detecciones > 0) return detecciones + (detecciones == 1 ? " deteccion" : " detecciones") + " en la revision. Estan en el vault; los archivos no se han tocado.";
+            if (omitidos > 0) return "Sin detecciones, pero " + omitidos + " archivos no se pudieron analizar (ver el vault).";
+            return "Revision terminada: sin detecciones y se pudo analizar todo.";
+        }
+
         /// <summary>El codigo que usa el servicio cuando exige UAC (PoliticaDeAprobacion.AprobacionRequerida).</summary>
         public const int AprobacionRequerida = -32040;
 

@@ -25,6 +25,8 @@ namespace Nexo.Ui.Tray
         private readonly System.Windows.Forms.Timer _reloj;
         private readonly ToolStripMenuItem _estado = new ToolStripMenuItem { Enabled = false };
         private readonly ToolStripMenuItem _detecciones = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem _revisar = new ToolStripMenuItem();
+        private bool _revisando;    // hay una revision en marcha: no se lanza otra
         private readonly Dictionary<EstadoDeBandeja, Icon> _iconos;
         private readonly ILanzadorElevado _lanzador;
         private bool _consultando;
@@ -43,13 +45,14 @@ namespace Nexo.Ui.Tray
             };
 
             _detecciones.Click += async (_, _) => await RevisarDeteccionesAsync();
+            _revisar.Click += async (_, _) => await RevisarLoNoVistoAsync();
             var limpieza = new ToolStripMenuItem("Limpiar archivos basura…");
             limpieza.Click += async (_, _) => await LimpiarAsync();
             var salir = new ToolStripMenuItem("Salir de la bandeja");
             salir.Click += (_, _) => { _icono!.Visible = false; Application.ExitThread(); };
 
             var menu = new ContextMenuStrip();
-            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _detecciones, limpieza, new ToolStripSeparator(), salir });
+            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _detecciones, _revisar, limpieza, new ToolStripSeparator(), salir });
 
             _icono = new NotifyIcon { Icon = _iconos[EstadoDeBandeja.Desconectado], Text = _modelo.Texto, ContextMenuStrip = menu, Visible = true };
             _icono.BalloonTipClicked += async (_, _) => await RevisarDeteccionesAsync();
@@ -86,6 +89,62 @@ namespace Nexo.Ui.Tray
             int n = _modelo.Todas.Count;
             _detecciones.Text = n == 0 ? "Detecciones (ninguna)" : "Revisar detecciones (" + n + ")…";
             _detecciones.Enabled = n > 0;
+            int r = _modelo.Ultima.CarpetasPorRevisar.Count;
+            _revisar.Text = _revisando ? "Revisando lo que no se vio…" : r == 0 ? "Nada por revisar" : "Revisar lo que no se vio (" + r + (r == 1 ? " carpeta" : " carpetas") + ")…";
+            _revisar.Enabled = r > 0 && !_revisando;
+        }
+
+        /// <summary>
+        /// Escanea bajo demanda (solo lee) las carpetas donde el tiempo real perdio o no pudo analizar algo. Lo ofrece, no lo
+        /// lanza solo. Cuando termina completo, el servicio las da por revisadas y dejan de contar para la cobertura.
+        /// </summary>
+        private async Task RevisarLoNoVistoAsync()
+        {
+            if (_ocupado || _revisando) return;
+            IReadOnlyList<string> rutas = AccionesDelServicio.RutasParaRevisar(_modelo.Ultima.CarpetasPorRevisar);
+            if (rutas.Count == 0) return;
+
+            _ocupado = true;
+            string? id;
+            try
+            {
+                int total = _modelo.Ultima.CarpetasPorRevisar.Count;
+                string texto = "El tiempo real no pudo analizar todo lo que cambio en estas carpetas:\n\n" +
+                               string.Join("\n", rutas.Select(x => "  • " + x)) +
+                               (total > rutas.Count ? "\n\n(Hay mas; se revisaran en otra pasada.)" : "") +
+                               "\n\n¿Escanearlas ahora? Solo se leen los archivos: no se mueve ni borra nada. Puede tardar varios minutos.";
+                if (MessageBox.Show(texto, "Nexo — revisar lo que no se vio", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+                string? motivo;
+                (id, motivo) = await AccionesDelServicio.IniciarRevisionAsync(_pipe, rutas, Espera);
+                if (id is null)
+                {
+                    MessageBox.Show("No se pudo iniciar la revision: " + motivo, "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException)
+            {
+                MessageBox.Show("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            finally { _ocupado = false; }
+
+            _revisando = true;
+            Pintar();
+            try
+            {
+                string? resumen = null;
+                for (int i = 0; i < 720 && resumen is null; i++)     // hasta una hora
+                {
+                    await Task.Delay(Sondeo);
+                    try { resumen = await AccionesDelServicio.ResultadoDeRevisionAsync(_pipe, id, Espera); }
+                    catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException) { /* se reintenta */ }
+                }
+                _icono.ShowBalloonTip(10000, "Nexo: revision", resumen ?? "La revision sigue en marcha tras una hora; su resultado quedara en el vault.",
+                                      ToolTipIcon.Info);
+            }
+            finally { _revisando = false; await ConsultarAsync(); }
         }
 
         // ------------------------------------------------------------

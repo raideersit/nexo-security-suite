@@ -56,8 +56,10 @@ namespace Nexo.Modules.Threats.Escaner
     {
         public ResultadoDeEscaneo(
             string motor, string motorVersion, int analizados, IReadOnlyList<Deteccion> detecciones,
-            IReadOnlyList<string> omitidos, TimeSpan duracion, bool incompleto, string? motivoIncompleto)
+            IReadOnlyList<string> omitidos, TimeSpan duracion, bool incompleto, string? motivoIncompleto,
+            IReadOnlyList<string>? carpetasNoLeidas = null)
         {
+            CarpetasNoLeidas = carpetasNoLeidas ?? Array.Empty<string>();
             Motor = motor;
             MotorVersion = motorVersion;
             Analizados = analizados;
@@ -78,6 +80,13 @@ namespace Nexo.Modules.Threats.Escaner
 
         /// <summary>Lo que NO se pudo analizar, con el motivo. Nunca cuenta como limpio.</summary>
         public IReadOnlyList<string> Omitidos { get; }
+
+        /// <summary>
+        /// Raices o carpetas que no se pudieron recorrer (enteras o en parte). Tambien estan en <see cref="Omitidos"/>, como
+        /// texto; aqui van solas para que nadie tenga que interpretar ese texto (p. ej. el tiempo real, para no dar por
+        /// revisada una carpeta que el escaneo no pudo leer).
+        /// </summary>
+        public IReadOnlyList<string> CarpetasNoLeidas { get; }
 
         public TimeSpan Duracion { get; }
         public bool Incompleto { get; }
@@ -127,6 +136,7 @@ namespace Nexo.Modules.Threats.Escaner
             var reloj = Stopwatch.StartNew();
             var detecciones = new List<Deteccion>();
             var omitidos = new List<string>();
+            var noLeidas = new List<string>();
             int analizados = 0;
             int erroresSeguidos = 0;
             bool incompleto = false;
@@ -139,7 +149,7 @@ namespace Nexo.Modules.Threats.Escaner
 
             try
             {
-                await Parallel.ForEachAsync(Recorrer(lista, omitidos, corte.Token),
+                await Parallel.ForEachAsync(Recorrer(lista, omitidos, noLeidas, corte.Token),
                     new ParallelOptions { MaxDegreeOfParallelism = grado, CancellationToken = corte.Token },
                     async (archivo, token) =>
                     {
@@ -201,7 +211,7 @@ namespace Nexo.Modules.Threats.Escaner
                 omitidos.Count, incompleto), ct).ConfigureAwait(false);
 
             return new ResultadoDeEscaneo(_motor.Nombre, version, analizados, detecciones, omitidos,
-                                          reloj.Elapsed, incompleto, motivo);
+                                          reloj.Elapsed, incompleto, motivo, noLeidas);
         }
 
         // ============================================================
@@ -293,7 +303,7 @@ namespace Nexo.Modules.Threats.Escaner
         // enumerador recursivo de .NET no puede reanudarse tras una excepcion).
         // No se entra en uniones ni enlaces simbolicos: pueden apuntar fuera de lo
         // que el usuario pidio escanear.
-        private IEnumerable<string> Recorrer(List<string> raices, List<string> omitidos, CancellationToken ct)
+        private IEnumerable<string> Recorrer(List<string> raices, List<string> omitidos, List<string> noLeidas, CancellationToken ct)
         {
             IAccesoAArchivos acceso = _opciones.Acceso;
             var opciones = new EnumerationOptions
@@ -313,11 +323,11 @@ namespace Nexo.Modules.Threats.Escaner
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
                 {
-                    lock (omitidos) omitidos.Add(raiz + " — no se pudo consultar: " + ex.GetType().Name);
+                    lock (omitidos) { omitidos.Add(raiz + " — no se pudo consultar: " + ex.GetType().Name); noLeidas.Add(raiz); }
                     continue;
                 }
                 if (esArchivo) { yield return raiz; continue; }
-                if (!esCarpeta) { lock (omitidos) omitidos.Add(raiz + " — no existe"); continue; }
+                if (!esCarpeta) { lock (omitidos) { omitidos.Add(raiz + " — no existe"); noLeidas.Add(raiz); } continue; }
 
                 var pendientes = new Stack<string>();
                 pendientes.Push(raiz);
@@ -338,7 +348,7 @@ namespace Nexo.Modules.Threats.Escaner
                         }
                         catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                         {
-                            lock (omitidos) omitidos.Add(actual + " — subcarpetas no leidas: " + ex.GetType().Name);
+                            lock (omitidos) { omitidos.Add(actual + " — subcarpetas no leidas: " + ex.GetType().Name); noLeidas.Add(actual); }
                         }
                     }
 
@@ -346,7 +356,7 @@ namespace Nexo.Modules.Threats.Escaner
                     try { it = acceso.Ejecutar(() => { var e = Directory.EnumerateFiles(actual, "*", opciones).GetEnumerator(); return e; }); }
                     catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                     {
-                        lock (omitidos) omitidos.Add(actual + " — carpeta no leida: " + ex.GetType().Name);
+                        lock (omitidos) { omitidos.Add(actual + " — carpeta no leida: " + ex.GetType().Name); noLeidas.Add(actual); }
                         continue;
                     }
 
@@ -362,7 +372,7 @@ namespace Nexo.Modules.Threats.Escaner
                             }
                             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is DirectoryNotFoundException || ex is IOException)
                             {
-                                lock (omitidos) omitidos.Add(actual + " — carpeta no leida por completo: " + ex.GetType().Name);
+                                lock (omitidos) { omitidos.Add(actual + " — carpeta no leida por completo: " + ex.GetType().Name); noLeidas.Add(actual); }
                                 break;
                             }
                             yield return archivo;

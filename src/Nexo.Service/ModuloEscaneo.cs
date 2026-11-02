@@ -67,6 +67,12 @@ namespace Nexo.Service
             _reloj = reloj ?? (() => DateTimeOffset.Now);
         }
 
+        /// <summary>
+        /// Un escaneo termino sin quedar incompleto: rutas pedidas, cuando empezo y su resultado. Lo usa el tiempo real
+        /// para dar por revisadas las carpetas donde perdio algo. No debe lanzar.
+        /// </summary>
+        public event Action<IReadOnlyList<string>, DateTimeOffset, ResultadoDeEscaneo>? EscaneoCompleto;
+
         public IReadOnlyList<string> Metodos { get; } = new[]
         {
             "escaneo.estado", "escaneo.iniciar", "escaneo.progreso", "escaneo.resultado", "escaneo.cancelar"
@@ -183,6 +189,11 @@ namespace Nexo.Service
                         .EscanearAsync(rutas, progreso, t.Cts.Token).ConfigureAwait(false);
                     Volatile.Write(ref t.Analizados, t.Resultado.Analizados);
                     t.Estado = "terminado";
+                    if (!t.Resultado.Incompleto)
+                    {
+                        try { EscaneoCompleto?.Invoke(rutas, t.Inicio, t.Resultado); }
+                        catch (Exception) { /* un suscriptor roto no cambia el resultado del escaneo */ }
+                    }
                 }
                 catch (OperationCanceledException) { t.Estado = "cancelado"; }
                 catch (MotorNoDisponibleException ex) { t.Error = ex.Message; t.Estado = "fallido"; }

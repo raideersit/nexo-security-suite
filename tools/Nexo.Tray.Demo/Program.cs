@@ -112,6 +112,22 @@ namespace Nexo.Tray.Demo
             larga.Actualizar(Conectada(cobertura: false, perdidos: 123456789012345));
             Check(larga.Texto.Length <= 63, "el texto cabe en el limite del icono (63)", larga.Texto.Length.ToString());
 
+            // Cobertura: sin cifra inventada de archivos; con carpetas por revisar, cuantas (hallazgo 2026-11-02).
+            var pr = new ModeloDeBandeja();
+            pr.Actualizar(Conectada(cobertura: false, perdidos: 2577) with { PorRevisar = new[] { @"C:\a", @"C:\b" } });
+            Check(pr.Estado == EstadoDeBandeja.Atencion && pr.Texto.Contains("2 carpetas por revisar") && !pr.Texto.Contains("2577"),
+                  "cobertura incompleta: dice cuantas CARPETAS hay por revisar, no un numero de eventos", pr.Texto);
+
+            Check(AccionesDelServicio.RutasParaRevisar(new[] { @"C:\u\Downloads\x", @"C:\u\Downloads", @"C:\u\Downloads2", @"c:\U\downloads\", "" })
+                      .SequenceEqual(new[] { @"C:\u\Downloads", @"C:\u\Downloads2" }),
+                  "las rutas a revisar se reducen: sin duplicados ni subcarpetas de otra (Downloads2 no es subcarpeta de Downloads)");
+            Check(AccionesDelServicio.RutasParaRevisar(Enumerable.Range(0, 20).Select(i => @"C:\d" + i)).Count == AccionesDelServicio.MaxRutasPorEscaneo,
+                  "y como mucho las que acepta un escaneo (el resto queda para otra pasada)");
+            Check(!AccionesDelServicio.ResumirRevision(0, 3, false).Contains("sin detecciones y se pudo")
+                  && AccionesDelServicio.ResumirRevision(0, 0, true).Contains("INCOMPLETA")
+                  && AccionesDelServicio.ResumirRevision(0, 0, false).Contains("se pudo analizar todo"),
+                  "el resumen de la revision nunca dice 'limpio' si algo no se analizo o quedo a medias");
+
             Check(AccionesDelServicio.EsTokenValido(new string('a', 64)) && !AccionesDelServicio.EsTokenValido("corto")
                   && !AccionesDelServicio.EsTokenValido(new string('A', 64)) && !AccionesDelServicio.EsTokenValido(new string('a', 63) + "\"")
                   && !AccionesDelServicio.EsTokenValido(null), "solo se aceptan tokens de 64 hexadecimales (nada que inyectar en una linea de comandos)");

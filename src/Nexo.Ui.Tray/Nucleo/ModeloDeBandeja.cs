@@ -94,8 +94,11 @@ namespace Nexo.Ui.Tray.Nucleo
             }
             else if (!i.CoberturaCompleta)
             {
+                // Sin cifra de archivos: los contadores no la dan (un desborde de la fuente no dice cuantos fueron).
                 Estado = EstadoDeBandeja.Atencion;
-                Texto = Recortar("Nexo: cobertura incompleta (" + (i.Perdidos + i.NoAnalizados) + " sin vigilar)");
+                int n = i.CarpetasPorRevisar.Count;
+                Texto = Recortar(n == 0 ? "Nexo: cobertura incompleta"
+                                        : "Nexo: cobertura incompleta (" + n + (n == 1 ? " carpeta" : " carpetas") + " por revisar)");
             }
             else if (i.Detecciones.Count > 0)
             {

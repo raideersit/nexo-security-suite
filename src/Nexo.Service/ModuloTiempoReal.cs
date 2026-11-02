@@ -54,8 +54,10 @@ namespace Nexo.Service
                 case "tiempo-real.estado":
                 {
                     EstadoDeTiempoReal e = _vigilante.Estado();
-                    // «cobertura_completa» solo es verdad si no se perdio ni dejo de analizar nada.
-                    bool completa = e.Activo && e.Perdidos == 0 && e.NoAnalizados == 0 && !e.MotorCaido && NoVigiladas.Count == 0;
+                    IReadOnlyList<string> porRevisar = CarpetasPorRevisar();
+                    // «cobertura_completa» solo es verdad si no queda nada perdido o sin analizar por revisar. Los contadores
+                    // son historicos; lo que se reviso con un escaneo completo deja de contar (ver EscaneoCompleto).
+                    bool completa = e.Activo && !e.MotorCaido && NoVigiladas.Count == 0 && porRevisar.Count == 0;
                     return Task.FromResult<object?>(new
                     {
                         activo = e.Activo,
@@ -68,6 +70,9 @@ namespace Nexo.Service
                         analizados = e.Analizados,
                         no_analizados = e.NoAnalizados,
                         perdidos = e.Perdidos,
+                        perdidos_es_minimo = e.PerdidosEsMinimo,
+                        desbordes_de_fuente = e.DesbordesDeFuente,
+                        por_revisar = porRevisar,
                         descartados = e.Descartados,
                         pendientes = e.Pendientes,
                         detecciones = e.Detecciones,
@@ -90,6 +95,20 @@ namespace Nexo.Service
                 default:
                     throw new ErrorDeComando(CodigoDeError.MetodoDesconocido, "metodo desconocido");
             }
+        }
+
+        /// <summary>Carpetas a revisar con un escaneo bajo demanda; si se perdieron eventos sin carpeta conocida, las raices.</summary>
+        private IReadOnlyList<string> CarpetasPorRevisar()
+        {
+            PorRevisar p = _vigilante.CarpetasPorRevisar();
+            return p.Todo ? _raices.Union(p.Carpetas, StringComparer.OrdinalIgnoreCase).ToList() : p.Carpetas;
+        }
+
+        /// <summary>Un escaneo bajo demanda COMPLETO termino: lo que cubrio deja de estar por revisar.</summary>
+        public void EscaneoCompleto(IReadOnlyList<string> rutas, DateTimeOffset inicio, ResultadoDeEscaneo r)
+        {
+            bool todas = _raices.All(raiz => rutas.Any(x => VigilanteEnTiempoReal.Contiene(x, raiz)));
+            _vigilante.MarcarRevisado(rutas, r.CarpetasNoLeidas, todas, inicio);
         }
 
         public ResultadoDeEscaneo? Obtener(string id)

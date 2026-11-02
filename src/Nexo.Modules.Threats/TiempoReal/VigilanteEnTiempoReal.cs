@@ -20,7 +20,10 @@ namespace Nexo.Modules.Threats.TiempoReal
     /// Reglas que gobiernan esta clase (las mismas del escaner, §«no pude leer != esta bien»):
     ///   - Lo que NO se pudo analizar (bloqueado, sin permisos, demasiado grande, motor caido)
     ///     se CUENTA como no analizado. Nunca se presenta como limpio.
-    ///   - Lo que la fuente perdio o lo que se descarta por desborde se cuenta como PERDIDO.
+    ///   - Lo que se descarta por exceso de pendientes se cuenta como PERDIDO (archivos distintos, no
+    ///     eventos). Un desborde de la fuente se cuenta aparte: no se sabe cuantos archivos fueron.
+    ///   - Las carpetas de lo perdido o no analizado quedan POR REVISAR hasta que un escaneo bajo demanda
+    ///     completo las cubra (<see cref="MarcarRevisado"/>). Lo perdido no se olvida en silencio.
     ///   - No actua sobre los archivos: solo registra y avisa. Retirar un archivo es otra
     ///     accion, con vista previa y token (cuarentena).
     ///   - Un archivo se espera hasta que deja de cambiar antes de analizarlo, y no se
@@ -30,6 +33,8 @@ namespace Nexo.Modules.Threats.TiempoReal
     {
         private const int MaxDeteccionesGuardadas = 200;
         private const int MaxVistos = 20000;
+        private const int MaxRutasPerdidas = 100_000;
+        private const int MaxCarpetasPorRevisar = 1000;
 
         private sealed class Pend
         {
@@ -47,12 +52,17 @@ namespace Nexo.Modules.Threats.TiempoReal
         private readonly Dictionary<string, (long Bytes, long Ticks)> _vistos = new Dictionary<string, (long, long)>(StringComparer.OrdinalIgnoreCase);
         private readonly Queue<string> _ordenVistos = new Queue<string>();
         private readonly List<Deteccion> _detecciones = new List<Deteccion>();
+        private readonly HashSet<string> _rutasPerdidas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Carpeta -> ultima vez que se perdio o no se analizo algo en ella.
+        private readonly Dictionary<string, DateTimeOffset> _porRevisar = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
         private readonly object _candado = new object();
         private readonly CancellationTokenSource _parar = new CancellationTokenSource();
 
         private IFuenteDeCambios? _fuente;
         private Task? _bucle;
-        private long _vistosN, _descartados, _analizados, _noAnalizados, _perdidos;
+        private long _vistosN, _descartados, _analizados, _noAnalizados, _desbordesDeFuente;
+        private bool _perdidasDesbordadas;           // se paso de MaxRutasPerdidas: Perdidos es un minimo
+        private DateTimeOffset? _revisarTodoDesde;   // perdida sin carpeta conocida (desborde de la fuente): todo por revisar
         private int _erroresSeguidos;
         private volatile bool _motorCaido;
         private volatile string? _ultimoAviso;
@@ -80,19 +90,29 @@ namespace Nexo.Modules.Threats.TiempoReal
 
         public EstadoDeTiempoReal Estado()
         {
-            int pendientes, detecciones;
-            lock (_candado) { pendientes = _pendientes.Count; detecciones = _detecciones.Count; }
+            int pendientes, detecciones, porRevisar;
+            long perdidos;
+            bool revisarTodo, perdidasDesbordadas;
+            lock (_candado)
+            {
+                pendientes = _pendientes.Count; detecciones = _detecciones.Count; porRevisar = _porRevisar.Count;
+                perdidos = _rutasPerdidas.Count; revisarTodo = _revisarTodoDesde is not null; perdidasDesbordadas = _perdidasDesbordadas;
+            }
             return new EstadoDeTiempoReal(
                 Activo: _fuente is not null && !_parar.IsCancellationRequested,
                 CambiosVistos: Interlocked.Read(ref _vistosN),
                 Descartados: Interlocked.Read(ref _descartados),
                 Analizados: Interlocked.Read(ref _analizados),
                 NoAnalizados: Interlocked.Read(ref _noAnalizados),
-                Perdidos: Interlocked.Read(ref _perdidos),
+                Perdidos: perdidos,
                 Pendientes: pendientes,
                 MotorCaido: _motorCaido,
                 Detecciones: detecciones,
-                UltimoAviso: _ultimoAviso);
+                UltimoAviso: _ultimoAviso,
+                DesbordesDeFuente: Interlocked.Read(ref _desbordesDeFuente),
+                CarpetasPorRevisar: porRevisar,
+                RevisarTodo: revisarTodo,
+                PerdidosEsMinimo: perdidasDesbordadas);
         }
 
         public IReadOnlyList<Deteccion> Detecciones()
@@ -120,8 +140,11 @@ namespace Nexo.Modules.Threats.TiempoReal
                 }
                 if (_pendientes.Count >= _opciones.MaxPendientes)
                 {
-                    // No se aparenta que se vio: queda contado como perdido.
-                    Interlocked.Increment(ref _perdidos);
+                    // No se aparenta que se vio: el ARCHIVO queda contado como perdido (una vez, aunque emita varios
+                    // eventos) y su carpeta, por revisar.
+                    if (_rutasPerdidas.Count < MaxRutasPerdidas) _rutasPerdidas.Add(c.Ruta);
+                    else if (!_rutasPerdidas.Contains(c.Ruta)) _perdidasDesbordadas = true;
+                    AnotarPorRevisar(c.Ruta);
                     _ultimoAviso = "demasiados archivos pendientes: se descartan cambios (perdidos)";
                     return;
                 }
@@ -131,8 +154,60 @@ namespace Nexo.Modules.Threats.TiempoReal
 
         private void AlPerder(string motivo)
         {
-            Interlocked.Increment(ref _perdidos);
+            // No se sabe que archivos ni cuantos: se cuenta el desborde y todo queda por revisar.
+            Interlocked.Increment(ref _desbordesDeFuente);
+            lock (_candado) _revisarTodoDesde = _reloj();
             _ultimoAviso = "la fuente de cambios perdio eventos: " + motivo;
+        }
+
+        /// <summary>Llamar con _candado tomado.</summary>
+        private void AnotarPorRevisar(string ruta)
+        {
+            DateTimeOffset ahora = _reloj();
+            string? carpeta = Path.GetDirectoryName(ruta);
+            if (string.IsNullOrEmpty(carpeta) || (_porRevisar.Count >= MaxCarpetasPorRevisar && !_porRevisar.ContainsKey(carpeta)))
+            {
+                _revisarTodoDesde = ahora;     // demasiadas carpetas: se pide revisarlo todo
+                return;
+            }
+            _porRevisar[carpeta] = ahora;
+        }
+
+        /// <summary>Carpetas donde algo se perdio o no se pudo analizar. <c>Todo</c>: hubo perdidas sin carpeta conocida.</summary>
+        public PorRevisar CarpetasPorRevisar()
+        {
+            lock (_candado)
+                return new PorRevisar(_porRevisar.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList(), _revisarTodoDesde is not null);
+        }
+
+        /// <summary>
+        /// Un escaneo bajo demanda COMPLETO empezado en <paramref name="inicio"/> cubrio <paramref name="raicesEscaneadas"/>.
+        /// Se dan por revisadas las carpetas que quedan dentro, salvo las que el escaneo no pudo leer y las que volvieron a
+        /// perder algo despues de empezar. «Todo» solo se limpia si el escaneo cubrio todas las raices vigiladas.
+        /// </summary>
+        public void MarcarRevisado(IReadOnlyCollection<string> raicesEscaneadas, IReadOnlyCollection<string> carpetasNoLeidas,
+                                   bool cubreTodasLasRaices, DateTimeOffset inicio)
+        {
+            lock (_candado)
+            {
+                foreach (string carpeta in _porRevisar.Keys.ToList())
+                {
+                    if (_porRevisar[carpeta] >= inicio) continue;
+                    if (!raicesEscaneadas.Any(r => Contiene(r, carpeta))) continue;
+                    if (carpetasNoLeidas.Any(n => Contiene(n, carpeta) || Contiene(carpeta, n))) continue;
+                    _porRevisar.Remove(carpeta);
+                }
+                if (_revisarTodoDesde is { } t && t < inicio && cubreTodasLasRaices && carpetasNoLeidas.Count == 0)
+                    _revisarTodoDesde = null;
+            }
+        }
+
+        /// <summary>True si <paramref name="ruta"/> es <paramref name="raiz"/> o esta dentro (sin confundir C: con C:b).</summary>
+        public static bool Contiene(string raiz, string ruta)
+        {
+            string r = raiz.TrimEnd('\\', '/');
+            if (string.Equals(r, ruta.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)) return true;
+            return ruta.Length > r.Length && ruta.StartsWith(r, StringComparison.OrdinalIgnoreCase) && (ruta[r.Length] is '\\' or '/');
         }
 
         // ============================================================
@@ -171,8 +246,7 @@ namespace Nexo.Modules.Threats.TiempoReal
                             catch (Exception ex)
                             {
                                 // Un fallo inesperado con UN archivo no tumba la vigilancia, pero tampoco se oculta.
-                                Interlocked.Increment(ref _noAnalizados);
-                                _ultimoAviso = "error inesperado al analizar un archivo (" + ex.GetType().Name + ")";
+                                NoAnalizado(ruta, "error inesperado al analizar un archivo (" + ex.GetType().Name + ")");
                             }
                             finally { cupo.Release(); }
                         }, CancellationToken.None));
@@ -193,13 +267,14 @@ namespace Nexo.Modules.Threats.TiempoReal
                 if (!info.Exists) { Interlocked.Increment(ref _descartados); return; }   // ya no esta: no hay nada que analizar
                 if (info.Length > _opciones.MaxBytes)
                 {
-                    NoAnalizado("mayor que el limite del motor: " + ruta);
+                    // Reescanear no lo arreglaria (el escaneo bajo demanda tiene el mismo limite): no queda por revisar.
+                    NoAnalizado(ruta, "mayor que el limite del motor: " + ruta, revisable: false);
                     return;
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                NoAnalizado("no se pudo consultar (" + ex.GetType().Name + "): " + ruta);
+                NoAnalizado(ruta, "no se pudo consultar (" + ex.GetType().Name + "): " + ruta);
                 return;
             }
 
@@ -224,7 +299,7 @@ namespace Nexo.Modules.Threats.TiempoReal
             catch (DirectoryNotFoundException) { Interlocked.Increment(ref _descartados); return; }
             catch (UnauthorizedAccessException ex)
             {
-                NoAnalizado("sin permiso para leer (" + ex.GetType().Name + "): " + ruta);
+                NoAnalizado(ruta, "sin permiso para leer (" + ex.GetType().Name + "): " + ruta);
                 return;
             }
             catch (IOException)
@@ -232,7 +307,7 @@ namespace Nexo.Modules.Threats.TiempoReal
                 // Lo mas habitual: el programa que lo escribe aun lo tiene abierto. Se reintenta mas tarde.
                 if (p.Reintentos >= _opciones.MaxReintentos)
                 {
-                    NoAnalizado("sigue bloqueado tras " + p.Reintentos + " reintentos: " + ruta);
+                    NoAnalizado(ruta, "sigue bloqueado tras " + p.Reintentos + " reintentos: " + ruta);
                     return;
                 }
                 lock (_candado)
@@ -269,15 +344,16 @@ namespace Nexo.Modules.Threats.TiempoReal
 
                 default:
                     // El motor no pudo decidir: NO queda como visto (se volvera a intentar si cambia) ni como limpio.
-                    NoAnalizado("el motor no pudo analizarlo: " + veredicto.Error + " — " + ruta);
+                    NoAnalizado(ruta, "el motor no pudo analizarlo: " + veredicto.Error + " — " + ruta);
                     ErrorDelMotor(true);
                     return;
             }
         }
 
-        private void NoAnalizado(string aviso)
+        private void NoAnalizado(string ruta, string aviso, bool revisable = true)
         {
             Interlocked.Increment(ref _noAnalizados);
+            if (revisable) lock (_candado) AnotarPorRevisar(ruta);
             _ultimoAviso = aviso;
         }
 
@@ -296,6 +372,8 @@ namespace Nexo.Modules.Threats.TiempoReal
         {
             lock (_candado)
             {
+                // Un cambio suyo se descarto antes, pero otro posterior si se analizo: ya no esta perdido.
+                _rutasPerdidas.Remove(ruta);
                 if (!_vistos.ContainsKey(ruta)) _ordenVistos.Enqueue(ruta);
                 _vistos[ruta] = (bytes, ticks);
                 while (_vistos.Count > MaxVistos && _ordenVistos.Count > 0) _vistos.Remove(_ordenVistos.Dequeue());

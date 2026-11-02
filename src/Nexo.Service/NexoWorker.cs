@@ -102,6 +102,8 @@ namespace Nexo.Service
                         : new FuenteFileSystemWatcher(raices));
                 tiempoReal = new ModuloTiempoReal(new VigilanteEnTiempoReal(motor, reportes, opciones), fuente, raices, motor.Nombre);
                 tiempoReal.Iniciar();
+                // Un escaneo bajo demanda completo da por revisadas las carpetas donde el tiempo real perdio algo.
+                escaneo.EscaneoCompleto += tiempoReal.EscaneoCompleto;
                 modulos.Add(tiempoReal);
             }
 
