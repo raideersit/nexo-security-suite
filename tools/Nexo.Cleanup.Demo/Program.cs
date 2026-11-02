@@ -29,7 +29,7 @@ namespace Nexo.Cleanup.Demo
     /// Incluye archivos TRAMPA que deben sobrevivir. Si alguno desaparece, la
     /// verificacion falla: es la unica forma de probar que el guardia sirve.
     /// </summary>
-    public static class Program
+    public static partial class Program
     {
         private static int _fallos;
 
@@ -65,6 +65,7 @@ namespace Nexo.Cleanup.Demo
             await ProbarDuplicados(corpus, reportes).ConfigureAwait(false);
             await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
             await ProbarInicio().ConfigureAwait(false);
+            ProbarArranque();
             await ProbarSmart().ConfigureAwait(false);
 
             Console.WriteLine();

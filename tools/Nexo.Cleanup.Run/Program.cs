@@ -5,6 +5,7 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
 using Nexo.Modules.Cleanup.Abstractions;
+using Nexo.Modules.Cleanup.Inicio;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Platform;
 using Nexo.Modules.Cleanup.Windows;
@@ -40,6 +41,7 @@ namespace Nexo.Cleanup.Run
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nexo", "Vault");
 
             if (args.Contains("--ayuda") || args.Contains("-h")) { Ayuda(); return 0; }
+            if (args.Length > 0 && args[0] == "arranque") return Arranque(args);
             if (modo != "simulado" && modo != "papelera" && modo != "real")
             {
                 Console.Error.WriteLine("Modo desconocido: " + modo + ". Usa simulado, papelera o real.");
@@ -130,6 +132,93 @@ namespace Nexo.Cleanup.Run
             return 0;
         }
 
+        /// <summary>
+        /// Impacto de arranque que mide Windows (Diagnostics-Performance 100-103). SOLO LEE. Codigo de salida 2 =
+        /// no concluyente: no se pudo leer, o no hay ningun arranque medido, asi que "nada lo retrasa" no se puede afirmar.
+        /// </summary>
+        private static int Arranque(string[] args)
+        {
+            int dias = 30;
+            if (Opcion(args, "--dias") is { } d && (!int.TryParse(d, out dias) || dias < 1 || dias > 365))
+            {
+                Console.Error.WriteLine("--dias debe ser un entero entre 1 y 365.");
+                return 1;
+            }
+
+            bool admin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            ResultadoDeArranque r = new AnalizadorDeArranque(new FuenteDeArranqueWindows()).Leer(DateTimeOffset.UtcNow.AddDays(-dias));
+
+            Console.WriteLine("Administrador: " + (admin ? "si" : "no"));
+            Console.WriteLine($"Periodo: ultimos {dias} dias   Registro: {FuenteDeArranqueWindows.Registro}");
+            Console.WriteLine();
+
+            if (r.Estado != EstadoDeLecturaDeArranque.Ok)
+            {
+                Console.WriteLine("NO SE PUDO LEER el registro: " + r.Motivo);
+                Console.WriteLine("Esto no significa que el arranque este bien.");
+                return 2;
+            }
+
+            if (r.Arranques.Count == 0)
+                Console.WriteLine("Ningun arranque medido en el periodo. Windows solo los mide con el Servicio de directivas de diagnostico (DPS) en marcha.");
+            else
+            {
+                Console.WriteLine($"Arranques medidos: {r.Arranques.Count}   mediana: {Seg(r.MedianaMs!.Value)}");
+                foreach (ArranqueMedido a in r.Arranques.Take(5))
+                    Console.WriteLine($"  {a.Cuando.ToLocalTime():yyyy-MM-dd HH:mm}  total {Seg(a.TotalMs),8}" +
+                                      (a.PostArranqueMs is { } post ? $"   tras el inicio de sesion {Seg(post)}" : "") +
+                                      (a.AppsDeInicio is { } n ? $"   apps de inicio: {n}" : "") +
+                                      (a.EsDegradacion == true ? "   (Windows lo marco como lento)" : ""));
+            }
+
+            Console.WriteLine();
+            if (r.Degradaciones.Count > 0)
+            {
+                Console.WriteLine("Lo que retraso el arranque (tardo mas de lo habitual):");
+                foreach (DegradacionAgrupada g in r.Degradaciones.Take(20))
+                    Console.WriteLine($"  {g.Veces,3}x  {Tipo(g.Tipo),-11} +{Seg(g.DegradacionMediaMs),-7} (max +{Seg(g.DegradacionMaximaMs)})  " +
+                                      g.Nombre + (g.NombreAmigable is { } f ? "  (" + f + ")" : ""));
+                if (r.Degradaciones.Count > 20) Console.WriteLine($"  ... y {r.Degradaciones.Count - 20} mas.");
+            }
+
+            var entradas = new RegistroInicioWindows().Enumerar();
+            if (entradas.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Programas de inicio:");
+                foreach (EntradaDeInicio e in entradas)
+                {
+                    DegradacionAgrupada? i = r.ImpactoDe(e);
+                    string impacto = i is null ? "sin datos" : $"retraso {i.Veces}x, +{Seg(i.DegradacionMediaMs)} de media";
+                    Console.WriteLine($"  {(e.Estado == EstadoDeInicio.Deshabilitada ? "x" : " ")} {e.Nombre,-30} {impacto}");
+                }
+                Console.WriteLine("  (\"sin datos\" no es \"no pesa\": Windows solo anota lo que tarda mas de lo habitual)");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"{r.EventosLeidos} eventos leidos, {r.Descartados} sin interpretar.");
+            if (r.Truncada) Console.WriteLine("AVISO: hay mas eventos de los leidos; esto es lo mas reciente, no todo. Baja --dias.");
+            if (r.Descartados > 0) Console.WriteLine("AVISO: eventos que no se pudieron interpretar no se cuentan.");
+
+            if (r.PuedeAfirmarQueNadaLoRetraso)
+                Console.WriteLine("Nada retraso el arranque en el periodo (segun lo que mide Windows).");
+            else if (r.Arranques.Count == 0)
+            {
+                Console.WriteLine("RESULTADO NO CONCLUYENTE: sin arranques medidos no se puede decir nada del impacto.");
+                return 2;
+            }
+            return 0;
+        }
+
+        private static string Tipo(TipoDeDegradacion t) => t switch
+        {
+            TipoDeDegradacion.Aplicacion => "aplicacion",
+            TipoDeDegradacion.Controlador => "controlador",
+            _ => "servicio"
+        };
+
+        private static string Seg(long ms) => (ms / 1000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " s";
+
         private static string GuardarLista(string vaultRuta, string modo, VistaPreviaLimpieza vista)
         {
             Directory.CreateDirectory(vaultRuta);
@@ -161,6 +250,7 @@ namespace Nexo.Cleanup.Run
         private static void Ayuda()
         {
             Console.WriteLine("nexo-cleanup [--modo simulado|papelera|real] [--reglas id1,id2] [--vault ruta]");
+            Console.WriteLine("nexo-cleanup arranque [--dias N]   impacto de arranque medido por Windows (solo lee)");
             Console.WriteLine();
             Console.WriteLine("  simulado  (defecto) lista lo que se borraria; no toca el disco");
             Console.WriteLine("  papelera  envia a la Papelera; pide escribir BORRAR");

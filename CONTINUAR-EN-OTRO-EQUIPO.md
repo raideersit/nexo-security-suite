@@ -28,15 +28,15 @@ se puede usar allí.
 errores y 0 advertencias (los proyectos de librería tratan las advertencias como
 errores).
 
-**678 comprobaciones automatizadas, todas en verde, en Windows 10** (689 con las 11 portables de la traducción de rutas, 2026-11-02, probadas solo en Linux; +1 en Windows sin ejecutar todavía) (127 al
+**678 comprobaciones automatizadas, todas en verde, en Windows 10** (722 con las portables hechas desde Linux el 2026-11-02 —11 de la traducción de rutas y 33 del impacto de arranque—, probadas solo en Linux; +3 en Windows sin ejecutar todavía) (127 al
 traspaso; +7 del historial de S.M.A.R.T., 2026-10-17; +4 de carpeta inaccesible y
 +84 del firewall y +67 del escáner, 2026-10-21; +9 de la purga y +5 de reglas ajenas, +6 del escaneo en paralelo y +5 de la lista de protegidos, +33 del IPC, +100 del servicio y +57 del tiempo real, +10 de identidad en el escáner, +10 en el IPC y +9 en el servicio, +34 de la limpieza, +15 de la aprobación y +40 de la bandeja y +12 de la aprobacion por otro administrador, 2026-10-22):
 
 | Arnés | Comprobaciones | Qué cubre |
 |---|---|---|
 | `tools/Nexo.Reports.Demo` | 13 | Notas, vault, redacción, nombres NTFS |
-| `tools/Nexo.Cleanup.Demo` | 96 | Guardia, limpieza, duplicados, triturador, inicio, S.M.A.R.T. e historial (portable) |
-| `tools/Nexo.Cleanup.Windows.Demo` | 29 | Tipo de disco, registro de inicio, Papelera, archivos bloqueados, discos reales |
+| `tools/Nexo.Cleanup.Demo` | 129 | Guardia, limpieza, duplicados, triturador, inicio, impacto de arranque, S.M.A.R.T. e historial (portable) |
+| `tools/Nexo.Cleanup.Windows.Demo` | 29 (+2 sin ejecutar) | Tipo de disco, registro de inicio, impacto de arranque real, Papelera, archivos bloqueados, discos reales |
 | `tools/Nexo.Firewall.Demo` | 115 | Guardia de reglas, plan/token, reglas ajenas, modo sigiloso (portable) |
 | `tools/Nexo.Firewall.Windows.Demo` | 31 | Firewall de Windows real: lectura, reglas por app, sigiloso (como administrador) |
 | `tools/Nexo.Scan.Demo` | 92 | Cliente clamd (contra un clamd falso), escáner, cuarentena (portable) |
@@ -766,8 +766,23 @@ El código viaja por git; las máquinas no comparten nada más.
 
 - **Triturador y enlaces duros:** si el archivo tiene otros nombres (hard links), el
   truncado destruye el contenido para todos. .NET no expone el número de enlaces.
-- **Impacto de arranque** (§1.4): los eventos 100/101 de
-  `Microsoft-Windows-Diagnostics-Performance/Operational` no se leen aún.
+- ~~**Impacto de arranque** (§1.4): los eventos 100/101 no se leen aún.~~ Hecho (2026-11-02, desde Linux):
+  `nexo-cleanup arranque [--dias N]`, solo lee `Microsoft-Windows-Diagnostics-Performance/Operational`.
+  - Portable (`Inicio/`): `ParserDeEventoDeArranque` (100 = arranque con `BootTime`, `MainPathBootTime`,
+    `BootPostBootTime`, `BootNumStartupApps`, `BootIsDegradation`; 101/102/103 = aplicación/controlador/servicio
+    con `Name`, `FriendlyName`, `TotalTime`, `DegradationTime`; mismas defensas que el 5157, tiempos de 0 a 24 h)
+    y `AnalizadorDeArranque` (mediana, agrupa por tipo + nombre, `ImpactoDe(entrada)` cruza una entrada de
+    inicio con su `.exe`). Windows: `FuenteDeArranqueWindows` (`EventLogReader`; paquete
+    `System.Diagnostics.EventLog` 8.0.1 en `Nexo.Modules.Cleanup.Windows`).
+  - **Honestidad:** «nada lo retrasó» solo si se leyó, hay al menos un arranque medido (sin el servicio DPS
+    Windows no escribe nada), nada truncado ni descartado. Una entrada de inicio sin evento 101 es «sin datos»,
+    no «no pesa»: el 101 se escribe cuando algo tarda **más de lo habitual**, no por pesar mucho. Un `.lnk` o un
+    script no se cruzan (no se adivina el ejecutable).
+  - +33 portables (`Nexo.Cleanup.Demo` §5b; dos comprobadas quitando el arreglo).
+  - **SIN PROBAR en Windows:** el formato real de los eventos (es el documentado, no uno observado), si el
+    registro exige administrador (la Salida 4 dice que sí; no comprobado), y las +2 de
+    `Nexo.Cleanup.Windows.Demo` (§2b), que solo se compilaron. Tampoco está comprobado que coincida con la
+    columna «Impacto de inicio» del Administrador de tareas (que parece medir CPU y disco, no estos eventos).
 - ~~**S.M.A.R.T.:** la lectura anterior no se guardaba entre ejecuciones.~~
   Hecho (2026-10-17): `Disco/HistorialDeSalud` la guarda en JSON (escritura
   atómica, serie ya redactada) y `MonitorDeSalud` la usa si se le pasa. Una

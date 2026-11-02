@@ -49,6 +49,7 @@ namespace Nexo.Cleanup.Windows.Demo
 
             ProbarMedio();
             await ProbarInicio(admin).ConfigureAwait(false);
+            ProbarArranque(admin);
             ProbarPapelera();
             await ProbarSalud().ConfigureAwait(false);
 
@@ -212,6 +213,30 @@ namespace Nexo.Cleanup.Windows.Demo
         {
             try { hive.DeleteSubKeyTree(ruta, throwOnMissingSubKey: false); }
             catch (Exception ex) when (ex is UnauthorizedAccessException || ex is System.Security.SecurityException) { }
+        }
+
+        // ============================================================
+        //  2b. IMPACTO DE ARRANQUE — solo lectura, registro real
+        // ============================================================
+        private static void ProbarArranque(bool admin)
+        {
+            Console.WriteLine();
+            Console.WriteLine("2b. Impacto de arranque (Diagnostics-Performance, solo lectura)");
+
+            ResultadoDeArranque r = new AnalizadorDeArranque(new FuenteDeArranqueWindows()).Leer(DateTimeOffset.UtcNow.AddDays(-30));
+            // No esta comprobado si este registro exige administrador: se informa en vez de exigirlo.
+            Check(r.Estado != EstadoDeLecturaDeArranque.NoDisponible, "el registro de Diagnostics-Performance existe y se abre",
+                  "estado: " + r.Estado + " " + r.Motivo);
+            if (r.Estado == EstadoDeLecturaDeArranque.SinPermisos)
+            {
+                Check(!admin && r.Arranques.Count == 0 && !r.PuedeAfirmarQueNadaLoRetraso,
+                      "sin permisos (y sin ser administrador) no se afirma nada", "admin: " + admin);
+                return;
+            }
+            Console.WriteLine($"      INFO: administrador: {(admin ? "si" : "no")}; {r.Arranques.Count} arranques, mediana " +
+                              $"{(r.MedianaMs is { } m ? m + " ms" : "-")}; {r.Degradaciones.Count} cosas que lo retrasaron; {r.Descartados} sin interpretar.");
+            // El analizador debe entender lo que Windows escribe de verdad.
+            Check(r.Descartados == 0, "los eventos 100-103 reales se interpretan todos (ninguno descartado)", "descartados: " + r.Descartados);
         }
 
         // ============================================================

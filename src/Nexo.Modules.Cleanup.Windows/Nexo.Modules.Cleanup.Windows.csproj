@@ -14,6 +14,8 @@
     <!-- WMI (S.M.A.R.T.). Es codigo administrado, no P/Invoke, asi que puede
          vivir aqui y no en Nexo.Native. -->
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <!-- EventLogReader (impacto de arranque, Diagnostics-Performance) no viene en el framework base. -->
+    <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
