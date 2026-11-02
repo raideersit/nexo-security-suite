@@ -260,6 +260,29 @@ namespace Nexo.RealTime.Demo
                       "cuando el motor vuelve, se recupera solo");
             }
 
+            // Motor caido y equipo QUIETO: se le pregunta solo y se recupera sin esperar a otro archivo (hallazgo 2026-11-02).
+            var motorQ = new MotorFalso { Fallar = true };
+            var fuenteQ = new FuenteManual();
+            var opcQ = new OpcionesDeTiempoReal
+            {
+                Estabilizacion = TimeSpan.FromMilliseconds(120), Sondeo = TimeSpan.FromMilliseconds(30),
+                MaxErroresSeguidos = 2, ComprobarMotorCada = TimeSpan.FromMilliseconds(300)
+            };
+            using (var vq = new VigilanteEnTiempoReal(motorQ, new ReportesEnMemoria(), opcQ))
+            {
+                vq.Iniciar(fuenteQ);
+                for (int i = 0; i < 3; i++) fuenteQ.Emitir(Archivo(carpeta, $"q{i}.exe", Encoding.ASCII.GetBytes("q" + i)));
+                Check(await EsperarAsync(() => vq.Estado().MotorCaido).ConfigureAwait(false), "(preparacion) el motor queda caido");
+                await Task.Delay(1000).ConfigureAwait(false);
+                Check(vq.Estado().MotorCaido, "mientras el motor siga sin responder, sigue CAIDO aunque se le pregunte");
+
+                long analizados = vq.Estado().Analizados;
+                motorQ.Fallar = false;
+                Check(await EsperarAsync(() => !vq.Estado().MotorCaido, 3000).ConfigureAwait(false) && vq.Estado().Analizados == analizados,
+                      "cuando vuelve, deja de estar caido SIN que llegue ningun archivo nuevo", vq.Estado().ToString());
+                Check(!vq.CarpetasPorRevisar().Vacio, "y lo que no se analizo mientras tanto sigue por revisar (recuperarse no lo borra)");
+            }
+
             // Desborde: demasiados pendientes
             var motor2 = new MotorFalso();
             var fuente2 = new FuenteManual();
@@ -375,7 +398,8 @@ namespace Nexo.RealTime.Demo
         public volatile bool Fallar;
 
         public string Nombre => "motor-falso";
-        public Task<string> VersionAsync(CancellationToken ct = default) => Task.FromResult("falso");
+        public Task<string> VersionAsync(CancellationToken ct = default)
+            => Fallar ? Task.FromException<string>(new MotorNoDisponibleException("motor falso caido")) : Task.FromResult("falso");
 
         public async Task<ResultadoDeMotor> AnalizarAsync(Stream contenido, CancellationToken ct = default)
         {

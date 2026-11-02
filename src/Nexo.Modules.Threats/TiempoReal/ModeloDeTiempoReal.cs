@@ -68,6 +68,12 @@ namespace Nexo.Modules.Threats.TiempoReal
         public int MaxErroresSeguidos { get; init; } = 5;
 
         public TimeSpan Sondeo { get; init; } = TimeSpan.FromMilliseconds(100);
+
+        /// <summary>
+        /// Con el motor caido, cada cuanto se le pregunta si volvio. Sin esto «motor caido» solo se borraba al llegar el
+        /// siguiente archivo: con el equipo quieto se seguia avisando de un motor que ya funcionaba.
+        /// </summary>
+        public TimeSpan ComprobarMotorCada { get; init; } = TimeSpan.FromSeconds(30);
     }
 
     /// <summary>

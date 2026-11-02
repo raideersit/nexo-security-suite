@@ -64,6 +64,8 @@ namespace Nexo.Modules.Threats.TiempoReal
         private bool _perdidasDesbordadas;           // se paso de MaxRutasPerdidas: Perdidos es un minimo
         private DateTimeOffset? _revisarTodoDesde;   // perdida sin carpeta conocida (desborde de la fuente): todo por revisar
         private int _erroresSeguidos;
+        private int _comprobandoMotor;               // 1 mientras hay una comprobacion en curso
+        private DateTimeOffset _proximaComprobacion;
         private volatile bool _motorCaido;
         private volatile string? _ultimoAviso;
 
@@ -224,6 +226,7 @@ namespace Nexo.Modules.Threats.TiempoReal
                 while (!ct.IsCancellationRequested)
                 {
                     await Task.Delay(_opciones.Sondeo, ct).ConfigureAwait(false);
+                    ComprobarMotorSiCaido(ct);
 
                     List<string> listos;
                     DateTimeOffset ahora = _reloj();
@@ -355,6 +358,29 @@ namespace Nexo.Modules.Threats.TiempoReal
             Interlocked.Increment(ref _noAnalizados);
             if (revisable) lock (_candado) AnotarPorRevisar(ruta);
             _ultimoAviso = aviso;
+        }
+
+        /// <summary>Con el motor caido, le pregunta cada <see cref="OpcionesDeTiempoReal.ComprobarMotorCada"/> si volvio. No bloquea el bucle.</summary>
+        private void ComprobarMotorSiCaido(CancellationToken ct)
+        {
+            if (!_motorCaido) return;
+            DateTimeOffset ahora = _reloj();
+            if (ahora < _proximaComprobacion || Interlocked.CompareExchange(ref _comprobandoMotor, 1, 0) != 0) return;
+            _proximaComprobacion = ahora + _opciones.ComprobarMotorCada;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _motor.VersionAsync(ct).ConfigureAwait(false);
+                    // Responde: deja de estar caido. Lo que no se analizo mientras tanto sigue POR REVISAR.
+                    ErrorDelMotor(false);
+                    _ultimoAviso = "el motor de analisis volvio a responder";
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception) { /* sigue caido: se vuelve a preguntar mas tarde */ }
+                finally { Interlocked.Exchange(ref _comprobandoMotor, 0); }
+            }, CancellationToken.None);
         }
 
         private void ErrorDelMotor(bool fallo)

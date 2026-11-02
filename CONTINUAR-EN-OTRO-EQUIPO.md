@@ -536,10 +536,11 @@ ni Windows.**
 - **Recuperación tras `MotorCaido` (probado con clamd real, 2026-11-02):** clamd parado → `MotorCaido` y los 8
   archivos escritos mientras tanto, incluido un EICAR, quedan «no analizados» y su carpeta por revisar. Al volver
   clamd, el siguiente archivo (otro EICAR) se detecta y `MotorCaido` vuelve a false; la revisión de la carpeta
-  pendiente encuentra el EICAR que no se vio y la deja limpia. **Hallazgo menor (sin arreglar):** `MotorCaido` no se
-  borra hasta que llega un archivo nuevo, porque nadie pregunta al motor mientras tanto: con el equipo quieto la
-  bandeja diría «el motor no responde» aunque ya funcione. Arreglo propuesto: un `ping` cada ~30 s solo mientras
-  esté caído.
+  pendiente encuentra el EICAR que no se vio y la deja limpia. ~~Hallazgo menor: `MotorCaido` no se
+  borraba hasta que llegaba un archivo nuevo~~. Corregido (2026-11-02): con el motor caído, el vigilante le pregunta
+  (`VersionAsync`) cada `ComprobarMotorCada` (30 s por omisión) y deja de estar caído en cuanto responde; lo no
+  analizado mientras tanto **sigue por revisar**. Con clamd real se recuperó solo, sin archivos nuevos. +4 en
+  `Nexo.RealTime.Demo` (comprobada quitando el arreglo).
 
 ---
 
