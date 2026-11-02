@@ -533,7 +533,13 @@ ni Windows.**
   nueva de la bandeja (texto, `RutasParaRevisar`, `ResumirRevision`) se ejecutó en Linux compilando esos archivos
   aparte. **SIN EJECUTAR (solo Windows):** +3 en `Nexo.Tray.Demo`, la prueba cambiada y +1 en `Nexo.Service.Demo`
   (desborde → escaneo → cobertura completa), y el menú de la bandeja de verdad.
-- **Sin probar:** si el vigilante se recupera cuando clamd vuelve tras `MotorCaido`.
+- **Recuperación tras `MotorCaido` (probado con clamd real, 2026-11-02):** clamd parado → `MotorCaido` y los 8
+  archivos escritos mientras tanto, incluido un EICAR, quedan «no analizados» y su carpeta por revisar. Al volver
+  clamd, el siguiente archivo (otro EICAR) se detecta y `MotorCaido` vuelve a false; la revisión de la carpeta
+  pendiente encuentra el EICAR que no se vio y la deja limpia. **Hallazgo menor (sin arreglar):** `MotorCaido` no se
+  borra hasta que llega un archivo nuevo, porque nadie pregunta al motor mientras tanto: con el equipo quieto la
+  bandeja diría «el motor no responde» aunque ya funcione. Arreglo propuesto: un `ping` cada ~30 s solo mientras
+  esté caído.
 
 ---
 
