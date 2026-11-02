@@ -35,7 +35,7 @@ namespace Nexo.Scan.Run
             if (args.Length == 0 || args[0] is "--ayuda" or "-h") { Ayuda(); return args.Length == 0 ? 1 : 0; }
 
             int paralelo = int.TryParse(Opcion(args, "--paralelo"), NumberStyles.None, CultureInfo.InvariantCulture, out int par) && par > 0
-                ? par : 1;
+                ? par : OpcionesDeEscaneo.ParalelismoPorDefecto;
             string host = Opcion(args, "--host") ?? "127.0.0.1";
             int puerto = int.TryParse(Opcion(args, "--puerto"), NumberStyles.None, CultureInfo.InvariantCulture, out int p)
                 ? p : ClamdClient.PuertoPorDefecto;
@@ -217,7 +217,7 @@ namespace Nexo.Scan.Run
             Console.WriteLine("  cuarentena purgar                   elimina lo que supero los 30 dias; pide PURGAR");
             Console.WriteLine();
             Console.WriteLine("  --host 127.0.0.1 --puerto 3310     solo se aceptan direcciones locales");
-            Console.WriteLine("  --paralelo N                       archivos a la vez (1-8, por defecto 1)");
+            Console.WriteLine("  --paralelo N                       archivos a la vez (1-8, por defecto 4)");
             Console.WriteLine("  --carpeta-cuarentena <ruta>        por defecto %LOCALAPPDATA%\\Nexo\\Quarantine");
             Console.WriteLine();
             Console.WriteLine("Codigos de salida: 0 limpio; 10 con detecciones; 11 sin detecciones pero con archivos");

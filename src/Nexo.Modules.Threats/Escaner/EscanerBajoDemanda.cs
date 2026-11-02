@@ -31,11 +31,12 @@ namespace Nexo.Modules.Threats.Escaner
         public int MaxErroresSeguidos { get; init; } = 5;
 
         /// <summary>
-        /// Archivos analizados a la vez (una conexion a clamd por archivo). 1 = secuencial,
-        /// el comportamiento por omision. Se limita a 1..8: clamd atiende 10 hilos por
+        /// Archivos analizados a la vez (una conexion a clamd por archivo). 1 = secuencial.
+        /// Por omision 4: medido con clamd real (2026-11-02, 4 nucleos, 1017 binarios en frio),
+        /// 1 = 38,9 s, 4 = 8,5 s, 8 = 8,2 s. Se limita a 1..8: clamd atiende 10 hilos por
         /// defecto (MaxThreads) y pasarse solo consigue que unas conexiones esperen a otras.
         /// </summary>
-        public int Paralelismo { get; init; } = 1;
+        public int Paralelismo { get; init; } = ParalelismoPorDefecto;
 
         /// <summary>
         /// En nombre de quien se abren y enumeran los archivos. Por omision, el proceso actual; el servicio
@@ -43,6 +44,7 @@ namespace Nexo.Modules.Threats.Escaner
         /// </summary>
         public IAccesoAArchivos Acceso { get; init; } = AccesoDirecto.Instancia;
 
+        public const int ParalelismoPorDefecto = 4;
         public const int ParalelismoMaximo = 8;
     }
 

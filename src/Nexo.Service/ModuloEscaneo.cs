@@ -136,7 +136,7 @@ namespace Nexo.Service
                 throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "se esperaba un objeto de parametros");
 
             List<string> rutas = LeerRutas(o);
-            int paralelo = 1;
+            int paralelo = OpcionesDeEscaneo.ParalelismoPorDefecto;
             if (o.TryGetProperty("paralelo", out JsonElement pa) && pa.ValueKind != JsonValueKind.Null)
             {
                 if (pa.ValueKind != JsonValueKind.Number || !pa.TryGetInt32(out paralelo) || paralelo < 1)

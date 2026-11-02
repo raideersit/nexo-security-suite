@@ -112,7 +112,8 @@ namespace Nexo.Cleanup.Demo
 
                 // Sin permisos de lectura (no se puede simular siendo root ni en Windows con chmod).
                 bool puedeQuitarPermisos = !OperatingSystem.IsWindows() && !Environment.IsPrivilegedProcess;
-                if (puedeQuitarPermisos)
+                // OperatingSystem.IsWindows() va en la misma condicion para que el analizador de plataforma lo vea.
+                if (puedeQuitarPermisos && !OperatingSystem.IsWindows())
                 {
                     Escribir(@"Privada\Secreta", Tarea());
                     Escribir("Ilegible", Tarea());
@@ -148,7 +149,7 @@ namespace Nexo.Cleanup.Demo
                 Check(!inv.CarpetaDisponible && inv.Tareas.Count == 0 && !inv.Completo, "sin carpeta de tareas: no disponible, NO 'cero tareas'");
 
                 string limpia = Path.Combine(raiz, "Microsoft");
-                if (puedeQuitarPermisos) File.SetUnixFileMode(Path.Combine(raiz, "Privada"), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                if (puedeQuitarPermisos && !OperatingSystem.IsWindows()) File.SetUnixFileMode(Path.Combine(raiz, "Privada"), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 Directory.Delete(Path.Combine(raiz, "Raras"), true);
                 inv = LectorDeTareas.Leer(limpia);
                 Check(inv.Completo && inv.Tareas.Count == 1 && inv.ArchivosLeidos == 2, "recorrido sin problemas: completo");

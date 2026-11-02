@@ -303,7 +303,8 @@ namespace Nexo.Scan.Demo
             var rep9 = new ReportesEnMemoria();
             ResultadoDeEscaneo r9 = await new EscanerBajoDemanda(
                     new ClamdClient("127.0.0.1", fragil.Puerto, timeout: TimeSpan.FromSeconds(3)), rep9,
-                    new OpcionesDeEscaneo { MaxErroresSeguidos = 3 })
+                    // Secuencial a proposito: los recuentos exactos de abajo solo valen asi (el caso en paralelo va aparte).
+                    new OpcionesDeEscaneo { MaxErroresSeguidos = 3, Paralelismo = 1 })
                 .EscanearAsync(new[] { muchos }).ConfigureAwait(false);
             Check(r9.Incompleto && r9.Analizados == 3 && !r9.CompletamenteLimpio,
                   "si el motor se cae, el escaneo se aborta como INCOMPLETO (no sigue 'limpiando' archivos)",
@@ -322,7 +323,7 @@ namespace Nexo.Scan.Demo
             File.WriteAllBytes(Path.Combine(mezcla, "grande.bin"), new byte[2000]);
 
             ResultadoDeEscaneo sec = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(),
-                    new OpcionesDeEscaneo { MaxBytes = 1000 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
+                    new OpcionesDeEscaneo { MaxBytes = 1000, Paralelismo = 1 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
             ResultadoDeEscaneo par = await new EscanerBajoDemanda(cliente, new ReportesEnMemoria(),
                     new OpcionesDeEscaneo { MaxBytes = 1000, Paralelismo = 6 }).EscanearAsync(new[] { mezcla }).ConfigureAwait(false);
             Check(par.Analizados == sec.Analizados && par.Analizados == 40 && par.Detecciones.Count == 4,

@@ -347,7 +347,7 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 - ~~Sin tiempo real~~ Hecho (2026-10-22, ver §2g). Siguen sin AMSI ni escaneo programado.
 - ~~La cuarentena no purga~~ Hecho (2026-10-22): `nexo-scan cuarentena purgar` elimina lo que superó los 30 días, con vista previa, token y confirmación `PURGAR`. Es manual: nada la ejecuta sola hasta que exista el servicio.
 - Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
-- ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8, por defecto 1) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Con clamd real falta medir si compensa.
+- ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Medido con clamd real (2026-11-02, §2j): compensa; **por omisión 4 desde entonces** (`OpcionesDeEscaneo.ParalelismoPorDefecto`, también en el servicio).
 - Archivos > 25 MB no se analizan (quedan como omitidos): ISOs, VMs, instaladores grandes.
 - Los archivos comprimidos los abre `clamd`; no hay control de límites de recursión.
 
@@ -650,7 +650,7 @@ tabla del guion. Lo importante:
 - **Nota (corregida):** con el escaneo cortado, el resumen decía «NO analizados: 5» sin aclarar que lo que
   faltaba ni se intentó. Ahora lo dice; el código de salida sigue siendo 10 si hubo detecciones.
 - **Rendimiento (4 núcleos, 1017 binarios, en frío):** `--paralelo 1` 38,9 s, `4` 8,5 s (4,6× más rápido),
-  `8` 8,2 s. **El valor por omisión (1) es el peor**; falta decidir si pasa a `min(núcleos, 4)`. Ojo al medir:
+  `8` 8,2 s. El valor por omisión era el peor: **ahora es 4** (en `nexo-scan` y en `escaneo.iniciar` del servicio). Ojo al medir:
   clamd cachea los limpios (la segunda pasada tardó 4,6 s), hay que cambiar los archivos para medir en frío.
 - **Sin probar:** convivencia con Defender y el escaneo por el servicio (pipe) en Windows.
 
