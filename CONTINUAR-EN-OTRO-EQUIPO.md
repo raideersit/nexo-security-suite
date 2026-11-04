@@ -344,7 +344,7 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 **Huecos conocidos (sin hacer):**
 
 - **YARA** (heurística) no está; el escaneo es solo por firmas de ClamAV.
-- ~~Sin tiempo real~~ Hecho (2026-10-22, ver §2g). Siguen sin AMSI ni escaneo programado.
+- ~~Sin tiempo real~~ Hecho (2026-10-22, ver §2g). Siguen sin AMSI (el escaneo programado se hizo después, ver §2k).
 - ~~La cuarentena no purga~~ Hecho (2026-10-22): `nexo-scan cuarentena purgar` elimina lo que superó los 30 días, con vista previa, token y confirmación `PURGAR`. Es manual: nada la ejecuta sola hasta que exista el servicio.
 - Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
 - ~~Escaneo secuencial~~ Hecho (2026-10-22): `--paralelo N` (1-8) analiza N archivos a la vez, una conexión por archivo. No usa `IDSESSION`. Medido con clamd real (2026-11-02, §2j): compensa; **por omisión 4 desde entonces** (`OpcionesDeEscaneo.ParalelismoPorDefecto`, también en el servicio).
@@ -706,6 +706,30 @@ nada). Ahora informa `"simulado"`. Prueba de regresión en `Nexo.Service.Demo` (
   'NexoIpc'». **Falta probarlo contra un servicio de verdad** (llamada y flujo previsualizar/aplicar).
 - Todo lo de «Sin resultado anotado» necesita volver a montar una VM. Hasta entonces, §2e–§2h siguen con
   sus avisos de «NO probado».
+
+---
+
+## 2k. Escaneo programado (2026-11-04)
+
+`ModuloEscaneoProgramado` (`src/Nexo.Service`): el servicio escanea solo unas carpetas fijas cada cierto tiempo.
+
+- **Se activa solo en `appsettings.json`** (`Nexo:EscaneoProgramado:Activo`, `IntervaloHoras` = 24 por omisión, `Raices`; sin
+  raíces usa las del tiempo real). Apagado por omisión. El pipe solo ofrece **leer**: `escaneo-programado.estado` y
+  `escaneo-programado.detecciones` (con el módulo apagado también existen y dicen «no activo»). Ningún método cambia la configuración.
+- **Solo detecta**: no mueve ni borra. Las detecciones llegan a cuarentena por el flujo de siempre con el id `programado`.
+- **Lee con la cuenta del servicio** (no hay llamador al que suplantar). Por eso las carpetas las fija el administrador y pasan las
+  mismas reglas que el pipe (`ModuloEscaneo.MotivoDeRechazo`: nada de UNC, relativas, comodines ni `..`); las rechazadas se anotan en
+  la nota de arranque y, si no queda ninguna válida, se dice que NO está activo.
+- **Honestidad del estado**: «limpio» solo si terminó completo y sin omitidos. Un escaneo **incompleto o fallido no cuenta como hecho**
+  (no se guarda, se reintenta a la hora). `vencido` es verdadero si nunca hubo uno completo o ya pasó un intervalo. El registro está en
+  `ProgramData\Nexo\escaneo-programado.json` (solo se guarda cuando terminó un escaneo completo); si no se puede leer se avisa, no se oculta.
+  Si el equipo estuvo apagado y la fecha pasó, al arrancar escanea tras 2 min (no espera otro intervalo). Un registro «del futuro»
+  (reloj atrasado) no pospone más de un intervalo.
+- Un escaneo programado **completo** da por revisadas las carpetas donde el tiempo real perdió eventos (mismo evento que el del pipe).
+- Pruebas: sección 13 de `Nexo.Service.Demo` (reloj y espera inyectados). Rotas a propósito: contar el incompleto como hecho
+  (3 fallos) y reportar detecciones como limpio (3 fallos). Los métodos expuestos pasan de 22 a 24.
+- **SIN PROBAR**: el cableado por `appsettings.json` de punta a punta en un servicio real instalado, y con clamd real (solo motor falso).
+  Tampoco se ha medido cuánto tarda sobre carpetas grandes con `Paralelismo = 2`.
 
 ---
 

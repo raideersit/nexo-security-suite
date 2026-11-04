@@ -109,6 +109,32 @@ namespace Nexo.Service
 
             if (tiempoReal is null) modulos.Add(new ModuloTiempoRealApagado());
 
+            // Escaneo programado: APAGADO por omision, se activa solo en appsettings.json (sin metodos del pipe para cambiarlo).
+            ModuloEscaneoProgramado? programado = null;
+            if (bool.TryParse(_config["Nexo:EscaneoProgramado:Activo"], out bool progActivo) && progActivo)
+            {
+                IEnumerable<string> pedidas = _config["Nexo:EscaneoProgramado:Raices"] is { Length: > 0 } pr
+                    ? pr.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    : ModuloTiempoReal.RaicesPorDefecto();
+                IReadOnlyList<string> validas = ModuloEscaneoProgramado.Validar(pedidas, out IReadOnlyList<string> rechazadas);
+                foreach (string x in rechazadas) AvisosDeArranque.Add("Escaneo programado: carpeta rechazada " + x + ".");
+
+                TimeSpan intervalo = double.TryParse(_config["Nexo:EscaneoProgramado:IntervaloHoras"], System.Globalization.NumberStyles.Float,
+                                                     System.Globalization.CultureInfo.InvariantCulture, out double horas) && horas > 0
+                    ? TimeSpan.FromHours(horas) : ModuloEscaneoProgramado.IntervaloPorDefecto;
+                if (validas.Count == 0)
+                    AvisosDeArranque.Add("Escaneo programado pedido pero sin carpetas validas: NO esta activo.");
+                else
+                {
+                    string estado = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "escaneo-programado.json");
+                    programado = new ModuloEscaneoProgramado(motor, reportes, validas, intervalo, estado, excluir: new[] { almacenQ.Carpeta, vault });
+                    if (tiempoReal is not null) programado.EscaneoCompleto += tiempoReal.EscaneoCompleto;
+                    programado.Iniciar();
+                    modulos.Add(programado);
+                }
+            }
+            if (programado is null) modulos.Add(new ModuloEscaneoProgramadoApagado());
+
             // Limpieza: se hace con la identidad y el perfil del llamador (ver ModuloLimpieza).
             string? avisoBorrador = null;
             modulos.Add(new ModuloLimpieza(
@@ -119,9 +145,10 @@ namespace Nexo.Service
                 politica: politica));
             if (avisoBorrador is not null) AvisosDeArranque.Add(avisoBorrador);
 
-            modulos.Add(new ModuloCuarentena(almacenQ, tiempoReal is null
-                ? escaneo
-                : new ResultadosCombinados(escaneo, tiempoReal), politica: politica));
+            var fuentes = new List<IResultadosDeEscaneo> { escaneo };
+            if (tiempoReal is not null) fuentes.Add(tiempoReal);
+            if (programado is not null) fuentes.Add(programado);
+            modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }
 

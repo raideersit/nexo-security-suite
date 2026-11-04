@@ -48,6 +48,7 @@ namespace Nexo.Service.Demo
                 await ProbarLimpiezaPorIpc(Path.Combine(raiz, "vault10"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarIdentidadDelLlamador(Path.Combine(raiz, "vault9"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarAprobacion(Path.Combine(raiz, "vault12"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
+                await ProbarEscaneoProgramado(raiz).ConfigureAwait(false);
                 await ProbarEscaneoYCuarentena(Path.Combine(raiz, "vault4"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
             }
             finally
@@ -123,7 +124,7 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 22,
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 24,
                       "estado lista los metodos que expone: los basicos y los del firewall");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })
