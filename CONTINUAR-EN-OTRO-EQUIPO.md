@@ -273,7 +273,7 @@ Connection»; Nexo **no la activa** (cambia la política del equipo y llena el r
 - **SIN PROBAR — hace falta administrador y la auditoría activa:** leer eventos 5157 **reales** y que el analizador
   los entienda todos (la prueba de administrador exige `Descartados == 0`); y `AuditQuerySystemPolicy` con permisos
   (sin ellos solo se ha probado el camino «no se sabe»). Hasta entonces el formato real del evento es el que
-  documenta Microsoft, no uno observado: los campos `Direction` (`%%14592` saliente / `%%14593` entrante),
+  documenta Microsoft, no uno observado: los campos `Direction` (`%%14592` entrante / `%%14593` saliente — CORREGIDO 2026-11-03 con un evento real: antes estaban al revés),
   `SourceAddress`/`DestAddress`, `Protocol`, `FilterRTID`.
 **Rutas de dispositivo (2026-11-02, hecho desde Linux):** el 5157 escribe la aplicación como
 `\device\harddiskvolume3\apps\x.exe`. `TraductorDeRutasNt` (portable) la convierte en `C:\apps\x.exe` con la

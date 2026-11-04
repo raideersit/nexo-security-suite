@@ -26,8 +26,8 @@ namespace Nexo.Modules.Threats.Firewall
         private const int MaximoCampos = 64;
 
         private const string ProveedorEsperado = "Microsoft-Windows-Security-Auditing";
-        private const string DireccionEntrante = "%%14593";
-        private const string DireccionSaliente = "%%14592";
+        private const string DireccionEntrante = "%%14592";
+        private const string DireccionSaliente = "%%14593";
 
         public static bool TryParse(string? xml, out ConexionBloqueada? conexion, out string? motivo)
         {

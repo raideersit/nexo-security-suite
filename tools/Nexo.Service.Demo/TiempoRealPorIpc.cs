@@ -100,6 +100,8 @@ namespace Nexo.Service.Demo
                   "si la fuente pierde eventos se cuenta el desborde (sin inventar archivos), las raices quedan por revisar y la cobertura no es completa");
 
             // Un escaneo bajo demanda COMPLETO de lo que esta por revisar devuelve la cobertura (hallazgo 2026-11-02).
+            // La raiz vigilada tiene que EXISTIR: una carpeta inexistente el escaner la anota como «no leida» y, con razon, no se da por revisada.
+            foreach (string p in porRevisar) Directory.CreateDirectory(p);
             Respuesta ini = await c.LlamarAsync("escaneo.iniciar", new { rutas = porRevisar }).ConfigureAwait(false);
             bool listo = false;
             for (int i = 0; ini.Exito && i < 200 && !listo; i++)
