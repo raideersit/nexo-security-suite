@@ -126,7 +126,9 @@ namespace Nexo.Service
                     AvisosDeArranque.Add("Escaneo programado pedido pero sin carpetas validas: NO esta activo.");
                 else
                 {
-                    string estado = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "escaneo-programado.json");
+                    string estado = _config["Nexo:EscaneoProgramado:Registro"] is { Length: > 0 } reg
+                        ? reg
+                        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "escaneo-programado.json");
                     programado = new ModuloEscaneoProgramado(motor, reportes, validas, intervalo, estado, excluir: new[] { almacenQ.Carpeta, vault });
                     if (tiempoReal is not null) programado.EscaneoCompleto += tiempoReal.EscaneoCompleto;
                     programado.Iniciar();

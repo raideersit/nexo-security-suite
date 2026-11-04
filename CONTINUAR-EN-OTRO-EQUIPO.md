@@ -728,8 +728,15 @@ nada). Ahora informa `"simulado"`. Prueba de regresión en `Nexo.Service.Demo` (
 - Un escaneo programado **completo** da por revisadas las carpetas donde el tiempo real perdió eventos (mismo evento que el del pipe).
 - Pruebas: sección 13 de `Nexo.Service.Demo` (reloj y espera inyectados). Rotas a propósito: contar el incompleto como hecho
   (3 fallos) y reportar detecciones como limpio (3 fallos). Los métodos expuestos pasan de 22 a 24.
-- **SIN PROBAR**: el cableado por `appsettings.json` de punta a punta en un servicio real instalado, y con clamd real (solo motor falso).
-  Tampoco se ha medido cuánto tarda sobre carpetas grandes con `Paralelismo = 2`.
+- **Probado con clamd real en Windows (HP, 2026-11-04, ClamAV 1.5.4 portable, 3,29 M de firmas)**, con `nexo-service` en consola y la
+  configuración por variables de entorno (`Nexo__EscaneoProgramado__*`; `Registro` fija la ruta del registro, por omisión
+  `ProgramData\Nexo\escaneo-programado.json`). Carpeta con 3 archivos limpios y 1 con una firma local (`.ndb` con la cadena de prueba;
+  no se usó EICAR para que Defender no lo borrara): estado inicial «nunca»/«vencido», escaneó solo a los 2 min, **4 analizados, 1 detección
+  con su firma y sha256, el archivo intacto**, registro guardado. Con clamd parado a mitad: el siguiente escaneo salió «**fallido**»
+  («no se pudo conectar con clamd»), `ultimo_completo` sin avanzar, «vencido» y reintento a 1 h.
+- **SIN PROBAR**: como servicio instalado de Windows (SCM, cuenta SYSTEM); la recuperación tras el reintento con clamd de nuevo en marcha
+  (el reintento de 1 h no es configurable, solo se probó por inyección en la sección 13); el paso de una detección a cuarentena con el id
+  `programado`; y cuánto tarda sobre carpetas grandes con `Paralelismo = 2`.
 
 ---
 
