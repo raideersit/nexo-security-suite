@@ -203,7 +203,90 @@
                 <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Las detecciones del tiempo real se revisan desde la bandeja del sistema (nexo-tray)." />
             </TabItem>
             <TabItem Header="Firewall">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-firewall en la consola." />
+                <ScrollViewer x:Name="PanelDeFirewall" x:DataType="local:FirewallModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <Grid ColumnDefinitions="*,10,*">
+                            <HeaderedContentControl Grid.Column="0" Header="Firewall de Windows">
+                                <StackPanel Spacing="6">
+                                    <TextBlock x:Name="ResumenDeFirewall" Text="{Binding Resumen}" TextWrapping="Wrap" />
+                                    <ItemsControl x:Name="ListaDePerfiles" ItemsSource="{Binding Perfiles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaDePerfil">
+                                                <Grid ColumnDefinitions="80,110,*" Margin="0,1">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Perfil}" />
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                        <Border Width="10" Height="10" VerticalAlignment="Center"
+                                                                Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                        <TextBlock Text="{Binding Estado}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Entrada}" TextWrapping="Wrap" Foreground="#404040" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <HeaderedContentControl Grid.Column="2" Header="Modo sigiloso">
+                                <DockPanel>
+                                    <Button x:Name="BotonSigiloso" DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,8,0,0"
+                                            Content="{Binding TextoBotonSigiloso}" IsEnabled="{Binding PuedeCambiarSigiloso}" Click="CambiarSigiloso" />
+                                    <StackPanel Spacing="4">
+                                        <TextBlock x:Name="TextoDeSigiloso" Text="{Binding TextoSigiloso}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                                   Text="Windows ya ignora el resto del tráfico entrante no pedido; Nexo solo añade el bloqueo del ping." />
+                                    </StackPanel>
+                                </DockPanel>
+                            </HeaderedContentControl>
+                        </Grid>
+
+                        <HeaderedContentControl Header="Reglas de Nexo">
+                            <StackPanel Spacing="8">
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="Nexo solo modifica las reglas de su propio grupo («Nexo Security Suite»). Nunca bloquea procesos del sistema, Microsoft Defender ni a sí mismo." />
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1" MinHeight="90">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,80,80,80" Background="#C0C0C0">
+                                            <TextBlock Grid.Column="0" Margin="6,3" Text="Programa" />
+                                            <TextBlock Grid.Column="1" Margin="6,3" Text="Acción" />
+                                            <TextBlock Grid.Column="2" Margin="6,3" Text="Dirección" />
+                                            <TextBlock Grid.Column="3" Margin="6,3" Text="Habilitada" />
+                                        </Grid>
+                                        <ListBox x:Name="TablaDeReglas" ItemsSource="{Binding Reglas}" SelectedItem="{Binding Seleccionada}"
+                                                 BorderThickness="0" Background="White">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="local:FilaDeRegla">
+                                                    <Grid ColumnDefinitions="*,80,80,80">
+                                                        <TextBlock Grid.Column="0" Margin="2,1" Text="{Binding Programa}" TextWrapping="Wrap"
+                                                                   FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                        <TextBlock Grid.Column="1" Margin="6,1" Text="{Binding Accion}" />
+                                                        <TextBlock Grid.Column="2" Margin="6,1" Text="{Binding Direccion}" />
+                                                        <TextBlock Grid.Column="3" Margin="6,1" Text="{Binding Habilitada}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </Border>
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                        <ComboBox ItemsSource="{Binding OpcionesDeDireccion}" SelectedIndex="{Binding DireccionElegida}" MinWidth="150" />
+                                        <Button x:Name="BotonBloquear" Content="Bloquear programa..." FontWeight="Bold" IsEnabled="{Binding PuedeBloquear}" Click="BloquearPrograma" />
+                                        <Button x:Name="BotonQuitarRegla" Content="Quitar regla..." IsEnabled="{Binding PuedeQuitar}" Click="QuitarRegla" />
+                                        <Button Content="Actualizar" Click="ActualizarFirewall" />
+                                    </StackPanel>
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#800000" Text="{Binding Mensaje}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Conexiones bloqueadas">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Para ver qué conexiones se bloquearon hace falta activar la auditoría de Windows, y Nexo no la activa por su cuenta. Esta ventana todavía no las muestra: mientras tanto, use nexo-firewall bloqueos en la consola." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Limpieza">
                 <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-cleanup en la consola, o «Limpiar» en el menú de la bandeja." />

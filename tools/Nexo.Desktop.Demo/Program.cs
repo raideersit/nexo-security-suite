@@ -38,6 +38,7 @@ namespace Nexo.Desktop.Demo
             ProbarResumenDeEscaneo();
             ProbarModeloDeEscaneo();
             ProbarCuarentena();
+            ProbarFirewall();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -315,7 +316,7 @@ namespace Nexo.Desktop.Demo
             public Consulta<string> AlIniciar = Consulta<string>.Bien("abc");
             public readonly System.Collections.Generic.Queue<Consulta<AvanceDeEscaneo>> Avances = new System.Collections.Generic.Queue<Consulta<AvanceDeEscaneo>>();
             public Consulta<ResultadoDeEscaneoVista> AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(ResultadoDeEscaneo());
-            public Consulta<PlanDeCuarentena> AlPlan = Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Mover 1 archivo", true, new string('a', 64), Array.Empty<string>()));
+            public Consulta<PlanDelServicio> AlPlan = Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Mover 1 archivo", true, new string('a', 64), Array.Empty<string>()));
             public ResultadoDeAccion AlAplicar = new ResultadoDeAccion(true, false, "1 archivos en cuarentena.");
             public readonly System.Collections.Generic.List<string> Llamadas = new System.Collections.Generic.List<string>();
             public System.Collections.Generic.IReadOnlyList<string>? RutasPedidas;
@@ -330,7 +331,7 @@ namespace Nexo.Desktop.Demo
             { Llamadas.Add("resultado:" + id); return Task.FromResult(AlResultado); }
             public Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct)
             { Llamadas.Add("cancelar:" + id); return Task.FromResult(Consulta<string>.Bien(id)); }
-            public Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
+            public Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
             { Llamadas.Add("previsualizar:" + id); return Task.FromResult(AlPlan); }
             public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
             { Llamadas.Add("aplicar"); TokenAplicado = token; return Task.FromResult(AlAplicar); }
@@ -435,7 +436,7 @@ namespace Nexo.Desktop.Demo
             Esperar(m.SondearAsync());
             Check(s.Llamadas.Count == antes, "terminado: el temporizador ya no consulta al servicio");
 
-            Consulta<PlanDeCuarentena> plan = m.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult();
+            Consulta<PlanDelServicio> plan = m.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult();
             Check(plan.Valor is not null && s.Llamadas.Contains("previsualizar:abc"), "la cuarentena se previsualiza con el id de ESTE escaneo");
             Check(!s.Llamadas.Contains("aplicar"), "previsualizar no aplica nada");
             ResultadoDeAccion ap = m.AplicarCuarentenaAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
@@ -514,12 +515,12 @@ namespace Nexo.Desktop.Demo
                     ? Consulta<ListaDeCuarentena>.Bien(new ListaDeCuarentena(Elementos.ToList()))
                     : Consulta<ListaDeCuarentena>.Mal(FallarAlListar));
             }
-            public Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
-            { Llamadas.Add("previsualizar-restauracion:" + id); return Task.FromResult(Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Restaurar " + id, true, TokenDePlan, new[] { "Es tu decision." }))); }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
+            { Llamadas.Add("previsualizar-restauracion:" + id); return Task.FromResult(Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Restaurar " + id, true, TokenDePlan, new[] { "Es tu decision." }))); }
             public Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct)
             { Llamadas.Add("restaurar"); Token = token; Elementos.RemoveAt(0); return Task.FromResult(new ResultadoDeAccion(true, false, "Archivo restaurado.")); }
-            public Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct)
-            { Llamadas.Add("previsualizar-purga"); return Task.FromResult(Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Purgar 1", true, TokenDePlan, Array.Empty<string>()))); }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarPurgaAsync(CancellationToken ct)
+            { Llamadas.Add("previsualizar-purga"); return Task.FromResult(Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Purgar 1", true, TokenDePlan, Array.Empty<string>()))); }
             public Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct)
             { Llamadas.Add("purgar"); Token = token; return Task.FromResult(new ResultadoDeAccion(false, true, "Se abrio el aviso de aprobacion (UAC).")); }
         }
@@ -554,7 +555,7 @@ namespace Nexo.Desktop.Demo
             Esperar(m.ActualizarAsync());
             Check(m.Seleccionado?.Id == "id-viejo.exe", "al volver a leer, la seleccion se mantiene");
 
-            Consulta<PlanDeCuarentena> plan = m.PrevisualizarRestauracionAsync().GetAwaiter().GetResult();
+            Consulta<PlanDelServicio> plan = m.PrevisualizarRestauracionAsync().GetAwaiter().GetResult();
             Check(plan.Valor is not null && s.Llamadas.SequenceEqual(new[] { "previsualizar-restauracion:id-viejo.exe" }), "la vista previa pide restaurar la fila elegida, y nada mas");
             int antes = s.Listados;
             ResultadoDeAccion r = m.RestaurarAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
@@ -566,7 +567,7 @@ namespace Nexo.Desktop.Demo
             Esperar(m.ActualizarAsync());
             Check(m.Elementos.Any(f => f.Vencido && f.Vence == "Vencido") && m.PuedeEliminarVencidos && m.Resumen.Contains("1 vencido (se pueden eliminar)"),
                 "un vencido: se marca, se dice y se ofrece eliminarlo (no se borra solo)", m.Resumen);
-            Consulta<PlanDeCuarentena> purga = m.PrevisualizarPurgaAsync().GetAwaiter().GetResult();
+            Consulta<PlanDelServicio> purga = m.PrevisualizarPurgaAsync().GetAwaiter().GetResult();
             Check(purga.Valor is not null && s.Llamadas.Last() == "previsualizar-purga" && !s.Llamadas.Contains("purgar"), "la purga se previsualiza sin aplicar nada");
             r = m.PurgarAsync(purga.Valor!.Token!).GetAwaiter().GetResult();
             Check(r.PidioAprobacion && m.Mensaje.Contains("UAC"), "si hace falta aprobacion, se dice");
@@ -585,6 +586,110 @@ namespace Nexo.Desktop.Demo
             var sinServicio = new CuarentenaModelo(Fuentes.CuarentenaPorDefecto("NexoIpc"));
             Esperar(sinServicio.ActualizarAsync());
             Check(!sinServicio.Leida && sinServicio.Resumen.StartsWith("No se pudo leer"), "sin servicio (esta compilacion): no se pudo leer, no «vacia»");
+        }
+
+        // ============================================================ Firewall
+        private const string EstadoDeFirewallJson =
+            "{\"reglas_de_nexo\":[{\"nombre\":\"Nexo: bloquear app.exe (salida)\",\"accion\":\"Bloquear\",\"direccion\":\"Saliente\",\"ruta\":\"C:\\\\Program Files\\\\Ejemplo\\\\app.exe\",\"habilitada\":true}," +
+            "{\"nombre\":\"Nexo: sigiloso ICMPv4\",\"accion\":\"Bloquear\",\"direccion\":\"Entrante\",\"habilitada\":true}]," +
+            "\"sigiloso\":true,\"perfiles\":[{\"perfil\":\"Dominio\",\"activo\":true,\"entrada_por_defecto\":\"Bloquear\"}," +
+            "{\"perfil\":\"Privado\",\"activo\":true,\"entrada_por_defecto\":\"Permitir\"},{\"perfil\":\"Publico\",\"activo\":false,\"entrada_por_defecto\":\"Bloquear\"}]}";
+
+        private sealed class FirewallFalso : IServicioDeFirewall
+        {
+            public Consulta<DetalleDeFirewall> AlLeer = LectorDeFirewall.Estado(Json(EstadoDeFirewallJson));
+            public int Lecturas;
+            public readonly System.Collections.Generic.List<string> Llamadas = new System.Collections.Generic.List<string>();
+            public string? Token;
+            public readonly string TokenDePlan = new string('d', 64);
+
+            public Task<Consulta<DetalleDeFirewall>> EstadoAsync(CancellationToken ct) { Lecturas++; return Task.FromResult(AlLeer); }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarBloqueoAsync(string r, DireccionPedida d, CancellationToken ct)
+            { Llamadas.Add("bloquear:" + r + ":" + d); return Plan(); }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarQuitarAsync(string n, CancellationToken ct)
+            { Llamadas.Add("quitar:" + n); return Plan(); }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarSigilosoAsync(bool a, CancellationToken ct)
+            { Llamadas.Add("sigiloso:" + a); return Plan(); }
+            public Task<ResultadoDeAccion> AplicarAsync(string token, CancellationToken ct)
+            { Llamadas.Add("aplicar"); Token = token; return Task.FromResult(new ResultadoDeAccion(true, false, "1 cambios aplicados. ")); }
+            private Task<Consulta<PlanDelServicio>> Plan()
+                => Task.FromResult(Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Plan", true, TokenDePlan, Array.Empty<string>())));
+        }
+
+        private static void ProbarFirewall()
+        {
+            Console.WriteLine("== Firewall: lector y modelo de la pestaña");
+
+            var e = LectorDeFirewall.Estado(Json(EstadoDeFirewallJson));
+            Check(e.Valor is { Sigiloso: true } && e.Valor.Reglas.Count == 2 && e.Valor.Reglas[0].Ruta == @"C:\Program Files\Ejemplo\app.exe"
+                  && e.Valor.Reglas[1].Ruta is null && e.Valor.Perfiles[1].EntradaPorDefecto == "Permitir",
+                "firewall.estado completo: reglas (con y sin programa) y perfiles");
+            var rota = LectorDeFirewall.Estado(Json("{\"reglas_de_nexo\":[{\"nombre\":\"Nexo: x\",\"accion\":\"Bloquear\",\"direccion\":\"Saliente\"}],\"sigiloso\":false,\"perfiles\":[]}"));
+            Check(rota.Valor is null && rota.Error is not null, "una regla sin «habilitada» invalida la respuesta");
+
+            string ambas = JsonSerializer.Serialize(LectorDeFirewall.ParametrosDeBloqueo(@"C:\a.exe", DireccionPedida.Ambas));
+            string sal = JsonSerializer.Serialize(LectorDeFirewall.ParametrosDeBloqueo(@"C:\a.exe", DireccionPedida.Saliente));
+            Check(ambas.Contains("\"tipo\":\"regla\"") && ambas.Contains("\"accion\":\"bloquear\"") && !ambas.Contains("direccion"),
+                "bloquear en las dos direcciones: sin «direccion» (asi lo pide el servicio)", ambas);
+            Check(sal.Contains("\"direccion\":\"saliente\""), "solo saliente: «direccion»: «saliente»", sal);
+
+            var rechazo = LectorDeEscaneo.Plan(Json(
+                "{\"descripcion\":\"Bloquear svchost.exe\\n  RECHAZADO: es un proceso del sistema\\n\",\"hay_cambios\":false,\"cambios\":[],\"rechazos\":[\"es un proceso del sistema\"],\"advertencias\":[]}"));
+            Check(rechazo.Valor is { HayCambios: false, Token: null } && rechazo.Valor.Descripcion.Contains("RECHAZADO"),
+                "un plan de firewall rechazado: sin token, y la descripcion dice por que");
+
+            var s = new FirewallFalso();
+            var m = new FirewallModelo(s);
+            Check(!m.PuedeBloquear && !m.PuedeCambiarSigiloso && m.Sigiloso is null, "antes de leer no se ofrece ninguna accion");
+            Check(m.PrevisualizarSigilosoAsync().GetAwaiter().GetResult().Valor is null && s.Llamadas.Count == 0,
+                "sin saber como esta el sigiloso no se pide cambiarlo");
+
+            Esperar(m.ActualizarAsync());
+            Check(m.Leido && m.Perfiles.Count == 3 && m.Reglas.Count == 2, "lee perfiles y reglas");
+            FilaDePerfil publico = m.Perfiles.Single(p => p.Perfil == "Público");
+            Check(publico.Estado == "DESACTIVADO" && m.Resumen.Contains("DESACTIVADO en 1 perfil") && m.Resumen.Contains("solo avisa"),
+                "un perfil apagado: se dice, y que Nexo no lo enciende", m.Resumen);
+            Check(m.Perfiles.Single(p => p.Perfil == "Privado").Entrada.Contains("PERMITE"), "un perfil que permite lo entrante por defecto, se marca");
+            Check(m.TextoBotonSigiloso == "Desactivar modo sigiloso..." && m.PuedeCambiarSigiloso && m.PuedeBloquear && !m.PuedeQuitar,
+                "con el sigiloso activado se ofrece desactivarlo; sin seleccion no se puede quitar");
+
+            Check(m.PrevisualizarSigilosoAsync().GetAwaiter().GetResult().Valor is not null && s.Llamadas.Last() == "sigiloso:False",
+                "cambiar el sigiloso pide lo contrario de como esta");
+            Check(m.PrevisualizarQuitarAsync().GetAwaiter().GetResult().Valor is null && s.Llamadas.Count == 1, "quitar sin seleccion: no se pide nada");
+            m.Seleccionada = m.Reglas[0];
+            Check(m.PuedeQuitar, "con una regla elegida se puede quitar");
+            m.PrevisualizarQuitarAsync().GetAwaiter().GetResult();
+            Check(s.Llamadas.Last() == "quitar:Nexo: bloquear app.exe (salida)", "quitar pide la regla elegida por su nombre", s.Llamadas.Last());
+            Esperar(m.ActualizarAsync());
+            Check(m.Seleccionada?.Nombre == "Nexo: bloquear app.exe (salida)", "al volver a leer, la seleccion se mantiene");
+
+            Check(m.PrevisualizarBloqueoAsync("  ").GetAwaiter().GetResult().Valor is null && !s.Llamadas.Any(l => l.StartsWith("bloquear")),
+                "bloquear sin programa: no se pide nada");
+            m.DireccionElegida = 1;
+            m.PrevisualizarBloqueoAsync(@"C:\Juegos\updater.exe").GetAwaiter().GetResult();
+            Check(s.Llamadas.Last() == @"bloquear:C:\Juegos\updater.exe:Saliente", "bloquear pide el programa y la direccion elegidos", s.Llamadas.Last());
+            Check(!s.Llamadas.Contains("aplicar"), "previsualizar nunca aplica");
+
+            int antes = s.Lecturas;
+            ResultadoDeAccion r = m.AplicarAsync(s.TokenDePlan).GetAwaiter().GetResult();
+            Check(r.Exito && s.Token == s.TokenDePlan && m.Mensaje.StartsWith("1 cambios aplicados") && s.Lecturas == antes + 1,
+                "aplicar manda el token, muestra el resultado y vuelve a leer");
+
+            s.AlLeer = Consulta<DetalleDeFirewall>.Mal("el servicio no está en marcha");
+            Esperar(m.ActualizarAsync());
+            Check(!m.Leido && m.Reglas.Count == 0 && m.Perfiles.Count == 0 && m.Sigiloso is null && !m.PuedeBloquear && !m.PuedeCambiarSigiloso
+                  && m.TextoSigiloso == "Sin datos." && m.Resumen.StartsWith("No se pudo leer el firewall"),
+                "si no se puede leer: nada viejo en pantalla y ninguna accion ofrecida", m.Resumen);
+
+            var s2 = new FirewallFalso { AlLeer = LectorDeFirewall.Estado(Json(EstadoDeFirewallJson.Replace("\"sigiloso\":true", "\"sigiloso\":false"))) };
+            var m2 = new FirewallModelo(s2);
+            Esperar(m2.ActualizarAsync());
+            m2.PrevisualizarSigilosoAsync().GetAwaiter().GetResult();
+            Check(m2.TextoBotonSigiloso == "Activar modo sigiloso..." && s2.Llamadas.Last() == "sigiloso:True", "con el sigiloso apagado se ofrece activarlo");
+
+            var sinServicio = new FirewallModelo(Fuentes.FirewallPorDefecto("NexoIpc"));
+            Esperar(sinServicio.ActualizarAsync());
+            Check(!sinServicio.Leido && !sinServicio.PuedeBloquear, "sin servicio (esta compilacion): no se pudo leer y no se ofrece nada");
         }
 
         private static void ProbarFuentePorDefecto()
@@ -624,10 +729,12 @@ namespace Nexo.Desktop.Demo
             cuarentena.Elementos.Add(ElementoQueVence(Hoy.AddDays(-1), Hoy.AddDays(29), "factura-octubre.zip", "Win.Test.EICAR_HDB-1"));
             cuarentena.Elementos.Add(ElementoQueVence(Hoy.AddDays(-31), Hoy.AddDays(-1), "crack-juego.exe", "Win.Trojan.Agent-123"));
             var cm = new CuarentenaModelo(cuarentena, () => Hoy);
+            var firewall = new FirewallFalso();
+            var fm = new FirewallModelo(firewall);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm);
+                w = new MainWindow(vm, em, cm, fm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -677,6 +784,25 @@ namespace Nexo.Desktop.Demo
                 w.TablaDeCuarentena.SelectedIndex = 0;
                 Dispatcher.UIThread.RunJobs();
                 Check(cm.Seleccionado?.Id == "id-factura-octubre.zip" && w.BotonRestaurar.IsEnabled, "al elegir una fila se puede restaurar");
+
+                // La pestaña Firewall.
+                Check(firewall.Lecturas == 1, "al abrirse la ventana lee el firewall una vez", firewall.Lecturas.ToString());
+                w.Pestanas.SelectedIndex = 3;
+                Dispatcher.UIThread.RunJobs();
+                Check(firewall.Lecturas == 2 && w.TablaDeReglas.ItemCount == 2 && w.ListaDePerfiles.ItemCount == 3,
+                    "pestaña Firewall: se vuelve a leer al entrar; 2 reglas y 3 perfiles");
+                Check(w.BotonSigiloso.Content as string == "Desactivar modo sigiloso..." && w.BotonSigiloso.IsEnabled && w.BotonBloquear.IsEnabled
+                      && !w.BotonQuitarRegla.IsEnabled, "botones: sigiloso segun el estado, bloquear si, quitar sin seleccion no");
+                Check(w.ResumenDeFirewall.Text!.Contains("DESACTIVADO en 1 perfil"), "el perfil apagado se dice arriba", w.ResumenDeFirewall.Text);
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string cuarta = System.IO.Path.ChangeExtension(captura, null) + "-firewall.png";
+                    w.CaptureRenderedFrame()?.Save(cuarta);
+                    Console.WriteLine("           captura: " + cuarta);
+                }
+                w.Pestanas.SelectedIndex = 6;
+                Dispatcher.UIThread.RunJobs();
 
                 if (captura is not null)
                 {

@@ -28,9 +28,10 @@ namespace Nexo.Ui.Desktop
         /// <summary>Solo para el previsualizador de Avalonia: sin servicio, y lo dice.</summary>
         public MainWindow() : this(new VentanaPrincipalModelo(new FuenteNoDisponible("vista de diseño")),
                                    new EscaneoModelo(new ServicioDeEscaneoNoDisponible("vista de diseño")),
-                                   new CuarentenaModelo(new ServicioDeCuarentenaNoDisponible("vista de diseño"))) { }
+                                   new CuarentenaModelo(new ServicioDeCuarentenaNoDisponible("vista de diseño")),
+                                   new FirewallModelo(new ServicioDeFirewallNoDisponible("vista de diseño"))) { }
 
-        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena)
+        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -41,13 +42,16 @@ namespace Nexo.Ui.Desktop
             Modelo = modelo;
             Escaneo = escaneo;
             Cuarentena = cuarentena;
+            Firewall = firewall;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
+            PanelDeFirewall.DataContext = firewall;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, _) =>
             {
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
+                else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
             };
 
             _temporizador = new DispatcherTimer { Interval = Sondeo };
@@ -58,6 +62,7 @@ namespace Nexo.Ui.Desktop
             {
                 await Modelo.ActualizarAsync();
                 await Cuarentena.ActualizarAsync();
+                await Firewall.ActualizarAsync();
                 _temporizador.Start();
                 _temporizadorDeEscaneo.Start();
             };
@@ -75,11 +80,13 @@ namespace Nexo.Ui.Desktop
         public VentanaPrincipalModelo Modelo { get; }
         public EscaneoModelo Escaneo { get; }
         public CuarentenaModelo Cuarentena { get; }
+        public FirewallModelo Firewall { get; }
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {
             await Modelo.ActualizarAsync();
             await Cuarentena.ActualizarAsync();
+            await Firewall.ActualizarAsync();
         }
 
         private void Salir(object? sender, RoutedEventArgs e) => Close();
@@ -142,14 +149,45 @@ namespace Nexo.Ui.Desktop
             await Modelo.ActualizarAsync();
         }
 
+        // ------------------------------------------------------------ Firewall
+        private async void ActualizarFirewall(object? sender, RoutedEventArgs e) => await Firewall.ActualizarAsync();
+
+        private async void BloquearPrograma(object? sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<IStorageFile> elegidos = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Elija el programa que quiere bloquear",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("Programas") { Patterns = new[] { "*.exe" } } }
+            });
+            string? ruta = elegidos.FirstOrDefault()?.TryGetLocalPath();
+            if (ruta is null) return;
+            await AplicarPlanDeFirewallAsync(await Firewall.PrevisualizarBloqueoAsync(ruta), "Bloquear programa",
+                "¿Crear estas reglas en el firewall de Windows?");
+        }
+
+        private async void QuitarRegla(object? sender, RoutedEventArgs e)
+            => await AplicarPlanDeFirewallAsync(await Firewall.PrevisualizarQuitarAsync(), "Quitar regla", "¿Quitar esta regla de Nexo?");
+
+        private async void CambiarSigiloso(object? sender, RoutedEventArgs e)
+            => await AplicarPlanDeFirewallAsync(await Firewall.PrevisualizarSigilosoAsync(), "Modo sigiloso", "¿Aplicar este cambio?");
+
+        private async System.Threading.Tasks.Task AplicarPlanDeFirewallAsync(Consulta<PlanDelServicio> plan, string titulo, string pregunta)
+        {
+            string? token = await ConfirmarPlanAsync(plan, titulo, pregunta);
+            if (token is null) return;
+            await MostrarResultadoAsync(titulo, await Firewall.AplicarAsync(token));
+            await Modelo.ActualizarAsync();
+        }
+
         // ------------------------------------------------------------ Dos pasos: vista previa y confirmacion
         /// <summary>
         /// Muestra el plan que preparo el servicio (no cambia nada) y devuelve su token solo si el usuario acepta. Si no se pudo
         /// preparar o no hay nada que hacer, lo dice y devuelve null.
         /// </summary>
-        private async System.Threading.Tasks.Task<string?> ConfirmarPlanAsync(Consulta<PlanDeCuarentena> plan, string titulo, string pregunta)
+        private async System.Threading.Tasks.Task<string?> ConfirmarPlanAsync(Consulta<PlanDelServicio> plan, string titulo, string pregunta)
         {
-            if (plan.Valor is not PlanDeCuarentena p)
+            if (plan.Valor is not PlanDelServicio p)
             {
                 await MessageBox.ShowDialog(this, "No se pudo preparar: " + plan.Error + ".", titulo, MessageBoxButtons.Ok, MessageBoxIcon.Warning);
                 return null;

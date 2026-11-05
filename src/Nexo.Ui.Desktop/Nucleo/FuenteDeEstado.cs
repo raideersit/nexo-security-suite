@@ -107,6 +107,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeFirewall FirewallPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeFirewallPorPipe(pipe, Espera);
+#else
+            return new ServicioDeFirewallNoDisponible(SinServicio);
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

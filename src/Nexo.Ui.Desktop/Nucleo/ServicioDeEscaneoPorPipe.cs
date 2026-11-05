@@ -41,7 +41,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         public async Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct)
             => LectorDeEscaneo.Cancelar(await LlamarAsync("escaneo.cancelar", new { id }, ct).ConfigureAwait(false));
 
-        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
             => LectorDeEscaneo.Plan(await LlamarAsync("cuarentena.previsualizar", new { escaneo = id }, ct).ConfigureAwait(false));
 
         public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
@@ -68,17 +68,51 @@ namespace Nexo.Ui.Desktop.Nucleo
         public async Task<Consulta<ListaDeCuarentena>> ListarAsync(CancellationToken ct)
             => LectorDeCuarentena.Listar(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.listar", null, ct).ConfigureAwait(false));
 
-        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
             => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.previsualizar-restauracion", new { id }, ct).ConfigureAwait(false));
 
         public Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct)
             => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Restauracion, token, _lanzador, ct);
 
-        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct)
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarPurgaAsync(CancellationToken ct)
             => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.previsualizar-purga", null, ct).ConfigureAwait(false));
 
         public Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct)
             => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Purga, token, _lanzador, ct);
+    }
+
+    /// <summary>firewall.* por el pipe. Aplicar va por AccionesDelServicio (TipoDeAccion.Firewall), igual que en la bandeja.</summary>
+    public sealed class ServicioDeFirewallPorPipe : IServicioDeFirewall
+    {
+        private readonly string _pipe;
+        private readonly TimeSpan _espera;
+        private readonly ILanzadorElevado _lanzador;
+
+        public ServicioDeFirewallPorPipe(string pipe, TimeSpan espera, ILanzadorElevado? lanzador = null)
+        {
+            _pipe = pipe;
+            _espera = espera;
+            _lanzador = lanzador ?? new LanzadorPorBandeja(pipe);
+        }
+
+        public async Task<Consulta<DetalleDeFirewall>> EstadoAsync(CancellationToken ct)
+            => LectorDeFirewall.Estado(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "firewall.estado", null, ct).ConfigureAwait(false));
+
+        public Task<Consulta<PlanDelServicio>> PrevisualizarBloqueoAsync(string rutaDelPrograma, DireccionPedida direccion, CancellationToken ct)
+            => PrevisualizarAsync(LectorDeFirewall.ParametrosDeBloqueo(rutaDelPrograma, direccion), ct);
+
+        public Task<Consulta<PlanDelServicio>> PrevisualizarQuitarAsync(string nombreDeLaRegla, CancellationToken ct)
+            => PrevisualizarAsync(new { tipo = "quitar", nombre = nombreDeLaRegla }, ct);
+
+        public Task<Consulta<PlanDelServicio>> PrevisualizarSigilosoAsync(bool activar, CancellationToken ct)
+            => PrevisualizarAsync(new { tipo = "sigiloso", activar }, ct);
+
+        public Task<ResultadoDeAccion> AplicarAsync(string token, CancellationToken ct)
+            => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Firewall, token, _lanzador, ct);
+
+        // La descripcion del servicio ya incluye los cambios, los rechazos y los avisos.
+        private async Task<Consulta<PlanDelServicio>> PrevisualizarAsync(object parametros, CancellationToken ct)
+            => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "firewall.previsualizar", parametros, ct).ConfigureAwait(false));
     }
 
     internal static class LlamadaPorPipe

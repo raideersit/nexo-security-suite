@@ -13,6 +13,7 @@ namespace Nexo.Ui.Desktop
             App.Fuente = Fuentes.PorDefecto(pipe);
             App.Escaneo = Fuentes.EscaneoPorDefecto(pipe);
             App.Cuarentena = Fuentes.CuarentenaPorDefecto(pipe);
+            App.Firewall = Fuentes.FirewallPorDefecto(pipe);
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
 

@@ -28,8 +28,8 @@ namespace Nexo.Ui.Desktop.Nucleo
         int OmitidosTotal,
         string? Error);
 
-    /// <summary>cuarentena.previsualizar: lo que se moveria. No cambia nada; el token permite aplicarlo despues.</summary>
-    public sealed record PlanDeCuarentena(string Descripcion, bool HayCambios, string? Token, IReadOnlyList<string> Avisos);
+    /// <summary>Un plan que preparo el servicio (cuarentena, restaurar, purgar, firewall): no cambia nada; el token permite aplicarlo despues.</summary>
+    public sealed record PlanDelServicio(string Descripcion, bool HayCambios, string? Token, IReadOnlyList<string> Avisos);
 
     /// <summary>Lo que paso al pedir que se aplique un plan.</summary>
     public sealed record ResultadoDeAccion(bool Exito, bool PidioAprobacion, string Mensaje);
@@ -41,7 +41,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         Task<Consulta<AvanceDeEscaneo>> AvanceAsync(string id, CancellationToken ct);
         Task<Consulta<ResultadoDeEscaneoVista>> ResultadoAsync(string id, CancellationToken ct);
         Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct);
-        Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct);
+        Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct);
         Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct);
     }
 
@@ -56,7 +56,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         public Task<Consulta<AvanceDeEscaneo>> AvanceAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<AvanceDeEscaneo>.Mal(_motivo));
         public Task<Consulta<ResultadoDeEscaneoVista>> ResultadoAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<ResultadoDeEscaneoVista>.Mal(_motivo));
         public Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<string>.Mal(_motivo));
-        public Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<PlanDeCuarentena>.Mal(_motivo));
+        public Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<PlanDelServicio>.Mal(_motivo));
         public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct) => Task.FromResult(new ResultadoDeAccion(false, false, _motivo));
     }
 
@@ -97,8 +97,8 @@ namespace Nexo.Ui.Desktop.Nucleo
 
         public static Consulta<string> Cancelar(RespuestaCruda r) => Leer(r, e => e.GetProperty("id").GetString() ?? "");
 
-        public static Consulta<PlanDeCuarentena> Plan(RespuestaCruda r)
-            => Leer(r, e => new PlanDeCuarentena(
+        public static Consulta<PlanDelServicio> Plan(RespuestaCruda r)
+            => Leer(r, e => new PlanDelServicio(
                 e.GetProperty("descripcion").GetString() ?? "",
                 e.GetProperty("hay_cambios").GetBoolean(),
                 Texto(e, "token"),

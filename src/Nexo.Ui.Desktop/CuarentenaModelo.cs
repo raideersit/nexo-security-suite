@@ -87,9 +87,9 @@ namespace Nexo.Ui.Desktop
         }
 
         /// <summary>Paso 1 de restaurar el seleccionado: que haria el servicio. No cambia nada.</summary>
-        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(CancellationToken ct = default)
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarRestauracionAsync(CancellationToken ct = default)
         {
-            if (_seleccionado is null) return Consulta<PlanDeCuarentena>.Mal("elija un archivo de la lista");
+            if (_seleccionado is null) return Consulta<PlanDelServicio>.Mal("elija un archivo de la lista");
             return await _servicio.PrevisualizarRestauracionAsync(_seleccionado.Id, ct);
         }
 
@@ -102,7 +102,7 @@ namespace Nexo.Ui.Desktop
         }
 
         /// <summary>Paso 1 de eliminar los vencidos: cuales serian. No cambia nada.</summary>
-        public Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct = default) => _servicio.PrevisualizarPurgaAsync(ct);
+        public Task<Consulta<PlanDelServicio>> PrevisualizarPurgaAsync(CancellationToken ct = default) => _servicio.PrevisualizarPurgaAsync(ct);
 
         public async Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct = default)
         {

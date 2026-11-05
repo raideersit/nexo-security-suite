@@ -20,9 +20,9 @@ namespace Nexo.Ui.Desktop.Nucleo
     public interface IServicioDeCuarentena
     {
         Task<Consulta<ListaDeCuarentena>> ListarAsync(CancellationToken ct);
-        Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct);
+        Task<Consulta<PlanDelServicio>> PrevisualizarRestauracionAsync(string id, CancellationToken ct);
         Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct);
-        Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct);
+        Task<Consulta<PlanDelServicio>> PrevisualizarPurgaAsync(CancellationToken ct);
         Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct);
     }
 
@@ -33,9 +33,9 @@ namespace Nexo.Ui.Desktop.Nucleo
         public ServicioDeCuarentenaNoDisponible(string motivo) => _motivo = motivo;
 
         public Task<Consulta<ListaDeCuarentena>> ListarAsync(CancellationToken ct) => Task.FromResult(Consulta<ListaDeCuarentena>.Mal(_motivo));
-        public Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<PlanDeCuarentena>.Mal(_motivo));
+        public Task<Consulta<PlanDelServicio>> PrevisualizarRestauracionAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<PlanDelServicio>.Mal(_motivo));
         public Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct) => Task.FromResult(new ResultadoDeAccion(false, false, _motivo));
-        public Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct) => Task.FromResult(Consulta<PlanDeCuarentena>.Mal(_motivo));
+        public Task<Consulta<PlanDelServicio>> PrevisualizarPurgaAsync(CancellationToken ct) => Task.FromResult(Consulta<PlanDelServicio>.Mal(_motivo));
         public Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct) => Task.FromResult(new ResultadoDeAccion(false, false, _motivo));
     }
 

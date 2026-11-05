@@ -14,6 +14,8 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeCuarentena? Cuarentena { get; set; }
 
+        internal static IServicioDeFirewall? Firewall { get; set; }
+
         public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
@@ -23,7 +25,8 @@ namespace Nexo.Ui.Desktop
                 escritorio.MainWindow = new MainWindow(
                     new VentanaPrincipalModelo(Fuente ?? new FuenteNoDisponible(sinFuente)),
                     new EscaneoModelo(Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)),
-                    new CuarentenaModelo(Cuarentena ?? new ServicioDeCuarentenaNoDisponible(sinFuente)));
+                    new CuarentenaModelo(Cuarentena ?? new ServicioDeCuarentenaNoDisponible(sinFuente)),
+                    new FirewallModelo(Firewall ?? new ServicioDeFirewallNoDisponible(sinFuente)));
             base.OnFrameworkInitializationCompleted();
         }
     }

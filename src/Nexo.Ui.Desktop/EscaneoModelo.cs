@@ -204,9 +204,9 @@ namespace Nexo.Ui.Desktop
         }
 
         /// <summary>Paso 1 de la cuarentena: que se moveria. No cambia nada.</summary>
-        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(CancellationToken ct = default)
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(CancellationToken ct = default)
         {
-            if (!PuedePonerEnCuarentena || _id is null) return Consulta<PlanDeCuarentena>.Mal("no hay detecciones de un escaneo terminado");
+            if (!PuedePonerEnCuarentena || _id is null) return Consulta<PlanDelServicio>.Mal("no hay detecciones de un escaneo terminado");
             return await _servicio.PrevisualizarCuarentenaAsync(_id, ct);
         }
 

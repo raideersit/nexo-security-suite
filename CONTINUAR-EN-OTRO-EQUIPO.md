@@ -807,8 +807,21 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
   - La confirmación de los planes (escaneo, restaurar, purgar) es una sola función, `ConfirmarPlanAsync`, en `MainWindow.axaml.cs`.
   - Pruebas: +25 (lector, modelo con un servicio falso y la pestaña cargada). Rota a propósito «no mostrar la lista vieja»: falla 1.
   - **SIN PROBAR:** contra el servicio real, incluidos restaurar y purgar con el aviso de UAC por la bandeja.
-- **Siguiente:** las pestañas que faltan (Tiempo real, Firewall, Limpieza, Disco), siguiendo la maqueta. Las acciones (limpieza,
-  firewall) por el mismo flujo de vista previa + token + aprobación (`AccionesDelServicio`).
+- **Pestaña «Firewall» (hecha):** los perfiles de Windows (activado o no, y si dejan pasar lo entrante por defecto), el modo
+  sigiloso, las reglas del grupo de Nexo y tres acciones: «Bloquear programa...» (elegir un `.exe` y la dirección: las dos, solo
+  saliente o solo entrante), «Quitar regla...» de la fila elegida y «Activar/Desactivar modo sigiloso...». Las tres van con
+  `firewall.previsualizar` (tipo `regla`, `quitar` o `sigiloso`) → confirmar → `firewall.aplicar` con el token, por
+  `AccionesDelServicio` (`TipoDeAccion.Firewall`) y, si hace falta UAC, por `nexo-tray.exe`. Las reglas y negativas (no bloquear
+  procesos del sistema ni Defender, solo tocar el grupo de Nexo, no encender un firewall apagado) las aplica el servicio; la
+  ventana solo muestra su plan, que ya trae los cambios, los RECHAZADOS y los AVISOS.
+  - Si no se sabe cómo está el sigiloso (no se pudo leer), no se ofrece ni activar ni desactivar. Si no se pudo leer el firewall,
+    no se muestra nada viejo ni se ofrece ninguna acción.
+  - «Conexiones bloqueadas» (eventos 5157): solo un texto que remite a `nexo-firewall bloqueos`; el servicio no los expone.
+  - `PlanDeCuarentena` se renombró a `PlanDelServicio` (lo usan también el firewall y la restauración).
+  - Pruebas: +27. Rota a propósito «sin datos no se ofrece cambiar el sigiloso»: falla 1.
+  - **SIN PROBAR:** contra el servicio real (y el Firewall de Windows real), incluido el aviso de UAC y el selector de archivos.
+- **Siguiente:** las pestañas que faltan (Tiempo real, Limpieza, Disco), siguiendo la maqueta. Limpieza por el mismo flujo de vista
+  previa + token + aprobación (`AccionesDelServicio`).
 
 ---
 
