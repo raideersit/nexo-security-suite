@@ -774,8 +774,26 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
 - **SIN PROBAR:** en Windows (ni compilada ahí ni corrida), y en particular `FuentePorPipe` contra el servicio real: el JSON de las
   pruebas está escrito a partir del código de los módulos, no capturado de un servicio en marcha. Tampoco en Windows 11 (bordes
   redondeados: por eso hereda de `ClassicWindow`), ni el consumo de memoria real.
-- **Siguiente:** las pestañas una por una siguiendo la maqueta. Las acciones (cuarentena, limpieza) tienen que pasar por el mismo
-  flujo de vista previa + token + aprobación que ya usa la bandeja (`AccionesDelServicio`).
+- **Pestaña «Escaneo» (hecha):** qué analizar (carpeta del usuario, Descargas, unidad del sistema u otra carpeta con «Examinar»),
+  archivos a la vez (1/2/4/8), iniciar, avance cada 1 s, cancelar, y el resultado con detecciones y la lista de «sin analizar».
+  - Usa `escaneo.iniciar|progreso|resultado|cancelar`. Las rutas las valida el servicio (la ventana solo evita mandar una vacía) y
+    escanea con la identidad del usuario. Un fallo suelto al pedir el avance no corta el seguimiento; 5 seguidos sí, y dice que
+    el escaneo puede seguir en el servicio. «Terminado» sin resultado se muestra como fallido, nunca como limpio.
+  - `ResumirEscaneo`: verde solo si el servicio dice `completamente_limpio`; con archivos sin analizar, incompleto, cancelado o
+    fallido nunca es «limpio». Si el servicio recorta la lista de omitidos (200), se dice cuántos se muestran del total.
+  - **Poner en cuarentena:** `cuarentena.previsualizar` con el id de ESE escaneo → se muestra el plan (descripción y avisos) →
+    solo si se acepta, `AccionesDelServicio.AplicarConAprobacionAsync` con el token. Si el servicio exige UAC, lo pide
+    **`nexo-tray.exe --aplicar`** (el mismo camino que la bandeja, con su control de `UbicacionSegura`): la ventana nunca se eleva
+    a sí misma. `nexo-tray.exe` tiene que estar en la misma carpeta que `nexo-desktop.exe`; si no está, se dice y no se cambia nada.
+    Con `dotnet run` están en carpetas `bin` distintas, así que la aprobación no funcionará así: hay que publicarlas juntas.
+  - Para eso `LanzadorElevado` pasó de `Auxiliar.cs` a `Nucleo/LanzadorElevado.cs` (mismo código y espacio de nombres), y la ventana
+    compila por enlace ese archivo, `AccionesDelServicio.cs` y `UbicacionSegura.cs` (solo en Windows).
+  - Pruebas: +43 (lector de `escaneo.*` y del plan, el resumen del resultado, el modelo con un servicio falso y la pestaña cargada).
+    Rotas a propósito «omitidos nunca es limpio» y «terminado sin resultado no es limpio»: falla 1 cada una.
+  - **SIN PROBAR:** todo contra el servicio real (escanear, cancelar, la cuarentena y el aviso de UAC por la bandeja) y el
+    selector de carpetas de Windows.
+- **Siguiente:** las pestañas que faltan, siguiendo la maqueta. Las acciones (limpieza, firewall, restaurar) por el mismo flujo de
+  vista previa + token + aprobación (`AccionesDelServicio`).
 
 ---
 

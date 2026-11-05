@@ -98,7 +98,106 @@
             </TabItem>
 
             <TabItem Header="Escaneo">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-scan en la consola (escanear no modifica nada; la cuarentena es una acción aparte)." />
+                <ScrollViewer x:Name="PanelDeEscaneo" x:DataType="local:EscaneoModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <Grid ColumnDefinitions="3*,10,2*">
+                            <HeaderedContentControl Grid.Column="0" Header="Qué analizar">
+                                <StackPanel Spacing="6">
+                                    <RadioButton GroupName="destino" IsChecked="{Binding DestinoUsuario}" Content="{Binding TextoUsuario}" />
+                                    <RadioButton GroupName="destino" IsChecked="{Binding DestinoDescargas}" Content="{Binding TextoDescargas}" />
+                                    <RadioButton GroupName="destino" IsChecked="{Binding DestinoUnidad}" Content="{Binding TextoUnidad}" />
+                                    <RadioButton GroupName="destino" IsChecked="{Binding DestinoOtra}" Content="Otra carpeta:" />
+                                    <DockPanel Margin="20,0,0,0" IsEnabled="{Binding DestinoOtra}">
+                                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Examinar..." Click="ElegirCarpeta" />
+                                        <TextBox x:Name="CajaDeRuta" Text="{Binding RutaOtra}" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <HeaderedContentControl Grid.Column="2" Header="Opciones">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
+                                        <TextBlock VerticalAlignment="Center" Text="Archivos a la vez:" />
+                                        <ComboBox ItemsSource="{Binding OpcionesDeParalelo}" SelectedItem="{Binding Paralelo}" MinWidth="60" />
+                                    </StackPanel>
+                                    <TextBlock DockPanel.Dock="Top" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#404040"
+                                               Text="El escaneo no modifica nada. Poner en cuarentena es una acción aparte." />
+                                    <Button x:Name="BotonIniciar" DockPanel.Dock="Bottom" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,8,0,0"
+                                            Content="Iniciar escaneo" IsDefault="True" IsEnabled="{Binding PuedeIniciar}" Click="IniciarEscaneo" />
+                                </DockPanel>
+                            </HeaderedContentControl>
+                        </Grid>
+
+                        <HeaderedContentControl Header="Progreso">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding TextoDeAvance}" />
+                                <ProgressBar Height="18" IsIndeterminate="{Binding EnCurso}" Minimum="0" Maximum="1" />
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Cancelar escaneo" IsEnabled="{Binding PuedeCancelar}" Click="CancelarEscaneo" />
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#800000" Text="{Binding Mensaje}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Resultados">
+                            <StackPanel Spacing="8">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeEscaneo" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1">
+                                    <StackPanel>
+                                        <Grid ColumnDefinitions="*,220,80" Background="#C0C0C0">
+                                            <TextBlock Grid.Column="0" Margin="6,3" Text="Archivo" />
+                                            <TextBlock Grid.Column="1" Margin="6,3" Text="Amenaza" />
+                                            <TextBlock Grid.Column="2" Margin="6,3" Text="Tamaño" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ListaDeDetecciones" ItemsSource="{Binding Detecciones}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="local:FilaDeDeteccion">
+                                                    <Grid ColumnDefinitions="*,220,80">
+                                                        <TextBlock Grid.Column="0" Margin="6,3" Text="{Binding Ruta}" TextWrapping="Wrap"
+                                                                   FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                        <TextBlock Grid.Column="1" Margin="6,3" Text="{Binding Firma}" TextWrapping="Wrap" Foreground="#C00000" />
+                                                        <TextBlock Grid.Column="2" Margin="6,3" Text="{Binding Tamano}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Spacing="4" IsVisible="{Binding HayOmitidos}">
+                                    <TextBlock Text="{Binding TextoOmitidos}" />
+                                    <Border Background="White" BorderBrush="#808080" BorderThickness="1" MaxHeight="140">
+                                        <ScrollViewer>
+                                            <ItemsControl ItemsSource="{Binding Omitidos}" Margin="6,3">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+
+                                <DockPanel>
+                                    <Button x:Name="BotonCuarentenaDeEscaneo" DockPanel.Dock="Right" Content="Poner en cuarentena..." FontWeight="Bold"
+                                            IsEnabled="{Binding PuedePonerEnCuarentena}" Click="PonerEnCuarentena" />
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#404040"
+                                               Text="Un archivo sin analizar nunca cuenta como limpio." />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Tiempo real">
                 <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Las detecciones del tiempo real se revisan desde la bandeja del sistema (nexo-tray)." />

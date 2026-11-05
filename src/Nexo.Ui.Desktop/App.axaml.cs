@@ -10,13 +10,17 @@ namespace Nexo.Ui.Desktop
         /// <summary>La pone Program antes de arrancar; sin ella (diseñador, pruebas) no hay servicio y se dice.</summary>
         internal static IFuenteDeEstado? Fuente { get; set; }
 
+        internal static IServicioDeEscaneo? Escaneo { get; set; }
+
         public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
         {
+            const string sinFuente = "la ventana se abrió sin conexión configurada";
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime escritorio)
                 escritorio.MainWindow = new MainWindow(
-                    new VentanaPrincipalModelo(Fuente ?? new FuenteNoDisponible("la ventana se abrió sin fuente de estado")));
+                    new VentanaPrincipalModelo(Fuente ?? new FuenteNoDisponible(sinFuente)),
+                    new EscaneoModelo(Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)));
             base.OnFrameworkInitializationCompleted();
         }
     }

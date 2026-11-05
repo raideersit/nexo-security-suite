@@ -85,10 +85,21 @@ namespace Nexo.Ui.Desktop.Nucleo
 #if WINDOWS
             return new FuentePorPipe(pipe, Espera);
 #else
-            return new FuenteNoDisponible(OperatingSystem.IsWindows()
-                ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
-                : "el servicio de Nexo todavía no existe para Linux");
+            return new FuenteNoDisponible(SinServicio);
 #endif
         }
+
+        public static IServicioDeEscaneo EscaneoPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeEscaneoPorPipe(pipe, Espera);
+#else
+            return new ServicioDeEscaneoNoDisponible(SinServicio);
+#endif
+        }
+
+        private static string SinServicio => OperatingSystem.IsWindows()
+            ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
+            : "el servicio de Nexo todavía no existe para Linux";
     }
 }

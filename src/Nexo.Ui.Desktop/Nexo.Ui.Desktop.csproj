@@ -38,6 +38,10 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
     <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\Instantanea.cs" Link="Compartido\Instantanea.cs" />
+    <!-- Las acciones que cambian algo van por el mismo codigo que la bandeja: vista previa, token y aprobacion (UAC). -->
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\AccionesDelServicio.cs" Link="Compartido\AccionesDelServicio.cs" />
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\LanzadorElevado.cs" Link="Compartido\LanzadorElevado.cs" />
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\UbicacionSegura.cs" Link="Compartido\UbicacionSegura.cs" />
   </ItemGroup>
 
 </Project>

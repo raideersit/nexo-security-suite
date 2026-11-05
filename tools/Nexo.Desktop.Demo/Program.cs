@@ -34,6 +34,9 @@ namespace Nexo.Desktop.Demo
             ProbarResumen();
             ProbarResumenDeModulos();
             ProbarModeloDeLaVentana();
+            ProbarLectorDeEscaneo();
+            ProbarResumenDeEscaneo();
+            ProbarModeloDeEscaneo();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -293,6 +296,200 @@ namespace Nexo.Desktop.Demo
             Check(lenta.Llamadas == 2, "terminada la anterior, se puede volver a consultar");
         }
 
+        // ============================================================ Escaneo
+        private static ResultadoDeEscaneoVista ResultadoDeEscaneo(int detecciones = 0, int omitidos = 0, bool incompleto = false,
+                                                                   bool limpio = true, int omitidosMostrados = -1)
+        {
+            var det = Enumerable.Range(1, detecciones)
+                .Select(i => new DeteccionDeEscaneo(@"C:\Users\u\Downloads\f" + i + ".zip", "Win.Test.EICAR_HDB-1", 68, "abc" + i)).ToList();
+            var omi = Enumerable.Range(1, omitidosMostrados < 0 ? omitidos : omitidosMostrados)
+                .Select(i => @"C:\Users\u\Downloads\o" + i + ".mkv — demasiado grande").ToList();
+            return new ResultadoDeEscaneoVista("abc", "terminado", true, 120, limpio && detecciones == 0 && omitidos == 0 && !incompleto,
+                incompleto, incompleto ? "5 errores seguidos del motor" : null, 3.4, det, omi, omitidos, null);
+        }
+
+        private sealed class EscaneoFalso : IServicioDeEscaneo
+        {
+            public Consulta<string> AlIniciar = Consulta<string>.Bien("abc");
+            public readonly System.Collections.Generic.Queue<Consulta<AvanceDeEscaneo>> Avances = new System.Collections.Generic.Queue<Consulta<AvanceDeEscaneo>>();
+            public Consulta<ResultadoDeEscaneoVista> AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(ResultadoDeEscaneo());
+            public Consulta<PlanDeCuarentena> AlPlan = Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Mover 1 archivo", true, new string('a', 64), Array.Empty<string>()));
+            public ResultadoDeAccion AlAplicar = new ResultadoDeAccion(true, false, "1 archivos en cuarentena.");
+            public readonly System.Collections.Generic.List<string> Llamadas = new System.Collections.Generic.List<string>();
+            public System.Collections.Generic.IReadOnlyList<string>? RutasPedidas;
+            public int ParaleloPedido;
+            public string? TokenAplicado;
+
+            public Task<Consulta<string>> IniciarAsync(System.Collections.Generic.IReadOnlyList<string> rutas, int paralelo, CancellationToken ct)
+            { Llamadas.Add("iniciar"); RutasPedidas = rutas; ParaleloPedido = paralelo; return Task.FromResult(AlIniciar); }
+            public Task<Consulta<AvanceDeEscaneo>> AvanceAsync(string id, CancellationToken ct)
+            { Llamadas.Add("progreso:" + id); return Task.FromResult(Avances.Count > 0 ? Avances.Dequeue() : Consulta<AvanceDeEscaneo>.Mal("sin datos de prueba")); }
+            public Task<Consulta<ResultadoDeEscaneoVista>> ResultadoAsync(string id, CancellationToken ct)
+            { Llamadas.Add("resultado:" + id); return Task.FromResult(AlResultado); }
+            public Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct)
+            { Llamadas.Add("cancelar:" + id); return Task.FromResult(Consulta<string>.Bien(id)); }
+            public Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
+            { Llamadas.Add("previsualizar:" + id); return Task.FromResult(AlPlan); }
+            public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
+            { Llamadas.Add("aplicar"); TokenAplicado = token; return Task.FromResult(AlAplicar); }
+        }
+
+        private static Consulta<AvanceDeEscaneo> Avance(string estado, int analizados, string? error = null)
+            => Consulta<AvanceDeEscaneo>.Bien(new AvanceDeEscaneo("abc", estado, analizados, error));
+
+        private static EscaneoModelo ModeloDeEscaneo(EscaneoFalso s) => new EscaneoModelo(s, @"C:\Users\u", @"C:\");
+
+        private static void ProbarLectorDeEscaneo()
+        {
+            Console.WriteLine("== Lector de escaneo.* y cuarentena.previsualizar");
+
+            Check(LectorDeEscaneo.Iniciar(Json("{\"id\":\"9f2c\",\"rutas\":[\"C:\\\\Users\"]}")).Valor == "9f2c", "escaneo.iniciar: el id");
+            var c = LectorDeEscaneo.Iniciar(new RespuestaCruda(false, "ya hay un escaneo en curso", null));
+            Check(c.Valor is null && c.Error == "ya hay un escaneo en curso", "escaneo.iniciar rechazado: el motivo del servicio, tal cual", c.Error);
+
+            var a = LectorDeEscaneo.Avance(Json("{\"id\":\"9f2c\",\"estado\":\"corriendo\",\"analizados\":1864}"));
+            Check(a.Valor is { Estado: "corriendo", Analizados: 1864, Error: null }, "escaneo.progreso (sin «error», que el servicio omite si es nulo)");
+
+            var r = LectorDeEscaneo.Resultado(Json("{\"id\":\"9f2c\",\"estado\":\"cancelado\",\"listo\":false}"));
+            Check(r.Valor is { Listo: false, Estado: "cancelado" }, "escaneo.resultado sin resultado (cancelado)");
+            r = LectorDeEscaneo.Resultado(Json(
+                "{\"id\":\"9f2c\",\"estado\":\"terminado\",\"listo\":true,\"analizados\":3012,\"completamente_limpio\":false,\"incompleto\":false," +
+                "\"duracion_segundos\":41.2,\"detecciones\":[{\"ruta\":\"C:\\\\x.zip\",\"firma\":\"Win.Test.EICAR_HDB-1\",\"bytes\":184,\"sha256\":\"ab\"}]," +
+                "\"omitidos\":[\"C:\\\\a.mkv — demasiado grande\",\"C:\\\\b.docx — en uso\"],\"omitidos_total\":5}"));
+            Check(r.Valor is { Listo: true, Analizados: 3012, OmitidosTotal: 5, MotivoIncompleto: null } && r.Valor.Detecciones.Count == 1
+                  && r.Valor.Omitidos.Count == 2, "escaneo.resultado completo: detecciones, omitidos y total");
+            r = LectorDeEscaneo.Resultado(Json(
+                "{\"id\":\"9f2c\",\"estado\":\"terminado\",\"listo\":true,\"analizados\":3,\"completamente_limpio\":true,\"incompleto\":false," +
+                "\"duracion_segundos\":1,\"detecciones\":[],\"omitidos\":[]}"));
+            Check(r.Valor is null && r.Error!.Contains("no reconocida"), "sin «omitidos_total»: no se da por limpio a medias", r.Error);
+
+            var p = LectorDeEscaneo.Plan(Json("{\"descripcion\":\"Mover 1 archivo\",\"hay_cambios\":true,\"token\":\"" + new string('b', 64) + "\",\"avisos\":[\"Defender\"]}"));
+            Check(p.Valor is { HayCambios: true } && p.Valor.Token!.Length == 64 && p.Valor.Avisos.Count == 1, "cuarentena.previsualizar con token y avisos");
+            p = LectorDeEscaneo.Plan(Json("{\"descripcion\":\"Nada que mover\",\"hay_cambios\":false}"));
+            Check(p.Valor is { HayCambios: false, Token: null }, "plan sin cambios: sin token");
+        }
+
+        private static void ProbarResumenDeEscaneo()
+        {
+            Console.WriteLine("== Resumen del resultado de un escaneo");
+
+            var r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(), null);
+            Check(r.Indicador == Indicador.Correcto && r.Titulo.Contains("se pudo analizar todo"), "limpio y completo: verde", r.Titulo);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(omitidos: 3), null);
+            Check(r.Indicador == Indicador.Atencion && r.Titulo == "Sin detecciones, pero 3 archivos no se pudieron analizar." && r.Detalle.Contains("no cuentan como limpios"),
+                "con archivos sin analizar: atencion, nunca «limpio»", r.Titulo);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(incompleto: true), null);
+            Check(r.Indicador == Indicador.Atencion && r.Titulo.Contains("INCOMPLETO") && r.Detalle.Contains("5 errores seguidos"), "incompleto: lo dice con el motivo", r.Detalle);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(detecciones: 2, incompleto: true), null);
+            Check(r.Indicador == Indicador.Alerta && r.Titulo.Contains("2 detecciones"), "incompleto con detecciones: alerta", r.Titulo);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(detecciones: 1, omitidos: 1), null);
+            Check(r.Indicador == Indicador.Alerta && r.Titulo == "1 detección." && r.Detalle.Contains("no se han tocado") && r.Detalle.Contains("1 archivo no se pudo"),
+                "con una deteccion: alerta, los archivos no se tocaron y menciona lo no analizado", r.Detalle);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Cancelado, 40, null, null);
+            Check(r.Indicador == Indicador.Atencion && r.Detalle.Contains("40 archivos") && r.Detalle.Contains("no cuenta como limpio"), "cancelado: no cuenta como limpio", r.Detalle);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Fallido, 0, null, "el motor de analisis no esta disponible");
+            Check(r.Indicador == Indicador.Atencion && r.Detalle.Contains("motor de analisis"), "fallido: el motivo", r.Detalle);
+            r = ResumirEscaneo.Desde(FaseDeEscaneo.Terminado, 120, ResultadoDeEscaneo(limpio: false), null);
+            Check(r.Indicador == Indicador.SinDatos, "terminado sin que el servicio confirme «completamente limpio»: no es verde");
+        }
+
+        private static void ProbarModeloDeEscaneo()
+        {
+            Console.WriteLine("== Modelo de la pestaña Escaneo (servicio falso)");
+
+            var s = new EscaneoFalso();
+            var m = ModeloDeEscaneo(s);
+            Check(m.Fase == FaseDeEscaneo.Listo && m.PuedeIniciar && !m.PuedeCancelar && !m.PuedePonerEnCuarentena, "al empezar: se puede iniciar, nada mas");
+            Check(m.DestinoDescargas && m.RutaDescargas == System.IO.Path.Combine(@"C:\Users\u", "Downloads"), "por omision analiza Descargas");
+
+            m.DestinoOtra = true;
+            Esperar(m.IniciarAsync());
+            Check(s.Llamadas.Count == 0 && m.Mensaje.Contains("elija la carpeta"), "otra carpeta vacia: no se pide nada al servicio", m.Mensaje);
+            Check(!m.DestinoDescargas, "los destinos son excluyentes");
+
+            m.DestinoDescargas = true;
+            m.Paralelo = 2;
+            Esperar(m.IniciarAsync());
+            Check(s.RutasPedidas!.SequenceEqual(new[] { m.RutaDescargas }) && s.ParaleloPedido == 2, "pide la ruta elegida y el paralelismo");
+            Check(m.Fase == FaseDeEscaneo.Corriendo && !m.PuedeIniciar && m.PuedeCancelar && m.EnCurso, "corriendo: no se puede lanzar otro, si cancelar");
+
+            s.Avances.Enqueue(Avance("corriendo", 500));
+            Esperar(m.SondearAsync());
+            Check(m.TextoDeAvance == "Analizados: 500 archivos" && m.Titulo == "Escaneando...", "el avance se muestra", m.TextoDeAvance);
+
+            s.Avances.Enqueue(Consulta<AvanceDeEscaneo>.Mal("el servicio no está en marcha"));
+            Esperar(m.SondearAsync());
+            Check(m.Fase == FaseDeEscaneo.Corriendo && m.Mensaje.Contains("Se reintenta"), "un fallo suelto al consultar el avance no corta el seguimiento", m.Mensaje);
+
+            s.AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(ResultadoDeEscaneo(detecciones: 1, omitidos: 5, omitidosMostrados: 2));
+            s.Avances.Enqueue(Avance("terminado", 120));
+            Esperar(m.SondearAsync());
+            Check(m.Fase == FaseDeEscaneo.Terminado && s.Llamadas.Contains("resultado:abc") && m.Detecciones.Count == 1 && m.Mensaje == "",
+                "al terminar pide el resultado y muestra la deteccion");
+            Check(m.PuedePonerEnCuarentena && m.PuedeIniciar && !m.PuedeCancelar, "con detecciones se ofrece la cuarentena, y otro escaneo");
+            Check(m.HayOmitidos && m.TextoOmitidos.Contains("se muestran 2 de 5"), "si el servicio recorta la lista de omitidos, lo dice", m.TextoOmitidos);
+
+            int antes = s.Llamadas.Count;
+            Esperar(m.SondearAsync());
+            Check(s.Llamadas.Count == antes, "terminado: el temporizador ya no consulta al servicio");
+
+            Consulta<PlanDeCuarentena> plan = m.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult();
+            Check(plan.Valor is not null && s.Llamadas.Contains("previsualizar:abc"), "la cuarentena se previsualiza con el id de ESTE escaneo");
+            Check(!s.Llamadas.Contains("aplicar"), "previsualizar no aplica nada");
+            ResultadoDeAccion ap = m.AplicarCuarentenaAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
+            Check(ap.Exito && s.TokenAplicado == plan.Valor.Token && m.Mensaje == "1 archivos en cuarentena.", "aplicar manda el token del plan y muestra el resultado");
+
+            // Un escaneo limpio no ofrece cuarentena.
+            var s2 = new EscaneoFalso();
+            var m2 = ModeloDeEscaneo(s2);
+            Esperar(m2.IniciarAsync());
+            s2.Avances.Enqueue(Avance("terminado", 120));
+            Esperar(m2.SondearAsync());
+            Check(m2.Fase == FaseDeEscaneo.Terminado && !m2.PuedePonerEnCuarentena && m2.Titulo.Contains("se pudo analizar todo"), "limpio: verde y sin cuarentena");
+            Check(m2.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult().Valor is null && !s2.Llamadas.Any(l => l.StartsWith("previsualizar")),
+                "sin detecciones, ni siquiera se pide la vista previa");
+
+            // Rechazo al iniciar.
+            var s3 = new EscaneoFalso { AlIniciar = Consulta<string>.Mal("ya hay un escaneo en curso") };
+            var m3 = ModeloDeEscaneo(s3);
+            Esperar(m3.IniciarAsync());
+            Check(m3.Fase == FaseDeEscaneo.Listo && m3.PuedeIniciar && m3.Mensaje.Contains("ya hay un escaneo en curso"), "si el servicio rechaza el escaneo, se dice por que", m3.Mensaje);
+
+            // Cancelar.
+            var s4 = new EscaneoFalso();
+            var m4 = ModeloDeEscaneo(s4);
+            Esperar(m4.IniciarAsync());
+            Esperar(m4.CancelarAsync());
+            Check(s4.Llamadas.Contains("cancelar:abc") && m4.Mensaje == "Cancelando...", "cancelar se pide con el id");
+            s4.Avances.Enqueue(Avance("cancelado", 40));
+            Esperar(m4.SondearAsync());
+            Check(m4.Fase == FaseDeEscaneo.Cancelado && m4.Titulo == "Escaneo cancelado." && !m4.PuedePonerEnCuarentena, "cancelado: lo dice y no ofrece cuarentena");
+
+            // Se pierde el servicio.
+            var s5 = new EscaneoFalso();
+            var m5 = ModeloDeEscaneo(s5);
+            Esperar(m5.IniciarAsync());
+            for (int i = 0; i < EscaneoModelo.FallosDeAvanceTolerados; i++) Esperar(m5.SondearAsync());
+            Check(m5.Fase == FaseDeEscaneo.Fallido && m5.Detalle.Contains("perdió el contacto") && m5.PuedeIniciar,
+                "varios fallos seguidos: deja de seguirlo y dice que puede seguir en el servicio", m5.Detalle);
+
+            // Termina sin resultado.
+            var s6 = new EscaneoFalso { AlResultado = Consulta<ResultadoDeEscaneoVista>.Mal("el escaneo no existe") };
+            var m6 = ModeloDeEscaneo(s6);
+            Esperar(m6.IniciarAsync());
+            s6.Avances.Enqueue(Avance("terminado", 10));
+            Esperar(m6.SondearAsync());
+            Check(m6.Fase == FaseDeEscaneo.Fallido && !m6.Titulo.Contains("Sin detecciones"), "terminado pero sin resultado: no se presenta como limpio", m6.Titulo);
+
+            // Fallido en el servicio.
+            var s7 = new EscaneoFalso();
+            var m7 = ModeloDeEscaneo(s7);
+            Esperar(m7.IniciarAsync());
+            s7.Avances.Enqueue(Avance("fallido", 3, "no se pudo conectar con clamd"));
+            Esperar(m7.SondearAsync());
+            Check(m7.Fase == FaseDeEscaneo.Fallido && m7.Detalle.Contains("clamd"), "fallido en el servicio: el motivo", m7.Detalle);
+        }
+
         private static void ProbarFuentePorDefecto()
         {
             Console.WriteLine("== Fuente por defecto en esta compilacion (net8.0)");
@@ -302,6 +499,9 @@ namespace Nexo.Desktop.Demo
                 "y explica por que", e.Servicio.Error);
             Check(e.Firewall.Valor is null && e.Motor.Valor is null && e.Programado.Valor is null && e.Cuarentena.Valor is null,
                 "y no trae datos de ningun modulo");
+            var esc = new EscaneoModelo(Fuentes.EscaneoPorDefecto("NexoIpc"));
+            Esperar(esc.IniciarAsync());
+            Check(esc.Fase == FaseDeEscaneo.Listo && esc.Mensaje.StartsWith("No se pudo iniciar"), "y el escaneo dice que no puede, sin quedarse «escaneando»", esc.Mensaje);
         }
 
         // ============================================================
@@ -318,10 +518,15 @@ namespace Nexo.Desktop.Demo
                     cuarentena: new EstadoDeCuarentena(2, new DateTimeOffset(2026, 11, 19, 9, 0, 0, TimeSpan.Zero)))
             };
             var vm = new VentanaPrincipalModelo(fija, () => new DateTime(2026, 11, 5, 9, 12, 30));
+            var escaneo = new EscaneoFalso
+            {
+                AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(ResultadoDeEscaneo(detecciones: 1, omitidos: 2))
+            };
+            var em = ModeloDeEscaneo(escaneo);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm);
+                w = new MainWindow(vm, em);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -340,6 +545,24 @@ namespace Nexo.Desktop.Demo
                     Check(imagen is not null && imagen.PixelSize.Width > 0, "se pudo capturar la ventana");
                     imagen?.Save(captura);
                     Console.WriteLine("           captura: " + captura);
+                }
+
+                // La pestaña Escaneo, con un escaneo que termina con una deteccion y dos archivos sin analizar.
+                w.Pestanas.SelectedIndex = 1;
+                Esperar(em.IniciarAsync());
+                escaneo.Avances.Enqueue(Avance("terminado", 120));
+                Esperar(em.SondearAsync());
+                Dispatcher.UIThread.RunJobs();
+                Check(w.TituloDeEscaneo.Text == "1 detección.", "pestaña Escaneo: el resultado enlazado", w.TituloDeEscaneo.Text);
+                Check(w.ListaDeDetecciones.ItemCount == 1 && w.BotonCuarentenaDeEscaneo.IsEnabled && w.BotonIniciar.IsEnabled,
+                    "pestaña Escaneo: la deteccion en la tabla y la cuarentena habilitada");
+
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string segunda = System.IO.Path.ChangeExtension(captura, null) + "-escaneo.png";
+                    w.CaptureRenderedFrame()?.Save(segunda);
+                    Console.WriteLine("           captura: " + segunda);
                 }
             }
             catch (Exception ex)
