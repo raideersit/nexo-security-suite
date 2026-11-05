@@ -116,6 +116,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeLimpieza LimpiezaPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeLimpiezaPorPipe(pipe, Espera);
+#else
+            return new ServicioDeLimpiezaNoDisponible(SinServicio);
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

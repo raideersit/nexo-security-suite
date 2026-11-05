@@ -115,6 +115,30 @@ namespace Nexo.Ui.Desktop.Nucleo
             => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "firewall.previsualizar", parametros, ct).ConfigureAwait(false));
     }
 
+    /// <summary>limpieza.* por el pipe. Aplicar va por AccionesDelServicio (TipoDeAccion.Limpieza), igual que en la bandeja.</summary>
+    public sealed class ServicioDeLimpiezaPorPipe : IServicioDeLimpieza
+    {
+        private readonly string _pipe;
+        private readonly TimeSpan _espera;
+        private readonly ILanzadorElevado _lanzador;
+
+        public ServicioDeLimpiezaPorPipe(string pipe, TimeSpan espera, ILanzadorElevado? lanzador = null)
+        {
+            _pipe = pipe;
+            _espera = espera;
+            _lanzador = lanzador ?? new LanzadorPorBandeja(pipe);
+        }
+
+        public async Task<Consulta<CatalogoDeLimpieza>> ReglasAsync(CancellationToken ct)
+            => LectorDeLimpieza.Reglas(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "limpieza.reglas", null, ct).ConfigureAwait(false));
+
+        public async Task<Consulta<VistaDeLimpieza>> PrevisualizarAsync(IReadOnlyList<string> reglas, CancellationToken ct)
+            => LectorDeLimpieza.Vista(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "limpieza.previsualizar", new { reglas }, ct).ConfigureAwait(false));
+
+        public Task<ResultadoDeAccion> AplicarAsync(string token, CancellationToken ct)
+            => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Limpieza, token, _lanzador, ct);
+    }
+
     internal static class LlamadaPorPipe
     {
         /// <summary>Una llamada en su propia conexion. Un fallo de conexion vuelve como respuesta con error, no como excepcion.</summary>

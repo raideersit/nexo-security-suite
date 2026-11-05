@@ -820,8 +820,25 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
   - `PlanDeCuarentena` se renombró a `PlanDelServicio` (lo usan también el firewall y la restauración).
   - Pruebas: +27. Rota a propósito «sin datos no se ofrece cambiar el sigiloso»: falla 1.
   - **SIN PROBAR:** contra el servicio real (y el Firewall de Windows real), incluido el aviso de UAC y el selector de archivos.
-- **Siguiente:** las pestañas que faltan (Tiempo real, Limpieza, Disco), siguiendo la maqueta. Limpieza por el mismo flujo de vista
-  previa + token + aprobación (`AccionesDelServicio`).
+- **Pestaña «Limpieza» (hecha):** tres recuadros, como el asistente de la maqueta.
+  1. **Qué limpiar:** las reglas de `limpieza.reglas` con casillas (marcadas solo las de riesgo bajo, como el servicio), su categoría,
+     riesgo y si piden administrador, y el **modo del servicio** (Papelera, simulado o permanente; lo decide su configuración, no la
+     ventana). En modo permanente lo avisa en rojo y el botón dice «Borrar para siempre».
+  2. **Qué se encontró:** `limpieza.previsualizar` con los ids marcados (nunca rutas): cuánto se liberaría, por categoría, los 20
+     más grandes, los que se omitirán (y si el servicio recortó la lista) y las reglas sin permisos. No borra nada.
+  3. **Confirmar:** hay que escribir **BORRAR** (exacto) y el botón solo se habilita con una vista previa vigente. Se aplica con
+     `AccionesDelServicio` (`TipoDeAccion.Limpieza`) y, si hace falta UAC, por `nexo-tray.exe`.
+  - **Si se cambia una casilla después de la vista previa, esa vista previa deja de valer** (y se borra lo escrito): nunca se limpia
+    algo distinto de lo que se ve. Una vista previa caducada (`expira`) no se manda. Después de limpiar, el token ya se gastó: para
+    volver a limpiar hay que previsualizar otra vez.
+  - El catálogo se lee al entrar en la pestaña (una vez; si falla, se reintenta al volver a entrar). La vista previa, solo cuando se
+    pide: recorre el perfil del usuario.
+  - Pruebas: +31. Rota a propósito «cambiar la selección invalida la vista previa»: fallan 4, entre ellas «sin vista previa vigente
+    no se limpia nada».
+  - **SIN PROBAR:** contra el servicio real (incluido cuánto tarda la vista previa en un perfil grande, que hoy no muestra avance) y
+    el aviso de UAC.
+- **Siguiente:** «Tiempo real» (las detecciones y la cobertura ya las da `tiempo-real.estado|detecciones`) y «Disco», que necesita
+  antes que el servicio exponga la salud del disco (hoy no hay método en el pipe).
 
 ---
 

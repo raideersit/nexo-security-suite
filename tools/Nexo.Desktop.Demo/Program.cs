@@ -39,6 +39,7 @@ namespace Nexo.Desktop.Demo
             ProbarModeloDeEscaneo();
             ProbarCuarentena();
             ProbarFirewall();
+            ProbarLimpieza();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -692,6 +693,123 @@ namespace Nexo.Desktop.Demo
             Check(!sinServicio.Leido && !sinServicio.PuedeBloquear, "sin servicio (esta compilacion): no se pudo leer y no se ofrece nada");
         }
 
+        // ============================================================ Limpieza
+        private const string ReglasJson =
+            "{\"modo\":\"papelera\",\"reversible\":true,\"reglas\":[" +
+            "{\"id\":\"temp-usuario\",\"nombre\":\"Archivos temporales del usuario\",\"categoria\":\"temporales\",\"riesgo\":\"Bajo\",\"requiere_admin\":false,\"activa_por_defecto\":true}," +
+            "{\"id\":\"cache-edge\",\"nombre\":\"Caché de Edge\",\"categoria\":\"navegadores\",\"riesgo\":\"Medio\",\"requiere_admin\":false,\"activa_por_defecto\":false}," +
+            "{\"id\":\"windows-update\",\"nombre\":\"Descargas de Windows Update\",\"categoria\":\"sistema\",\"riesgo\":\"Bajo\",\"requiere_admin\":true,\"activa_por_defecto\":true}]}";
+
+        private static string VistaJson(int archivos = 2314, bool conToken = true, string expira = "2026-11-05T12:10:00+00:00")
+            => "{\"total_archivos\":" + archivos + ",\"total_bytes\":1932735283,\"reversible\":true," +
+               "\"categorias\":[{\"categoria\":\"temporales\",\"archivos\":1482,\"bytes\":956301312},{\"categoria\":\"sistema\",\"archivos\":832,\"bytes\":976433971}]," +
+               "\"ejemplos\":[{\"ruta\":\"C:\\\\Users\\\\u\\\\AppData\\\\Local\\\\Temp\\\\setup.tmp\",\"bytes\":104857600,\"categoria\":\"temporales\"}]," +
+               "\"omitidas\":[\"C:\\\\x.tmp — en uso\",\"C:\\\\y.tmp — en uso\"],\"omitidas_total\":3,\"reglas_sin_permisos\":[\"windows-update\"]" +
+               (conToken ? ",\"token\":\"" + new string('e', 64) + "\",\"expira\":\"" + expira + "\"" : "") + "}";
+
+        private sealed class LimpiezaFalsa : IServicioDeLimpieza
+        {
+            public Consulta<CatalogoDeLimpieza> AlLeer = LectorDeLimpieza.Reglas(Json(ReglasJson));
+            public Consulta<VistaDeLimpieza> AlPrevisualizar = LectorDeLimpieza.Vista(Json(VistaJson()));
+            public int Catalogos, Vistas;
+            public System.Collections.Generic.IReadOnlyList<string>? ReglasPedidas;
+            public readonly System.Collections.Generic.List<string> Tokens = new System.Collections.Generic.List<string>();
+
+            public Task<Consulta<CatalogoDeLimpieza>> ReglasAsync(CancellationToken ct) { Catalogos++; return Task.FromResult(AlLeer); }
+            public Task<Consulta<VistaDeLimpieza>> PrevisualizarAsync(System.Collections.Generic.IReadOnlyList<string> reglas, CancellationToken ct)
+            { Vistas++; ReglasPedidas = reglas; return Task.FromResult(AlPrevisualizar); }
+            public Task<ResultadoDeAccion> AplicarAsync(string token, CancellationToken ct)
+            { Tokens.Add(token); return Task.FromResult(new ResultadoDeAccion(true, false, "2311 archivos limpiados (1.8 GB). 3 omitidos.")); }
+        }
+
+        private static void ProbarLimpieza()
+        {
+            Console.WriteLine("== Limpieza: lector y modelo de la pestaña");
+
+            var c = LectorDeLimpieza.Reglas(Json(ReglasJson));
+            Check(c.Valor is { Modo: "papelera", Reversible: true } && c.Valor.Reglas.Count == 3 && c.Valor.Reglas[2].RequiereAdmin, "limpieza.reglas: modo y catalogo");
+            var v = LectorDeLimpieza.Vista(Json(VistaJson()));
+            Check(v.Valor is { TotalArchivos: 2314, OmitidasTotal: 3 } && v.Valor.Token!.Length == 64 && v.Valor.Expira is not null
+                  && v.Valor.Categorias.Count == 2 && v.Valor.ReglasSinPermisos.Count == 1, "limpieza.previsualizar completa, con token y caducidad");
+            v = LectorDeLimpieza.Vista(Json(VistaJson(archivos: 0, conToken: false)));
+            Check(v.Valor is { TotalArchivos: 0, Token: null, Expira: null }, "sin archivos no hay token (el servicio lo omite)");
+            v = LectorDeLimpieza.Vista(Json(VistaJson().Replace(",\"reglas_sin_permisos\":[\"windows-update\"]", "")));
+            Check(v.Valor is null && v.Error is not null, "sin «reglas_sin_permisos»: no se interpreta a medias");
+
+            var s = new LimpiezaFalsa();
+            var m = new LimpiezaModelo(s, () => Hoy);
+            Check(!m.PuedePrevisualizar && !m.PuedeLimpiar, "antes de leer el catalogo no se ofrece nada");
+            Esperar(m.CargarReglasAsync());
+            Check(m.CatalogoLeido && m.Reglas.Count == 3 && m.Reglas[0].Marcada && !m.Reglas[1].Marcada && m.Reglas[2].Marcada,
+                "catalogo leido: marcadas solo las de riesgo bajo");
+            Check(m.TextoModo.Contains("Papelera") && m.TextoBotonLimpiar == "Mover a la Papelera" && !m.ModoPermanente, "el modo lo dice el servicio: Papelera");
+            Check(m.Reglas[2].Detalle.Contains("requiere administrador") && m.Reglas[1].Detalle.Contains("riesgo medio"), "cada regla dice su riesgo y si pide administrador");
+            Esperar(m.CargarReglasAsync());
+            Check(s.Catalogos == 1, "el catalogo se lee una sola vez");
+
+            Esperar(m.PrevisualizarAsync());
+            Check(s.ReglasPedidas!.SequenceEqual(new[] { "temp-usuario", "windows-update" }), "la vista previa pide solo las reglas marcadas, por id");
+            Check(m.TituloVista == "Se liberarían 1.8 GB (2314 archivos)." && m.DetalleVista.Contains("Todavía no se ha borrado nada") && m.DetalleVista.Contains("vale hasta las"),
+                "la vista previa dice cuanto y que no se borro nada", m.TituloVista);
+            Check(m.Avisos.Any(a => a.Contains("3 archivos se omitirán") && a.Contains("se muestran 2")) && m.Avisos.Any(a => a.Contains("Sin permisos para evaluar: windows-update")),
+                "avisa de los omitidos (y del recorte) y de las reglas sin permisos");
+            Check(m.PuedeEscribirConfirmacion && !m.PuedeLimpiar, "con vista previa se puede escribir BORRAR, pero aun no limpiar");
+            m.Confirmacion = "borrar";
+            Check(!m.PuedeLimpiar, "«borrar» en minusculas no vale");
+            m.Confirmacion = "BORRAR";
+            Check(m.PuedeLimpiar, "con BORRAR, si");
+
+            m.Reglas[1].Marcada = true;
+            Check(m.Vista is null && !m.PuedeLimpiar && m.Confirmacion == "" && m.Mensaje.Contains("Cambió la selección"),
+                "cambiar una casilla despues de la vista previa la invalida y borra la confirmacion", m.Mensaje);
+            Check(m.LimpiarAsync().GetAwaiter().GetResult() is null && s.Tokens.Count == 0, "sin vista previa vigente no se limpia nada");
+
+            Esperar(m.PrevisualizarAsync());
+            Check(s.ReglasPedidas!.Count == 3, "la nueva vista previa incluye la regla recien marcada");
+            m.Confirmacion = "BORRAR";
+            ResultadoDeAccion? r = m.LimpiarAsync().GetAwaiter().GetResult();
+            Check(r is { Exito: true } && s.Tokens.SequenceEqual(new[] { new string('e', 64) }) && m.Mensaje.StartsWith("2311 archivos limpiados"),
+                "limpiar manda el token de la vista previa y muestra el resultado");
+            Check(m.Vista is null && !m.PuedeLimpiar && m.Confirmacion == "", "despues de limpiar, la vista previa ya no sirve (token de un solo uso)");
+            Check(m.LimpiarAsync().GetAwaiter().GetResult() is null && s.Tokens.Count == 1, "no se puede limpiar dos veces con la misma vista previa");
+
+            foreach (FilaDeReglaDeLimpieza f in m.Reglas) f.Marcada = false;
+            Check(!m.PuedePrevisualizar, "sin nada marcado no se puede previsualizar");
+
+            // Caducada.
+            var s2 = new LimpiezaFalsa();
+            DateTimeOffset ahora = Hoy;
+            var m2 = new LimpiezaModelo(s2, () => ahora);
+            Esperar(m2.CargarReglasAsync());
+            Esperar(m2.PrevisualizarAsync());
+            m2.Confirmacion = "BORRAR";
+            ahora = Hoy.AddMinutes(11);
+            Check(m2.LimpiarAsync().GetAwaiter().GetResult() is null && s2.Tokens.Count == 0 && m2.Mensaje.Contains("caducó"),
+                "una vista previa caducada no se manda: hay que pedir otra", m2.Mensaje);
+
+            // Nada que limpiar.
+            var s3 = new LimpiezaFalsa { AlPrevisualizar = LectorDeLimpieza.Vista(Json(VistaJson(archivos: 0, conToken: false))) };
+            var m3 = new LimpiezaModelo(s3, () => Hoy);
+            Esperar(m3.CargarReglasAsync());
+            Esperar(m3.PrevisualizarAsync());
+            Check(m3.TituloVista == "No hay nada que limpiar en lo marcado." && !m3.PuedeEscribirConfirmacion, "sin archivos: lo dice y no ofrece confirmar");
+
+            // Modo permanente.
+            var s4 = new LimpiezaFalsa { AlLeer = LectorDeLimpieza.Reglas(Json(ReglasJson.Replace("\"modo\":\"papelera\",\"reversible\":true", "\"modo\":\"borrado-permanente\",\"reversible\":false"))) };
+            var m4 = new LimpiezaModelo(s4, () => Hoy);
+            Esperar(m4.CargarReglasAsync());
+            Check(m4.ModoPermanente && m4.TextoBotonLimpiar == "Borrar para siempre" && m4.TextoModo.Contains("PERMANENTE"), "modo permanente: se avisa y el boton lo dice");
+
+            // El catalogo no se puede leer.
+            var s5 = new LimpiezaFalsa { AlLeer = Consulta<CatalogoDeLimpieza>.Mal("no se encontro el perfil del usuario") };
+            var m5 = new LimpiezaModelo(s5, () => Hoy);
+            Esperar(m5.CargarReglasAsync());
+            Check(!m5.CatalogoLeido && !m5.PuedePrevisualizar && m5.Mensaje.Contains("no se encontro el perfil"), "sin catalogo: lo dice y no ofrece nada", m5.Mensaje);
+            s5.AlLeer = LectorDeLimpieza.Reglas(Json(ReglasJson));
+            Esperar(m5.CargarReglasAsync());
+            Check(m5.CatalogoLeido && s5.Catalogos == 2, "si fallo, se vuelve a intentar al entrar otra vez");
+        }
+
         private static void ProbarFuentePorDefecto()
         {
             Console.WriteLine("== Fuente por defecto en esta compilacion (net8.0)");
@@ -731,10 +849,12 @@ namespace Nexo.Desktop.Demo
             var cm = new CuarentenaModelo(cuarentena, () => Hoy);
             var firewall = new FirewallFalso();
             var fm = new FirewallModelo(firewall);
+            var limpieza = new LimpiezaFalsa();
+            var lm = new LimpiezaModelo(limpieza, () => Hoy);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm);
+                w = new MainWindow(vm, em, cm, fm, lm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -801,6 +921,27 @@ namespace Nexo.Desktop.Demo
                     w.CaptureRenderedFrame()?.Save(cuarta);
                     Console.WriteLine("           captura: " + cuarta);
                 }
+                // La pestaña Limpieza: el catalogo se lee al entrar; la vista previa, solo al pedirla.
+                Check(limpieza.Catalogos == 0, "la limpieza no consulta nada hasta entrar en su pestaña");
+                w.Pestanas.SelectedIndex = 4;
+                Dispatcher.UIThread.RunJobs();
+                Check(limpieza.Catalogos == 1 && w.ListaDeReglasDeLimpieza.ItemCount == 3 && limpieza.Vistas == 0,
+                    "pestaña Limpieza: lee el catalogo (3 reglas) y no previsualiza sola");
+                Check(w.BotonVistaPrevia.IsEnabled && !w.BotonAplicarLimpieza.IsEnabled && !w.CajaDeConfirmacion.IsEnabled,
+                    "antes de la vista previa no se puede escribir BORRAR ni limpiar");
+                Esperar(lm.PrevisualizarAsync());
+                lm.Confirmacion = "BORRAR";
+                Dispatcher.UIThread.RunJobs();
+                Check(w.ListaDeCategorias.ItemCount == 2 && w.BotonAplicarLimpieza.IsEnabled && w.BotonAplicarLimpieza.Content as string == "Mover a la Papelera"
+                      && w.TituloDeLimpieza.Text!.StartsWith("Se liberarían"), "con la vista previa y BORRAR, el boton se habilita y dice a donde va");
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string quinta = System.IO.Path.ChangeExtension(captura, null) + "-limpieza.png";
+                    w.CaptureRenderedFrame()?.Save(quinta);
+                    Console.WriteLine("           captura: " + quinta);
+                }
+
                 w.Pestanas.SelectedIndex = 6;
                 Dispatcher.UIThread.RunJobs();
 

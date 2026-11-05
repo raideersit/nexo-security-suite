@@ -289,7 +289,100 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Limpieza">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-cleanup en la consola, o «Limpiar» en el menú de la bandeja." />
+                <ScrollViewer x:Name="PanelDeLimpieza" x:DataType="local:LimpiezaModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="1. Qué limpiar">
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="TextoDeModo" Text="{Binding TextoModo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                <TextBlock IsVisible="{Binding ModoPermanente}" Foreground="#C00000" TextWrapping="Wrap"
+                                           Text="Atención: el servicio está configurado para borrar de forma permanente. Lo borrado no irá a la Papelera." />
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1" MaxHeight="190">
+                                    <ScrollViewer>
+                                        <ItemsControl x:Name="ListaDeReglasDeLimpieza" ItemsSource="{Binding Reglas}" Margin="6,3">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="local:FilaDeReglaDeLimpieza">
+                                                    <CheckBox IsChecked="{Binding Marcada}" Margin="0,1">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBlock Text="{Binding Nombre}" />
+                                                            <TextBlock Text="{Binding Detalle}" Foreground="#606060" />
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                                <DockPanel>
+                                    <Button x:Name="BotonVistaPrevia" DockPanel.Dock="Right" Content="Vista previa" IsDefault="True"
+                                            IsEnabled="{Binding PuedePrevisualizar}" Click="PrevisualizarLimpieza" />
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#404040"
+                                               Text="Las de riesgo medio y alto vienen desmarcadas. Nexo solo borra lo que está en su catálogo." />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="2. Qué se encontró">
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="TituloDeLimpieza" Text="{Binding TituloVista}" FontWeight="Bold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DetalleVista}" TextWrapping="Wrap" />
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1">
+                                    <StackPanel>
+                                        <Grid ColumnDefinitions="*,90,90" Background="#C0C0C0">
+                                            <TextBlock Grid.Column="0" Margin="6,3" Text="Categoría" />
+                                            <TextBlock Grid.Column="1" Margin="6,3" Text="Archivos" />
+                                            <TextBlock Grid.Column="2" Margin="6,3" Text="Tamaño" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ListaDeCategorias" ItemsSource="{Binding Categorias}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="local:FilaDeCategoria">
+                                                    <Grid ColumnDefinitions="*,90,90">
+                                                        <TextBlock Grid.Column="0" Margin="6,2" Text="{Binding Categoria}" />
+                                                        <TextBlock Grid.Column="1" Margin="6,2" Text="{Binding Archivos}" />
+                                                        <TextBlock Grid.Column="2" Margin="6,2" Text="{Binding Tamano}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Expander Header="Los archivos más grandes" HorizontalAlignment="Stretch">
+                                    <ItemsControl ItemsSource="{Binding Ejemplos}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding}" FontFamily="Courier New,DejaVu Sans Mono,monospace" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
+                                <Border IsVisible="{Binding HayAvisos}" Background="#FFFFE1" BorderBrush="#808080" BorderThickness="1" Padding="6,3" MaxHeight="120">
+                                    <ScrollViewer>
+                                        <ItemsControl ItemsSource="{Binding Avisos}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="3. Confirmar">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock VerticalAlignment="Center" Text="Para confirmar, escriba BORRAR:" />
+                                    <TextBox x:Name="CajaDeConfirmacion" Text="{Binding Confirmacion}" Width="140"
+                                             FontFamily="Courier New,DejaVu Sans Mono,monospace" IsEnabled="{Binding PuedeEscribirConfirmacion}" />
+                                    <Button x:Name="BotonAplicarLimpieza" Content="{Binding TextoBotonLimpiar}" FontWeight="Bold"
+                                            IsEnabled="{Binding PuedeLimpiar}" Click="Limpiar" />
+                                </StackPanel>
+                                <TextBlock x:Name="MensajeDeLimpieza" Text="{Binding Mensaje}" TextWrapping="Wrap" Foreground="#800000" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Disco">
                 <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana, y la salud del disco aún no tiene herramienta de consola propia." />

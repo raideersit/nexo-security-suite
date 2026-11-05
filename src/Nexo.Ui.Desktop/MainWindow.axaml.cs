@@ -29,9 +29,11 @@ namespace Nexo.Ui.Desktop
         public MainWindow() : this(new VentanaPrincipalModelo(new FuenteNoDisponible("vista de diseño")),
                                    new EscaneoModelo(new ServicioDeEscaneoNoDisponible("vista de diseño")),
                                    new CuarentenaModelo(new ServicioDeCuarentenaNoDisponible("vista de diseño")),
-                                   new FirewallModelo(new ServicioDeFirewallNoDisponible("vista de diseño"))) { }
+                                   new FirewallModelo(new ServicioDeFirewallNoDisponible("vista de diseño")),
+                                   new LimpiezaModelo(new ServicioDeLimpiezaNoDisponible("vista de diseño"))) { }
 
-        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall)
+        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
+                          LimpiezaModelo limpieza)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -43,15 +45,19 @@ namespace Nexo.Ui.Desktop
             Escaneo = escaneo;
             Cuarentena = cuarentena;
             Firewall = firewall;
+            Limpieza = limpieza;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
             PanelDeFirewall.DataContext = firewall;
+            PanelDeLimpieza.DataContext = limpieza;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, _) =>
             {
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
+                // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
+                else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
 
             _temporizador = new DispatcherTimer { Interval = Sondeo };
@@ -81,6 +87,7 @@ namespace Nexo.Ui.Desktop
         public EscaneoModelo Escaneo { get; }
         public CuarentenaModelo Cuarentena { get; }
         public FirewallModelo Firewall { get; }
+        public LimpiezaModelo Limpieza { get; }
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {
@@ -147,6 +154,16 @@ namespace Nexo.Ui.Desktop
             if (token is null) return;
             await MostrarResultadoAsync("Eliminar vencidos", await Cuarentena.PurgarAsync(token));
             await Modelo.ActualizarAsync();
+        }
+
+        // ------------------------------------------------------------ Limpieza
+        private async void PrevisualizarLimpieza(object? sender, RoutedEventArgs e) => await Limpieza.PrevisualizarAsync();
+
+        /// <summary>La confirmacion es la vista previa en pantalla mas BORRAR escrito: no hay otro dialogo antes de aplicar.</summary>
+        private async void Limpiar(object? sender, RoutedEventArgs e)
+        {
+            ResultadoDeAccion? r = await Limpieza.LimpiarAsync();
+            if (r is not null) await MostrarResultadoAsync("Limpieza", r);
         }
 
         // ------------------------------------------------------------ Firewall
