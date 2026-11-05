@@ -2,17 +2,26 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexo.Ui.Tray.Nucleo;
+#if WINDOWS
+using System.IO;
+using System.Text.Json;
+using Nexo.Ipc;
+#endif
 
 namespace Nexo.Ui.Desktop.Nucleo
 {
     /// <summary>De donde saca la ventana el estado del servicio. Solo LECTURA.</summary>
     public interface IFuenteDeEstado
     {
-        Task<InstantaneaDelServicio> ConsultarAsync(CancellationToken ct);
+        Task<EstadoCompleto> ConsultarAsync(CancellationToken ct);
     }
 
 #if WINDOWS
-    /// <summary>El servicio real, por el named pipe (lo mismo que consulta la bandeja).</summary>
+    /// <summary>
+    /// El servicio real, por el named pipe. Lo del tiempo real se pide con el mismo consultor que la bandeja; el resto de
+    /// modulos, en una segunda conexion, cada uno por separado: si uno falla, los otros se siguen mostrando.
+    /// Todos los metodos usados son de solo lectura.
+    /// </summary>
     public sealed class FuentePorPipe : IFuenteDeEstado
     {
         private readonly string _pipe;
@@ -24,8 +33,32 @@ namespace Nexo.Ui.Desktop.Nucleo
             _espera = espera;
         }
 
-        public Task<InstantaneaDelServicio> ConsultarAsync(CancellationToken ct)
-            => ConsultorDelServicio.ConsultarAsync(_pipe, _espera, ct);
+        public async Task<EstadoCompleto> ConsultarAsync(CancellationToken ct)
+        {
+            InstantaneaDelServicio s = await ConsultorDelServicio.ConsultarAsync(_pipe, _espera, ct).ConfigureAwait(false);
+            if (!s.Conectado) return EstadoCompleto.SinConexion(s);
+
+            try
+            {
+                await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(_pipe, _espera, ct).ConfigureAwait(false);
+                return new EstadoCompleto(
+                    s,
+                    LectorDeModulos.Motor(await LlamarAsync(c, "escaneo.estado", ct).ConfigureAwait(false)),
+                    LectorDeModulos.Programado(await LlamarAsync(c, "escaneo-programado.estado", ct).ConfigureAwait(false)),
+                    LectorDeModulos.Firewall(await LlamarAsync(c, "firewall.estado", ct).ConfigureAwait(false)),
+                    LectorDeModulos.Cuarentena(await LlamarAsync(c, "cuarentena.listar", ct).ConfigureAwait(false)));
+            }
+            catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
+            {
+                return EstadoCompleto.SoloServicio(s, "no se pudo pedir el detalle al servicio (" + ex.GetType().Name + ")");
+            }
+        }
+
+        private static async Task<RespuestaCruda> LlamarAsync(ClienteDePipe c, string metodo, CancellationToken ct)
+        {
+            Respuesta r = await c.LlamarAsync(metodo, ct: ct).ConfigureAwait(false);
+            return new RespuestaCruda(r.Exito, r.Error?.Mensaje, r.Resultado);
+        }
     }
 #endif
 
@@ -39,8 +72,8 @@ namespace Nexo.Ui.Desktop.Nucleo
 
         public FuenteNoDisponible(string motivo) => _motivo = motivo;
 
-        public Task<InstantaneaDelServicio> ConsultarAsync(CancellationToken ct)
-            => Task.FromResult(InstantaneaDelServicio.SinConexion(_motivo));
+        public Task<EstadoCompleto> ConsultarAsync(CancellationToken ct)
+            => Task.FromResult(EstadoCompleto.SinConexion(InstantaneaDelServicio.SinConexion(_motivo)));
     }
 
     public static class Fuentes

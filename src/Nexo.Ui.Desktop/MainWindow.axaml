@@ -67,7 +67,7 @@
                         <HeaderedContentControl Header="Módulos">
                             <Border Background="White" BorderBrush="#808080" BorderThickness="1">
                                 <StackPanel>
-                                    <Grid ColumnDefinitions="180,130,*" Background="#C0C0C0">
+                                    <Grid ColumnDefinitions="180,165,*" Background="#C0C0C0">
                                         <TextBlock Grid.Column="0" Margin="6,3" Text="Módulo" />
                                         <TextBlock Grid.Column="1" Margin="6,3" Text="Estado" />
                                         <TextBlock Grid.Column="2" Margin="6,3" Text="Detalle" />
@@ -75,7 +75,7 @@
                                     <ItemsControl x:Name="ListaDeModulos" ItemsSource="{Binding Modulos}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="local:FilaVista">
-                                                <Grid ColumnDefinitions="180,130,*">
+                                                <Grid ColumnDefinitions="180,165,*">
                                                     <TextBlock Grid.Column="0" Margin="6,3" Text="{Binding Modulo}" />
                                                     <StackPanel Grid.Column="1" Margin="6,3" Orientation="Horizontal" Spacing="6">
                                                         <Border Width="10" Height="10" VerticalAlignment="Center"

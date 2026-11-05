@@ -57,19 +57,20 @@ namespace Nexo.Ui.Desktop
             _consultando = true;
             try
             {
-                InstantaneaDelServicio i;
+                EstadoCompleto e;
                 try
                 {
-                    i = await _fuente.ConsultarAsync(ct);
+                    e = await _fuente.ConsultarAsync(ct);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     // La ventana no se cae por una consulta: lo que no se supo se muestra como «sin conexion».
-                    i = InstantaneaDelServicio.SinConexion("error inesperado al consultar (" + ex.GetType().Name + ")");
+                    e = EstadoCompleto.SinConexion(
+                        InstantaneaDelServicio.SinConexion("error inesperado al consultar (" + ex.GetType().Name + ")"));
                 }
 
-                _modelo.Actualizar(i);
-                Aplicar(Resumir.Desde(_modelo));
+                _modelo.Actualizar(e.Servicio);
+                Aplicar(Resumir.Desde(_modelo, e));
                 BarraConsulta = "Última consulta: " + _reloj().ToString("HH:mm:ss");
             }
             finally

@@ -755,19 +755,27 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
   `Nucleo/Instantanea.cs` a `Nucleo/InstantaneaDelServicio.cs` (sin cambios de comportamiento), y el proyecto compila por enlace
   ese archivo y `ModeloDeBandeja.cs`; `Instantanea.cs` (el consultor del pipe) solo en Windows. Misma máquina de estados que la
   bandeja: nunca «todo en orden» si no se sabe.
-- **Hecho:** la pestaña «Estado» (cabecera con color y texto, tabla de módulos y barra de estado), consulta cada 5 s y con F5. Los
-  módulos que la ventana aún no consulta (escaneo, firewall, disco, cuarentena, limpieza) figuran como «Sin consultar», nunca como
-  correctos. Las otras 6 pestañas dicen que no están hechas y qué herramienta usar mientras tanto. **Solo lectura:** ningún botón
-  cambia nada.
-- **Pruebas:** `tools/Nexo.Desktop.Demo`, 37, corre en Linux. Incluye la ventana de verdad cargada sin pantalla
-  (`Avalonia.Headless` con Skia) y `--captura f.png`. Ese arnés encontró que los iconos vectoriales no sirven en `ToolBarButton`
-  (`InvalidCastException` al cargar el XAML), y está corregido. Además, en el escritorio Linux real (Avalonia usa X11, aquí por XWayland) la ventana arrancó y
-  siguió abierta hasta que se cerró sin errores.
-- **SIN PROBAR:** en Windows (ni compilada ahí ni corrida), contra el servicio real por el pipe, en Windows 11 (bordes
-  redondeados: por eso hereda de `ClassicWindow`), y el consumo de memoria real.
-- **Siguiente:** que la pestaña «Estado» consulte también `firewall.estado`, `escaneo-programado.estado` y `cuarentena.listar`;
-  después, las pestañas una por una siguiendo la maqueta. Las acciones (cuarentena, limpieza) tienen que pasar por el mismo flujo de
-  vista previa + token + aprobación que ya usa la bandeja (`AccionesDelServicio`).
+- **Hecho:** la pestaña «Estado» (cabecera con color y texto, tabla de 7 módulos y barra de estado), consulta cada 5 s y con F5.
+  **Solo lectura:** ningún botón cambia nada. Las otras 6 pestañas dicen que no están hechas y qué herramienta usar mientras tanto.
+  - Además del tiempo real (el consultor de la bandeja), pide en una segunda conexión `escaneo.estado`, `escaneo-programado.estado`,
+    `firewall.estado` y `cuarentena.listar`, todos de solo lectura. Cada uno por separado: si uno falla, su fila dice «Sin datos» con
+    el motivo y los demás se siguen viendo. `LectorDeModulos` (portable) lee las respuestas; una respuesta con error, vacía o con
+    otra forma **no se interpreta a medias**, y un `vencido` ausente no se toma como «al día».
+  - **La cabecera muestra lo más grave:** si el tiempo real está bien pero, por ejemplo, el firewall está apagado en un perfil, manda
+    el firewall. En empate gana el tiempo real. Con todo bien dice «Sin problemas en lo que se pudo consultar», nunca «todo en orden».
+    El escaneo programado apagado sale en gris y no cambia la cabecera (es una elección, no un fallo).
+  - Salud del disco: «Sin consultar» (el servicio aún no la expone). Limpieza: «A pedido» (no tiene estado).
+- **Pruebas:** `tools/Nexo.Desktop.Demo`, 65, corre en Linux: el lector con JSON de la forma que da cada método y con respuestas
+  rotas, las reglas de cada fila y de la cabecera, el modelo con fuentes falsas, y la ventana de verdad cargada sin pantalla
+  (`Avalonia.Headless` con Skia; `--captura f.png` guarda una imagen y suma una comprobación). Con la regla de «manda lo más grave»
+  rota a propósito, fallan 5. El arnés también encontró que los iconos vectoriales no sirven en `ToolBarButton`
+  (`InvalidCastException` al cargar el XAML), y está corregido. En el escritorio Linux real (Avalonia usa X11, aquí por XWayland) la
+  ventana arrancó y siguió abierta hasta que se cerró, sin errores.
+- **SIN PROBAR:** en Windows (ni compilada ahí ni corrida), y en particular `FuentePorPipe` contra el servicio real: el JSON de las
+  pruebas está escrito a partir del código de los módulos, no capturado de un servicio en marcha. Tampoco en Windows 11 (bordes
+  redondeados: por eso hereda de `ClassicWindow`), ni el consumo de memoria real.
+- **Siguiente:** las pestañas una por una siguiendo la maqueta. Las acciones (cuarentena, limpieza) tienen que pasar por el mismo
+  flujo de vista previa + token + aprobación que ya usa la bandeja (`AccionesDelServicio`).
 
 ---
 
