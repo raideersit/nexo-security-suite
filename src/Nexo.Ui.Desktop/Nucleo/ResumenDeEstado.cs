@@ -219,7 +219,8 @@ namespace Nexo.Ui.Desktop.Nucleo
             if (c.Valor is not EstadoDeCuarentena q) return NoSePudo(Cuarentena, c.Error);
             if (q.Elementos == 0) return new FilaDeModulo(Cuarentena, Indicador.Correcto, "Vacía", "No hay archivos en cuarentena.");
             return new FilaDeModulo(Cuarentena, Indicador.Correcto, q.Elementos == 1 ? "1 elemento" : q.Elementos + " elementos",
-                q.ProximoVencimiento is DateTimeOffset v ? "El próximo se elimina el " + Fecha(v) + "." : "Guardados cifrados.");
+                // El servicio NO purga solo: lo vencido se elimina cuando alguien lo pide (pestaña Cuarentena).
+                q.ProximoVencimiento is DateTimeOffset v ? "El más antiguo vence el " + Fecha(v) + " (después se puede eliminar)." : "Guardados cifrados.");
         }
 
         private static string NombreDePerfil(string p) => p switch

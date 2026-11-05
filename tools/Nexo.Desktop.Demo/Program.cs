@@ -37,6 +37,7 @@ namespace Nexo.Desktop.Demo
             ProbarLectorDeEscaneo();
             ProbarResumenDeEscaneo();
             ProbarModeloDeEscaneo();
+            ProbarCuarentena();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -220,8 +221,9 @@ namespace Nexo.Desktop.Demo
                 "programado apagado: gris, y no cambia la cabecera (es una eleccion, no un fallo)");
 
             r = Resumen(Completo(Conectada(), cuarentena: new EstadoDeCuarentena(1, Ayer)));
-            Check(Fila(r, Resumir.Cuarentena) is { Estado: "1 elemento" } && Fila(r, Resumir.Cuarentena).Detalle.Contains(Resumir.Fecha(Ayer)),
-                "cuarentena con un elemento: cuando se elimina");
+            Check(Fila(r, Resumir.Cuarentena) is { Estado: "1 elemento" } && Fila(r, Resumir.Cuarentena).Detalle.Contains(Resumir.Fecha(Ayer))
+                  && !Fila(r, Resumir.Cuarentena).Detalle.Contains("se elimina el"),
+                "cuarentena con un elemento: cuando vence, sin decir que se borra solo (el servicio no purga solo)", Fila(r, Resumir.Cuarentena).Detalle);
 
             var conFallo = new EstadoCompleto(Conectada(), Consulta<EstadoDelMotor>.Bien(new EstadoDelMotor(true, "clamd", "v")),
                 Consulta<EstadoDeEscaneoProgramado>.Bien(ProgramadoAlDia),
@@ -490,6 +492,101 @@ namespace Nexo.Desktop.Demo
             Check(m7.Fase == FaseDeEscaneo.Fallido && m7.Detalle.Contains("clamd"), "fallido en el servicio: el motivo", m7.Detalle);
         }
 
+        // ============================================================ Cuarentena
+        private static readonly DateTimeOffset Hoy = new DateTimeOffset(2026, 11, 5, 12, 0, 0, TimeSpan.Zero);
+
+        private static ElementoDeCuarentena ElementoQueVence(DateTimeOffset fecha, DateTimeOffset vence, string nombre, string firma)
+            => new ElementoDeCuarentena("id-" + nombre, @"C:\Users\u\Downloads\" + nombre, 70_000, firma, fecha, vence);
+
+        private sealed class CuarentenaFalsa : IServicioDeCuarentena
+        {
+            public readonly System.Collections.Generic.List<ElementoDeCuarentena> Elementos = new System.Collections.Generic.List<ElementoDeCuarentena>();
+            public string? FallarAlListar;
+            public int Listados;
+            public readonly System.Collections.Generic.List<string> Llamadas = new System.Collections.Generic.List<string>();
+            public string? Token;
+            public readonly string TokenDePlan = new string('c', 64);
+
+            public Task<Consulta<ListaDeCuarentena>> ListarAsync(CancellationToken ct)
+            {
+                Listados++;
+                return Task.FromResult(FallarAlListar is null
+                    ? Consulta<ListaDeCuarentena>.Bien(new ListaDeCuarentena(Elementos.ToList()))
+                    : Consulta<ListaDeCuarentena>.Mal(FallarAlListar));
+            }
+            public Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
+            { Llamadas.Add("previsualizar-restauracion:" + id); return Task.FromResult(Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Restaurar " + id, true, TokenDePlan, new[] { "Es tu decision." }))); }
+            public Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct)
+            { Llamadas.Add("restaurar"); Token = token; Elementos.RemoveAt(0); return Task.FromResult(new ResultadoDeAccion(true, false, "Archivo restaurado.")); }
+            public Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct)
+            { Llamadas.Add("previsualizar-purga"); return Task.FromResult(Consulta<PlanDeCuarentena>.Bien(new PlanDeCuarentena("Purgar 1", true, TokenDePlan, Array.Empty<string>()))); }
+            public Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct)
+            { Llamadas.Add("purgar"); Token = token; return Task.FromResult(new ResultadoDeAccion(false, true, "Se abrio el aviso de aprobacion (UAC).")); }
+        }
+
+        private static void ProbarCuarentena()
+        {
+            Console.WriteLine("== Cuarentena: lector y modelo de la pestaña");
+
+            var l = LectorDeCuarentena.Listar(Json(
+                "{\"elementos\":[{\"id\":\"a1\",\"ruta_original\":\"C:\\\\x.zip\",\"bytes\":68,\"firma\":\"EICAR\",\"fecha\":\"2026-11-05T09:00:00+00:00\",\"vence\":\"2026-12-05T09:00:00+00:00\"}]}"));
+            Check(l.Valor is { Elementos.Count: 1 } && l.Valor.Elementos[0] is { Id: "a1", Bytes: 68, Firma: "EICAR" }, "cuarentena.listar: la entrada completa");
+            Check(LectorDeCuarentena.Listar(Json("{\"elementos\":[]}")).Valor is { Elementos.Count: 0 }, "cuarentena.listar vacia");
+            var rota = LectorDeCuarentena.Listar(Json("{\"elementos\":[{\"id\":\"a1\",\"ruta_original\":\"C:\\\\x\",\"bytes\":1,\"firma\":\"T\",\"fecha\":\"2026-11-05T09:00:00+00:00\"}]}"));
+            Check(rota.Valor is null && rota.Error is not null, "una entrada sin «vence» invalida la lista: no se muestra una lista a medias");
+            Check(LectorDeCuarentena.Listar(new RespuestaCruda(false, "no se puede actuar como el llamador", null)).Error == "no se puede actuar como el llamador",
+                "un error del servicio, tal cual");
+
+            var s = new CuarentenaFalsa();
+            s.Elementos.Add(ElementoQueVence(Hoy.AddDays(-16), Hoy.AddDays(14), "viejo.exe", "Win.Trojan.Agent-123"));
+            s.Elementos.Add(ElementoQueVence(Hoy.AddHours(-2), Hoy.AddDays(30).AddHours(-2), "nuevo.zip", "Win.Test.EICAR_HDB-1"));
+            var m = new CuarentenaModelo(s, () => Hoy);
+            Check(m.Resumen.StartsWith("Sin consultar") && !m.Leida, "antes de leer no dice que este vacia");
+            Esperar(m.ActualizarAsync());
+            Check(m.Leida && m.Elementos.Count == 2 && m.Elementos[0].Id == "id-nuevo.zip", "lee las entradas, la mas reciente primero");
+            Check(m.Elementos[1].Vence == "en 14 días" && m.Elementos[0].Vence == "en 30 días", "cuanto falta para que venza", m.Elementos[1].Vence + " / " + m.Elementos[0].Vence);
+            Check(m.Resumen == "2 archivos en cuarentena · 136.7 KB", "resumen con cuantos y cuanto ocupan", m.Resumen);
+            Check(!m.PuedeRestaurar && !m.PuedeEliminarVencidos, "sin seleccion ni vencidos: ni restaurar ni eliminar");
+            Check(m.PrevisualizarRestauracionAsync().GetAwaiter().GetResult().Valor is null && s.Llamadas.Count == 0, "sin seleccion no se pide nada al servicio");
+
+            m.Seleccionado = m.Elementos[1];
+            Check(m.PuedeRestaurar, "con una fila elegida se puede restaurar");
+            Esperar(m.ActualizarAsync());
+            Check(m.Seleccionado?.Id == "id-viejo.exe", "al volver a leer, la seleccion se mantiene");
+
+            Consulta<PlanDeCuarentena> plan = m.PrevisualizarRestauracionAsync().GetAwaiter().GetResult();
+            Check(plan.Valor is not null && s.Llamadas.SequenceEqual(new[] { "previsualizar-restauracion:id-viejo.exe" }), "la vista previa pide restaurar la fila elegida, y nada mas");
+            int antes = s.Listados;
+            ResultadoDeAccion r = m.RestaurarAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
+            Check(r.Exito && s.Token == s.TokenDePlan && m.Mensaje == "Archivo restaurado." && s.Listados == antes + 1 && m.Elementos.Count == 1,
+                "restaurar manda el token del plan, muestra el resultado y vuelve a leer la lista");
+
+            // Un vencido.
+            s.Elementos.Add(ElementoQueVence(Hoy.AddDays(-31), Hoy.AddDays(-1), "vencido.exe", "Win.Trojan.Agent-9"));
+            Esperar(m.ActualizarAsync());
+            Check(m.Elementos.Any(f => f.Vencido && f.Vence == "Vencido") && m.PuedeEliminarVencidos && m.Resumen.Contains("1 vencido (se pueden eliminar)"),
+                "un vencido: se marca, se dice y se ofrece eliminarlo (no se borra solo)", m.Resumen);
+            Consulta<PlanDeCuarentena> purga = m.PrevisualizarPurgaAsync().GetAwaiter().GetResult();
+            Check(purga.Valor is not null && s.Llamadas.Last() == "previsualizar-purga" && !s.Llamadas.Contains("purgar"), "la purga se previsualiza sin aplicar nada");
+            r = m.PurgarAsync(purga.Valor!.Token!).GetAwaiter().GetResult();
+            Check(r.PidioAprobacion && m.Mensaje.Contains("UAC"), "si hace falta aprobacion, se dice");
+
+            // La lectura falla despues de haber funcionado.
+            s.FallarAlListar = "el servicio no está en marcha";
+            Esperar(m.ActualizarAsync());
+            Check(!m.Leida && m.Elementos.Count == 0 && m.Resumen == "No se pudo leer la cuarentena: el servicio no está en marcha."
+                  && !m.PuedeRestaurar && !m.PuedeEliminarVencidos,
+                "si no se puede leer, no se muestra la lista vieja como actual ni se ofrece nada", m.Resumen);
+
+            var vacia = new CuarentenaModelo(new CuarentenaFalsa(), () => Hoy);
+            Esperar(vacia.ActualizarAsync());
+            Check(vacia.Leida && vacia.Resumen == "La cuarentena está vacía.", "vacia: lo dice (solo cuando se pudo leer)");
+
+            var sinServicio = new CuarentenaModelo(Fuentes.CuarentenaPorDefecto("NexoIpc"));
+            Esperar(sinServicio.ActualizarAsync());
+            Check(!sinServicio.Leida && sinServicio.Resumen.StartsWith("No se pudo leer"), "sin servicio (esta compilacion): no se pudo leer, no «vacia»");
+        }
+
         private static void ProbarFuentePorDefecto()
         {
             Console.WriteLine("== Fuente por defecto en esta compilacion (net8.0)");
@@ -523,10 +620,14 @@ namespace Nexo.Desktop.Demo
                 AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(ResultadoDeEscaneo(detecciones: 1, omitidos: 2))
             };
             var em = ModeloDeEscaneo(escaneo);
+            var cuarentena = new CuarentenaFalsa();
+            cuarentena.Elementos.Add(ElementoQueVence(Hoy.AddDays(-1), Hoy.AddDays(29), "factura-octubre.zip", "Win.Test.EICAR_HDB-1"));
+            cuarentena.Elementos.Add(ElementoQueVence(Hoy.AddDays(-31), Hoy.AddDays(-1), "crack-juego.exe", "Win.Trojan.Agent-123"));
+            var cm = new CuarentenaModelo(cuarentena, () => Hoy);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em);
+                w = new MainWindow(vm, em, cm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -563,6 +664,26 @@ namespace Nexo.Desktop.Demo
                     string segunda = System.IO.Path.ChangeExtension(captura, null) + "-escaneo.png";
                     w.CaptureRenderedFrame()?.Save(segunda);
                     Console.WriteLine("           captura: " + segunda);
+                }
+
+                // La pestaña Cuarentena: se lee al abrir la ventana y otra vez al entrar en la pestaña.
+                Check(cuarentena.Listados == 1, "al abrirse la ventana lee la cuarentena una vez", cuarentena.Listados.ToString());
+                w.Pestanas.SelectedIndex = 6;
+                Dispatcher.UIThread.RunJobs();
+                Check(cuarentena.Listados == 2, "al entrar en la pestaña la vuelve a leer", cuarentena.Listados.ToString());
+                Check(w.TablaDeCuarentena.ItemCount == 2 && w.ResumenDeCuarentena.Text!.Contains("1 vencido"),
+                    "pestaña Cuarentena: las 2 entradas y el resumen", w.ResumenDeCuarentena.Text);
+                Check(!w.BotonRestaurar.IsEnabled && w.BotonEliminarVencidos.IsEnabled, "sin seleccion no se puede restaurar; con un vencido, si eliminar vencidos");
+                w.TablaDeCuarentena.SelectedIndex = 0;
+                Dispatcher.UIThread.RunJobs();
+                Check(cm.Seleccionado?.Id == "id-factura-octubre.zip" && w.BotonRestaurar.IsEnabled, "al elegir una fila se puede restaurar");
+
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string tercera = System.IO.Path.ChangeExtension(captura, null) + "-cuarentena.png";
+                    w.CaptureRenderedFrame()?.Save(tercera);
+                    Console.WriteLine("           captura: " + tercera);
                 }
             }
             catch (Exception ex)

@@ -27,9 +27,10 @@ namespace Nexo.Ui.Desktop
 
         /// <summary>Solo para el previsualizador de Avalonia: sin servicio, y lo dice.</summary>
         public MainWindow() : this(new VentanaPrincipalModelo(new FuenteNoDisponible("vista de diseño")),
-                                   new EscaneoModelo(new ServicioDeEscaneoNoDisponible("vista de diseño"))) { }
+                                   new EscaneoModelo(new ServicioDeEscaneoNoDisponible("vista de diseño")),
+                                   new CuarentenaModelo(new ServicioDeCuarentenaNoDisponible("vista de diseño"))) { }
 
-        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo)
+        public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -39,8 +40,15 @@ namespace Nexo.Ui.Desktop
             Iconos.Poner(BotonActualizar, "IconoActualizar");
             Modelo = modelo;
             Escaneo = escaneo;
+            Cuarentena = cuarentena;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
+            PanelDeCuarentena.DataContext = cuarentena;
+            // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
+            Pestanas.SelectionChanged += async (_, _) =>
+            {
+                if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
+            };
 
             _temporizador = new DispatcherTimer { Interval = Sondeo };
             _temporizador.Tick += async (_, _) => await Modelo.ActualizarAsync();
@@ -49,6 +57,7 @@ namespace Nexo.Ui.Desktop
             Opened += async (_, _) =>
             {
                 await Modelo.ActualizarAsync();
+                await Cuarentena.ActualizarAsync();
                 _temporizador.Start();
                 _temporizadorDeEscaneo.Start();
             };
@@ -59,14 +68,19 @@ namespace Nexo.Ui.Desktop
             };
             KeyDown += (_, e) =>
             {
-                if (e.Key == Key.F5) _ = Modelo.ActualizarAsync();
+                if (e.Key == Key.F5) Actualizar(this, new RoutedEventArgs());
             };
         }
 
         public VentanaPrincipalModelo Modelo { get; }
         public EscaneoModelo Escaneo { get; }
+        public CuarentenaModelo Cuarentena { get; }
 
-        private async void Actualizar(object? sender, RoutedEventArgs e) => await Modelo.ActualizarAsync();
+        private async void Actualizar(object? sender, RoutedEventArgs e)
+        {
+            await Modelo.ActualizarAsync();
+            await Cuarentena.ActualizarAsync();
+        }
 
         private void Salir(object? sender, RoutedEventArgs e) => Close();
 
@@ -99,31 +113,61 @@ namespace Nexo.Ui.Desktop
         /// </summary>
         private async void PonerEnCuarentena(object? sender, RoutedEventArgs e)
         {
-            Consulta<PlanDeCuarentena> plan = await Escaneo.PrevisualizarCuarentenaAsync();
+            string? token = await ConfirmarPlanAsync(await Escaneo.PrevisualizarCuarentenaAsync(), "Poner en cuarentena",
+                "¿Mover estos archivos a la cuarentena? Se guardan cifrados y se pueden restaurar.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Cuarentena", await Escaneo.AplicarCuarentenaAsync(token));
+            await Modelo.ActualizarAsync();
+            await Cuarentena.ActualizarAsync();
+        }
+
+        // ------------------------------------------------------------ Cuarentena
+        private async void ActualizarCuarentena(object? sender, RoutedEventArgs e) => await Cuarentena.ActualizarAsync();
+
+        private async void Restaurar(object? sender, RoutedEventArgs e)
+        {
+            string? token = await ConfirmarPlanAsync(await Cuarentena.PrevisualizarRestauracionAsync(), "Restaurar archivo",
+                "¿Devolver este archivo a su ubicación original? Hágalo solo si está seguro de que es un falso positivo.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Restaurar", await Cuarentena.RestaurarAsync(token));
+            await Modelo.ActualizarAsync();
+        }
+
+        private async void EliminarVencidos(object? sender, RoutedEventArgs e)
+        {
+            string? token = await ConfirmarPlanAsync(await Cuarentena.PrevisualizarPurgaAsync(), "Eliminar vencidos",
+                "¿Eliminar estos archivos de la cuarentena? Se borran de forma permanente y ya no se podrán restaurar.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Eliminar vencidos", await Cuarentena.PurgarAsync(token));
+            await Modelo.ActualizarAsync();
+        }
+
+        // ------------------------------------------------------------ Dos pasos: vista previa y confirmacion
+        /// <summary>
+        /// Muestra el plan que preparo el servicio (no cambia nada) y devuelve su token solo si el usuario acepta. Si no se pudo
+        /// preparar o no hay nada que hacer, lo dice y devuelve null.
+        /// </summary>
+        private async System.Threading.Tasks.Task<string?> ConfirmarPlanAsync(Consulta<PlanDeCuarentena> plan, string titulo, string pregunta)
+        {
             if (plan.Valor is not PlanDeCuarentena p)
             {
-                await MessageBox.ShowDialog(this, "No se pudo preparar la cuarentena: " + plan.Error + ".", "Cuarentena",
-                    MessageBoxButtons.Ok, MessageBoxIcon.Warning);
-                return;
+                await MessageBox.ShowDialog(this, "No se pudo preparar: " + plan.Error + ".", titulo, MessageBoxButtons.Ok, MessageBoxIcon.Warning);
+                return null;
             }
             if (!p.HayCambios || p.Token is null)
             {
-                await MessageBox.ShowDialog(this, "No hay nada que mover.\n\n" + p.Descripcion, "Cuarentena",
-                    MessageBoxButtons.Ok, MessageBoxIcon.Information);
-                return;
+                await MessageBox.ShowDialog(this, "No hay nada que hacer.\n\n" + p.Descripcion, titulo, MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                return null;
             }
 
             string texto = p.Descripcion
                            + (p.Avisos.Count > 0 ? "\n\n" + string.Join("\n", p.Avisos.Select(a => "• " + a)) : "")
-                           + "\n\n¿Mover estos archivos a la cuarentena? Se guardan cifrados y se pueden restaurar durante 30 días.";
-            MessageBoxResult respuesta = await MessageBox.ShowDialog(this, texto, "Poner en cuarentena",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (respuesta != MessageBoxResult.Yes) return;
-
-            ResultadoDeAccion r = await Escaneo.AplicarCuarentenaAsync(p.Token);
-            await MessageBox.ShowDialog(this, r.Mensaje, "Cuarentena", MessageBoxButtons.Ok,
-                r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
-            await Modelo.ActualizarAsync();
+                           + "\n\n" + pregunta;
+            MessageBoxResult r = await MessageBox.ShowDialog(this, texto, titulo, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            return r == MessageBoxResult.Yes ? p.Token : null;
         }
+
+        private async System.Threading.Tasks.Task MostrarResultadoAsync(string titulo, ResultadoDeAccion r)
+            => await MessageBox.ShowDialog(this, r.Mensaje, titulo, MessageBoxButtons.Ok, r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
     }
 }

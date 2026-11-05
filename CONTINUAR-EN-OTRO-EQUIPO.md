@@ -792,8 +792,23 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
     Rotas a propósito «omitidos nunca es limpio» y «terminado sin resultado no es limpio»: falla 1 cada una.
   - **SIN PROBAR:** todo contra el servicio real (escanear, cancelar, la cuarentena y el aviso de UAC por la bandeja) y el
     selector de carpetas de Windows.
-- **Siguiente:** las pestañas que faltan, siguiendo la maqueta. Las acciones (limpieza, firewall, restaurar) por el mismo flujo de
-  vista previa + token + aprobación (`AccionesDelServicio`).
+- **Pestaña «Cuarentena» (hecha):** lista (`cuarentena.listar`, la más reciente primero, con cuánto falta para que venza),
+  «Restaurar...» de la fila elegida (`cuarentena.previsualizar-restauracion` → confirmar → `cuarentena.restaurar` con el token) y
+  «Eliminar vencidos...» (`previsualizar-purga` → confirmar → `purgar`). Las dos acciones van por `AccionesDelServicio` con
+  `TipoDeAccion.Restauracion|Purga` y, si hace falta UAC, por `nexo-tray.exe`, igual que la cuarentena del escaneo. Se lee al abrir
+  la ventana, al entrar en la pestaña, con «Actualizar»/F5 y tras cada acción.
+  - **Hallazgo: el servicio NO purga solo.** Lo vencido se queda hasta que alguien pide eliminarlo. La maqueta decía «se eliminan
+    solos a los 30 días» y la fila de Cuarentena de «Estado» decía «el próximo se elimina el...»: las dos cosas eran falsas. La fila
+    ahora dice «el más antiguo vence el ... (después se puede eliminar)», y la pestaña lo explica. Si se quiere purga automática, es
+    trabajo del servicio (no está hecho).
+  - No hay «eliminar uno ahora»: el servicio no tiene ese método, y la ventana no lo inventa.
+  - Si la lista no se puede leer, se vacía y se dice «No se pudo leer la cuarentena: ...»; nunca se muestra la lista anterior
+    como si fuera la actual, ni «vacía» cuando no se sabe. Una entrada rota invalida la lista entera.
+  - La confirmación de los planes (escaneo, restaurar, purgar) es una sola función, `ConfirmarPlanAsync`, en `MainWindow.axaml.cs`.
+  - Pruebas: +25 (lector, modelo con un servicio falso y la pestaña cargada). Rota a propósito «no mostrar la lista vieja»: falla 1.
+  - **SIN PROBAR:** contra el servicio real, incluidos restaurar y purgar con el aviso de UAC por la bandeja.
+- **Siguiente:** las pestañas que faltan (Tiempo real, Firewall, Limpieza, Disco), siguiendo la maqueta. Las acciones (limpieza,
+  firewall) por el mismo flujo de vista previa + token + aprobación (`AccionesDelServicio`).
 
 ---
 

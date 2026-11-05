@@ -36,7 +36,7 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Threats` — escaneo bajo demanda y cuarentena (clamd) | ✅ Implementado; verificado contra un clamd falso, **sin probar con ClamAV real** |
 | `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio**. Aloja firewall, escaneo, cuarentena, tiempo real y limpieza (lo que cambia algo lleva vista previa y token) |
 | `Nexo.Ui.Tray` — bandeja del sistema (icono, avisos, revisar detecciones, limpiar) | ✅ Implementada; **la parte visual (menú y diálogos) no la ha visto una persona**; aprobar con UAC sin probar |
-| `Nexo.Ui.Desktop` — ventana principal (Avalonia + tema Classic, Windows y Linux) | 🚧 Empezada: funcionan «Estado» (tiempo real, motor, escaneo programado, firewall y cuarentena, solo lectura) y «Escaneo» (escanear, ver el avance, cancelar, resultado; la cuarentena con vista previa, token y la aprobación de la bandeja); las otras 5 pestañas son marcadores. Probada en Linux (sin pantalla y en un escritorio real); **sin probar en Windows contra el servicio** |
+| `Nexo.Ui.Desktop` — ventana principal (Avalonia + tema Classic, Windows y Linux) | 🚧 Empezada: funcionan «Estado» (tiempo real, motor, escaneo programado, firewall y cuarentena, solo lectura) «Escaneo» (escanear, ver el avance, cancelar, resultado; poner en cuarentena) y «Cuarentena» (lista, restaurar, eliminar vencidos); lo que cambia algo va con vista previa, token y la aprobación de la bandeja. Las otras 4 pestañas son marcadores. Probada en Linux (sin pantalla y en un escritorio real); **sin probar en Windows contra el servicio** |
 | `Nexo.Modules.Threats` — tiempo real (FileSystemWatcher y diario USN) | ✅ Implementado; **apagado por omisión**; el diario USN probado **como administrador** en el equipo principal (2026-10-22): abre el volumen y entrega un archivo nuevo con su ruta |
 | `Nexo.Modules.Threats` — heurística YARA, anti-ransomware | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
@@ -47,7 +47,7 @@ la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 66
 portables del firewall y 28 contra el Firewall de Windows real (como
 administrador; 9 sin serlo) y 92 del escáner y la cuarentena, 43 del protocolo IPC, 170 del servicio, 57 del tiempo real y 40 de la bandeja. Como administrador se cubren además la escritura
-en `HKLM` y los enlaces simbólicos de archivo. Aparte, 108 de la ventana principal
+en `HKLM` y los enlaces simbólicos de archivo. Aparte, 133 de la ventana principal
 pasan en Linux (todavía no se han corrido en Windows).
 
 **Todavía sin verificar:**
@@ -125,7 +125,7 @@ dotnet run --project tools/Nexo.RealTime.Demo
 dotnet run --project tools/Nexo.Tray.Demo
 
 # Ventana principal: el resumen de estado, su modelo con fuentes falsas y la ventana cargada sin pantalla.
-# Corre en Linux y en Windows (108 comprobaciones; --captura f.png guarda imágenes de la ventana)
+# Corre en Linux y en Windows (133 comprobaciones; --captura f.png guarda imágenes de la ventana)
 dotnet run --project tools/Nexo.Desktop.Demo
 ```
 
@@ -137,9 +137,9 @@ dotnet run --project src/Nexo.Ui.Desktop --framework net8.0           # Linux: m
 ```
 
 Usa Avalonia con el tema [Classic.Avalonia](https://github.com/BAndysc/Classic.Avalonia)
-(aspecto Windows 9x, sin animaciones ni transparencias). Escanear solo lee. Lo único que
-cambia algo es «Poner en cuarentena»: el servicio prepara el plan, la ventana lo muestra
-y solo si se acepta lo aplica con el token. Si hace falta aprobación de administrador, la
+(aspecto Windows 9x, sin animaciones ni transparencias). Escanear solo lee. Lo que cambia
+algo (poner en cuarentena, restaurar, eliminar los vencidos) va en dos pasos: el servicio
+prepara el plan, la ventana lo muestra y solo si se acepta lo aplica con el token. Si hace falta aprobación de administrador, la
 pide **`nexo-tray.exe`**, que tiene que estar en la misma carpeta que `nexo-desktop.exe`
 (la ventana nunca se eleva a sí misma). En Linux el servicio todavía no existe, y la
 ventana lo dice en vez de aparentar un estado.

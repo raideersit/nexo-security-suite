@@ -98,6 +98,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeCuarentena CuarentenaPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeCuarentenaPorPipe(pipe, Espera);
+#else
+            return new ServicioDeCuarentenaNoDisponible(SinServicio);
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

@@ -12,6 +12,7 @@ namespace Nexo.Ui.Desktop
             string pipe = Argumento(args, "--pipe") ?? "NexoIpc";
             App.Fuente = Fuentes.PorDefecto(pipe);
             App.Escaneo = Fuentes.EscaneoPorDefecto(pipe);
+            App.Cuarentena = Fuentes.CuarentenaPorDefecto(pipe);
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
 

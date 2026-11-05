@@ -212,7 +212,51 @@
                 <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana, y la salud del disco aún no tiene herramienta de consola propia." />
             </TabItem>
             <TabItem Header="Cuarentena">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-scan cuarentena listar en la consola." />
+                <DockPanel x:Name="PanelDeCuarentena" x:DataType="local:CuarentenaModelo" Margin="10">
+                    <HeaderedContentControl Header="Archivos en cuarentena">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
+                                       Text="Estos archivos se guardaron cifrados en una carpeta protegida: no se pueden ejecutar y ningún antivirus los vuelve a detectar. Pasados 30 días se pueden eliminar con «Eliminar vencidos...»; nada se borra solo." />
+
+                            <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="BotonRestaurar" Content="Restaurar..." IsEnabled="{Binding PuedeRestaurar}" Click="Restaurar" />
+                                    <Button x:Name="BotonEliminarVencidos" Content="Eliminar vencidos..." IsEnabled="{Binding PuedeEliminarVencidos}" Click="EliminarVencidos" />
+                                    <Button Content="Actualizar" Click="ActualizarCuarentena" />
+                                </StackPanel>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock x:Name="ResumenDeCuarentena" Text="{Binding Resumen}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Mensaje}" TextWrapping="Wrap" Foreground="#800000" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Border Background="White" BorderBrush="#808080" BorderThickness="1">
+                                <DockPanel>
+                                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,200,110,90" Background="#C0C0C0">
+                                        <TextBlock Grid.Column="0" Margin="6,3" Text="Ubicación original" />
+                                        <TextBlock Grid.Column="1" Margin="6,3" Text="Amenaza" />
+                                        <TextBlock Grid.Column="2" Margin="6,3" Text="Desde" />
+                                        <TextBlock Grid.Column="3" Margin="6,3" Text="Vence" />
+                                    </Grid>
+                                    <ListBox x:Name="TablaDeCuarentena" ItemsSource="{Binding Elementos}" SelectedItem="{Binding Seleccionado}"
+                                             BorderThickness="0" Background="White">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaDeCuarentena">
+                                                <Grid ColumnDefinitions="*,200,110,90">
+                                                    <TextBlock Grid.Column="0" Margin="2,1" Text="{Binding Ruta}" TextWrapping="Wrap"
+                                                               FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                    <TextBlock Grid.Column="1" Margin="6,1" Text="{Binding Firma}" TextWrapping="Wrap" />
+                                                    <TextBlock Grid.Column="2" Margin="6,1" Text="{Binding Desde}" />
+                                                    <TextBlock Grid.Column="3" Margin="6,1" Text="{Binding Vence}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Border>
+                        </DockPanel>
+                    </HeaderedContentControl>
+                </DockPanel>
             </TabItem>
         </TabControl>
     </DockPanel>

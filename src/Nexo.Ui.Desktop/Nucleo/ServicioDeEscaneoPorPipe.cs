@@ -44,32 +44,73 @@ namespace Nexo.Ui.Desktop.Nucleo
         public async Task<Consulta<PlanDeCuarentena>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct)
             => LectorDeEscaneo.Plan(await LlamarAsync("cuarentena.previsualizar", new { escaneo = id }, ct).ConfigureAwait(false));
 
-        public async Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
+        public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
+            => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Cuarentena, token, _lanzador, ct);
+
+        private Task<RespuestaCruda> LlamarAsync(string metodo, object parametros, CancellationToken ct)
+            => LlamadaPorPipe.LlamarAsync(_pipe, _espera, metodo, parametros, ct);
+    }
+
+    /// <summary>cuarentena.* por el pipe. Restaurar y purgar van por AccionesDelServicio, igual que en la bandeja.</summary>
+    public sealed class ServicioDeCuarentenaPorPipe : IServicioDeCuarentena
+    {
+        private readonly string _pipe;
+        private readonly TimeSpan _espera;
+        private readonly ILanzadorElevado _lanzador;
+
+        public ServicioDeCuarentenaPorPipe(string pipe, TimeSpan espera, ILanzadorElevado? lanzador = null)
         {
-            try
-            {
-                ResultadoDeAplicar r = await AccionesDelServicio.AplicarConAprobacionAsync(
-                    _pipe, TipoDeAccion.Cuarentena, token, _lanzador, _espera, ct).ConfigureAwait(false);
-                return new ResultadoDeAccion(r.Exito, r.NecesitaElevacion, r.Mensaje);
-            }
-            catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
-                                       || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
-            {
-                return new ResultadoDeAccion(false, false, "No se pudo hablar con el servicio (" + ex.GetType().Name + "). No se ha cambiado nada.");
-            }
+            _pipe = pipe;
+            _espera = espera;
+            _lanzador = lanzador ?? new LanzadorPorBandeja(pipe);
         }
 
-        private async Task<RespuestaCruda> LlamarAsync(string metodo, object parametros, CancellationToken ct)
+        public async Task<Consulta<ListaDeCuarentena>> ListarAsync(CancellationToken ct)
+            => LectorDeCuarentena.Listar(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.listar", null, ct).ConfigureAwait(false));
+
+        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarRestauracionAsync(string id, CancellationToken ct)
+            => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.previsualizar-restauracion", new { id }, ct).ConfigureAwait(false));
+
+        public Task<ResultadoDeAccion> RestaurarAsync(string token, CancellationToken ct)
+            => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Restauracion, token, _lanzador, ct);
+
+        public async Task<Consulta<PlanDeCuarentena>> PrevisualizarPurgaAsync(CancellationToken ct)
+            => LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "cuarentena.previsualizar-purga", null, ct).ConfigureAwait(false));
+
+        public Task<ResultadoDeAccion> PurgarAsync(string token, CancellationToken ct)
+            => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Purga, token, _lanzador, ct);
+    }
+
+    internal static class LlamadaPorPipe
+    {
+        /// <summary>Una llamada en su propia conexion. Un fallo de conexion vuelve como respuesta con error, no como excepcion.</summary>
+        public static async Task<RespuestaCruda> LlamarAsync(string pipe, TimeSpan espera, string metodo, object? parametros, CancellationToken ct)
         {
             try
             {
-                await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(_pipe, _espera, ct).ConfigureAwait(false);
+                await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
                 Respuesta r = await c.LlamarAsync(metodo, parametros, ct).ConfigureAwait(false);
                 return new RespuestaCruda(r.Exito, r.Error?.Mensaje, r.Resultado);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
             {
                 return new RespuestaCruda(false, ex is TimeoutException ? "el servicio no está en marcha" : "no se pudo hablar con el servicio (" + ex.GetType().Name + ")", null);
+            }
+        }
+
+        /// <summary>Aplica un plan por el mismo camino que la bandeja: normal y, si el servicio exige UAC, con nexo-tray.exe elevado.</summary>
+        public static async Task<ResultadoDeAccion> AplicarAsync(string pipe, TimeSpan espera, TipoDeAccion tipo, string token,
+                                                                 ILanzadorElevado lanzador, CancellationToken ct)
+        {
+            try
+            {
+                ResultadoDeAplicar r = await AccionesDelServicio.AplicarConAprobacionAsync(pipe, tipo, token, lanzador, espera, ct).ConfigureAwait(false);
+                return new ResultadoDeAccion(r.Exito, r.NecesitaElevacion, r.Mensaje);
+            }
+            catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
+                                       || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
+            {
+                return new ResultadoDeAccion(false, false, "No se pudo hablar con el servicio (" + ex.GetType().Name + "). No se ha cambiado nada.");
             }
         }
     }
