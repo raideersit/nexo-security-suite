@@ -1,0 +1,120 @@
+<classic:ClassicWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:classic="clr-namespace:Classic.Avalonia.Theme;assembly=Classic.Avalonia.Theme"
+                       xmlns:cc="clr-namespace:Classic.CommonControls;assembly=Classic.CommonControls.Avalonia"
+                       xmlns:local="clr-namespace:Nexo.Ui.Desktop"
+                       x:Class="Nexo.Ui.Desktop.MainWindow"
+                       x:DataType="local:VentanaPrincipalModelo"
+                       Title="Nexo Security Suite"
+                       Width="900" Height="620" MinWidth="640" MinHeight="460"
+                       WindowStartupLocation="CenterScreen">
+
+    <classic:ClassicWindow.Styles>
+        <Style Selector="HeaderedContentControl">
+            <Setter Property="Padding" Value="10,12,10,10" />
+        </Style>
+        <Style Selector="TextBlock.pendiente">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="16" />
+        </Style>
+    </classic:ClassicWindow.Styles>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_Archivo">
+                <MenuItem Header="_Salir" Click="Salir" />
+            </MenuItem>
+            <MenuItem Header="_Ver">
+                <MenuItem Header="_Actualizar" InputGesture="F5" Click="Actualizar" />
+            </MenuItem>
+            <MenuItem Header="Ay_uda">
+                <MenuItem Header="_Acerca de Nexo..." Click="AcercaDe" />
+            </MenuItem>
+        </Menu>
+
+        <cc:ToolBar DockPanel.Dock="Top">
+            <!-- Los iconos se ponen desde el codigo (Iconos.cs): ToolBarButton solo acepta Bitmap. -->
+            <cc:ToolBarButton x:Name="BotonEscanear" Text="Escanear" Click="IrAEscaneo" />
+            <cc:ToolBarButton x:Name="BotonLimpiar" Text="Limpiar" Click="IrALimpieza" />
+            <cc:ToolBarButton x:Name="BotonFirewall" Text="Firewall" Click="IrAFirewall" />
+            <cc:ToolBarButton x:Name="BotonCuarentena" Text="Cuarentena" Click="IrACuarentena" />
+            <cc:ToolBarButton x:Name="BotonActualizar" Text="Actualizar" Click="Actualizar" />
+        </cc:ToolBar>
+
+        <cc:StatusBar DockPanel.Dock="Bottom">
+            <cc:StatusBarItem cc:StatusBar.Size="3*"><TextBlock Text="{Binding BarraServicio}" /></cc:StatusBarItem>
+            <cc:StatusBarItem cc:StatusBar.Size="2*"><TextBlock Text="{Binding BarraTiempoReal}" /></cc:StatusBarItem>
+            <cc:StatusBarItem cc:StatusBar.Size="2*"><TextBlock Text="{Binding BarraMotor}" /></cc:StatusBarItem>
+            <cc:StatusBarItem cc:StatusBar.Size="2*"><TextBlock Text="{Binding BarraConsulta}" /></cc:StatusBarItem>
+        </cc:StatusBar>
+
+        <TabControl x:Name="Pestanas" Margin="6">
+            <TabItem Header="Estado">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Estado general">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top"
+                                        Background="{Binding ColorDeEstado}" BorderBrush="Black" BorderThickness="1" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="TituloDeEstado" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DockPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Módulos">
+                            <Border Background="White" BorderBrush="#808080" BorderThickness="1">
+                                <StackPanel>
+                                    <Grid ColumnDefinitions="180,130,*" Background="#C0C0C0">
+                                        <TextBlock Grid.Column="0" Margin="6,3" Text="Módulo" />
+                                        <TextBlock Grid.Column="1" Margin="6,3" Text="Estado" />
+                                        <TextBlock Grid.Column="2" Margin="6,3" Text="Detalle" />
+                                    </Grid>
+                                    <ItemsControl x:Name="ListaDeModulos" ItemsSource="{Binding Modulos}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaVista">
+                                                <Grid ColumnDefinitions="180,130,*">
+                                                    <TextBlock Grid.Column="0" Margin="6,3" Text="{Binding Modulo}" />
+                                                    <StackPanel Grid.Column="1" Margin="6,3" Orientation="Horizontal" Spacing="6">
+                                                        <Border Width="10" Height="10" VerticalAlignment="Center"
+                                                                Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                        <TextBlock Text="{Binding Estado}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Margin="6,3" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </HeaderedContentControl>
+
+                        <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                   Text="Nexo complementa a Microsoft Defender; no lo reemplaza. Detecta y avisa, pero no bloquea." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Escaneo">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-scan en la consola (escanear no modifica nada; la cuarentena es una acción aparte)." />
+            </TabItem>
+            <TabItem Header="Tiempo real">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Las detecciones del tiempo real se revisan desde la bandeja del sistema (nexo-tray)." />
+            </TabItem>
+            <TabItem Header="Firewall">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-firewall en la consola." />
+            </TabItem>
+            <TabItem Header="Limpieza">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-cleanup en la consola, o «Limpiar» en el menú de la bandeja." />
+            </TabItem>
+            <TabItem Header="Disco">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana, y la salud del disco aún no tiene herramienta de consola propia." />
+            </TabItem>
+            <TabItem Header="Cuarentena">
+                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Mientras tanto, use nexo-scan cuarentena listar en la consola." />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</classic:ClassicWindow>

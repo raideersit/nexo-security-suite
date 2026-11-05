@@ -1,0 +1,73 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:classic="clr-namespace:Classic.Avalonia.Theme;assembly=Classic.Avalonia.Theme"
+             x:Class="Nexo.Ui.Desktop.App"
+             Name="Nexo Security Suite"
+             RequestedThemeVariant="Default">
+
+    <Application.Styles>
+        <classic:ClassicTheme />
+    </Application.Styles>
+
+    <Application.Resources>
+        <!-- Iconos dibujados en vectores (24x24): sin archivos de imagen que cargar. El rectangulo transparente fija el tamaño. -->
+        <DrawingImage x:Key="IconoEscanear">
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H24 V24 H0 Z" />
+                <GeometryDrawing Brush="#C0E0FF">
+                    <GeometryDrawing.Geometry><EllipseGeometry Center="10,10" RadiusX="6" RadiusY="6" /></GeometryDrawing.Geometry>
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="2" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M14.5,14.5 L20.5,20.5">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="3" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <DrawingImage x:Key="IconoLimpiar">
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H24 V24 H0 Z" />
+                <GeometryDrawing Brush="White" Geometry="M5,7 H19 L17.5,21 H6.5 Z">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="1.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M3,7 H21 M9,7 V4 H15 V7 M10,11 V18 M14,11 V18">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="1.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <DrawingImage x:Key="IconoFirewall">
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H24 V24 H0 Z" />
+                <GeometryDrawing Brush="#B22222" Geometry="M2,5 H22 V19 H2 Z">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="1.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M2,10 H22 M2,15 H22 M8,5 V10 M15,10 V15 M8,15 V19">
+                    <GeometryDrawing.Pen><Pen Brush="White" Thickness="1.2" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <DrawingImage x:Key="IconoCuarentena">
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H24 V24 H0 Z" />
+                <GeometryDrawing Brush="#FFD700" Geometry="M4,10 H20 V21 H4 Z">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="1.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M8,10 V7 A4,4 0 0 1 16,7 V10">
+                    <GeometryDrawing.Pen><Pen Brush="Black" Thickness="1.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <DrawingImage x:Key="IconoActualizar">
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H24 V24 H0 Z" />
+                <GeometryDrawing Geometry="M19,12 A7,7 0 1 1 16.9,7">
+                    <GeometryDrawing.Pen><Pen Brush="#008000" Thickness="2.5" /></GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#008000" Geometry="M20,3 L20,10 L13,10 Z" />
+            </DrawingGroup>
+        </DrawingImage>
+    </Application.Resources>
+</Application>

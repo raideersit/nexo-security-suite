@@ -740,6 +740,37 @@ nada). Ahora informa `"simulado"`. Prueba de regresión en `Nexo.Service.Demo` (
 
 ---
 
+## 2l. Ventana principal con Avalonia y tema Classic (2026-11-05, desde Linux)
+
+`src/Nexo.Ui.Desktop` (`nexo-desktop`). Objetivo: Windows 10, Windows 11 **y Linux** con la misma ventana, en estilo Windows
+clásico y liviano. La maqueta aprobada (estado, escaneo, tiempo real, firewall, limpieza, disco, cuarentena) está en
+https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
+
+- **Avalonia 11.3.0 + `Classic.Avalonia.Theme` 11.3.0.3** (MIT). Se quedó en 11.3 porque el tema para Avalonia 12 aún es beta.
+  `ToolBarButton` solo acepta `Bitmap`: los iconos están dibujados en vectores en `App.axaml` y `Iconos.cs` los pasa a mapa de bits
+  al abrir (no hay archivos de imagen). No se usa `UseMessageBoxSounds` (no está en este paquete).
+- **Dos destinos:** `net8.0-windows` referencia `Nexo.Ipc` y consulta el servicio por el pipe; `net8.0` (Linux) usa
+  `FuenteNoDisponible`, que siempre dice «sin conexión» con el motivo («el servicio de Nexo todavía no existe para Linux»).
+- **Reutiliza el núcleo de la bandeja sin copiarlo:** `InstantaneaDelServicio` y `DeteccionVista` se separaron de
+  `Nucleo/Instantanea.cs` a `Nucleo/InstantaneaDelServicio.cs` (sin cambios de comportamiento), y el proyecto compila por enlace
+  ese archivo y `ModeloDeBandeja.cs`; `Instantanea.cs` (el consultor del pipe) solo en Windows. Misma máquina de estados que la
+  bandeja: nunca «todo en orden» si no se sabe.
+- **Hecho:** la pestaña «Estado» (cabecera con color y texto, tabla de módulos y barra de estado), consulta cada 5 s y con F5. Los
+  módulos que la ventana aún no consulta (escaneo, firewall, disco, cuarentena, limpieza) figuran como «Sin consultar», nunca como
+  correctos. Las otras 6 pestañas dicen que no están hechas y qué herramienta usar mientras tanto. **Solo lectura:** ningún botón
+  cambia nada.
+- **Pruebas:** `tools/Nexo.Desktop.Demo`, 37, corre en Linux. Incluye la ventana de verdad cargada sin pantalla
+  (`Avalonia.Headless` con Skia) y `--captura f.png`. Ese arnés encontró que los iconos vectoriales no sirven en `ToolBarButton`
+  (`InvalidCastException` al cargar el XAML), y está corregido. Además, en el escritorio Linux real (Avalonia usa X11, aquí por XWayland) la ventana arrancó y
+  siguió abierta hasta que se cerró sin errores.
+- **SIN PROBAR:** en Windows (ni compilada ahí ni corrida), contra el servicio real por el pipe, en Windows 11 (bordes
+  redondeados: por eso hereda de `ClassicWindow`), y el consumo de memoria real.
+- **Siguiente:** que la pestaña «Estado» consulte también `firewall.estado`, `escaneo-programado.estado` y `cuarentena.listar`;
+  después, las pestañas una por una siguiendo la maqueta. Las acciones (cuarentena, limpieza) tienen que pasar por el mismo flujo de
+  vista previa + token + aprobación que ya usa la bandeja (`AccionesDelServicio`).
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

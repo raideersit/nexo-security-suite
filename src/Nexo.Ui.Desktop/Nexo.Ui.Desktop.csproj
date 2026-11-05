@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Ventana principal. Avalonia + tema Classic (aspecto Windows 9x, liviano) para que la misma
+         interfaz corra en Windows 10, Windows 11 y Linux.
+         - net8.0-windows: habla con Nexo.Service por el named pipe (Nexo.Ipc es solo Windows).
+         - net8.0: la misma ventana para Linux. El servicio aun no existe alli, y la ventana lo dice:
+           nunca muestra «todo en orden» si no lo sabe. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Ui.Desktop</RootNamespace>
+    <AssemblyName>nexo-desktop</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="nexo-desktop-demo" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.0" />
+    <PackageReference Include="Classic.Avalonia.Theme" Version="11.3.0.3" />
+  </ItemGroup>
+
+  <!-- Del nucleo de la bandeja se reutiliza lo que no depende de Windows: el estado y la maquina de estados
+       (la misma regla de «nunca decir todo en orden si no se sabe»). -->
+  <ItemGroup>
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\InstantaneaDelServicio.cs" Link="Compartido\InstantaneaDelServicio.cs" />
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\ModeloDeBandeja.cs" Link="Compartido\ModeloDeBandeja.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\Instantanea.cs" Link="Compartido\Instantanea.cs" />
+  </ItemGroup>
+
+</Project>

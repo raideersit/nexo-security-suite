@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de la ventana principal: el resumen de estado (sin pantalla), el modelo de la ventana con fuentes falsas,
+         y la ventana de verdad cargada sin pantalla (Avalonia.Headless). Corre en Linux y en Windows; no habla con el
+         servicio. Con la opcion captura (archivo.png) guarda una imagen de la ventana. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Desktop.Demo</RootNamespace>
+    <AssemblyName>nexo-desktop-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>
