@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj" />
+    <!-- La salud del disco: el JSON de disco.estado sale de VigiaDeSalud.ParaJson, el mismo codigo que usa el servicio. -->
+    <ProjectReference Include="..\..\src\Nexo.Modules.Cleanup\Nexo.Modules.Cleanup.csproj" />
   </ItemGroup>
 
 </Project>

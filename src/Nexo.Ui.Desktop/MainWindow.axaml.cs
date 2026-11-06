@@ -21,6 +21,7 @@ namespace Nexo.Ui.Desktop
         private const int PestanaTiempoReal = 2;
         private const int PestanaFirewall = 3;
         private const int PestanaLimpieza = 4;
+        private const int PestanaDisco = 5;
         private const int PestanaCuarentena = 6;
 
         private readonly DispatcherTimer _temporizador;
@@ -33,10 +34,12 @@ namespace Nexo.Ui.Desktop
                                    new FirewallModelo(new ServicioDeFirewallNoDisponible("vista de diseño")),
                                    new LimpiezaModelo(new ServicioDeLimpiezaNoDisponible("vista de diseño")),
                                    new TiempoRealModelo(new ServicioDeTiempoRealNoDisponible("vista de diseño"),
-                                                        new ServicioDeEscaneoNoDisponible("vista de diseño"))) { }
+                                                        new ServicioDeEscaneoNoDisponible("vista de diseño")),
+                                   new DiscoModelo(new ServicioDeDiscoNoDisponible("vista de diseño"))) { }
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
-                          LimpiezaModelo limpieza, TiempoRealModelo tiempoReal)
+                          LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
+                          DiscoModelo disco)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -50,18 +53,21 @@ namespace Nexo.Ui.Desktop
             Firewall = firewall;
             Limpieza = limpieza;
             TiempoReal = tiempoReal;
+            Disco = disco;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
             PanelDeFirewall.DataContext = firewall;
             PanelDeLimpieza.DataContext = limpieza;
             PanelDeTiempoReal.DataContext = tiempoReal;
+            PanelDeDisco.DataContext = disco;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, _) =>
             {
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
+                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
                 // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
@@ -72,6 +78,8 @@ namespace Nexo.Ui.Desktop
                 await Modelo.ActualizarAsync();
                 // El detalle del tiempo real, solo mientras se esta mirando su pestaña.
                 if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
+                // Y el de los discos (barato: el servicio devuelve lo que ya leyo), para ver terminar una lectura pedida.
+                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
             };
             _temporizadorDeEscaneo = new DispatcherTimer { Interval = SondeoDeEscaneo };
             _temporizadorDeEscaneo.Tick += async (_, _) => await Escaneo.SondearAsync();
@@ -100,6 +108,7 @@ namespace Nexo.Ui.Desktop
         public FirewallModelo Firewall { get; }
         public LimpiezaModelo Limpieza { get; }
         public TiempoRealModelo TiempoReal { get; }
+        public DiscoModelo Disco { get; }
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {
@@ -107,6 +116,7 @@ namespace Nexo.Ui.Desktop
             await Cuarentena.ActualizarAsync();
             await Firewall.ActualizarAsync();
             if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
+            if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
         }
 
         private void Salir(object? sender, RoutedEventArgs e) => Close();
@@ -177,6 +187,13 @@ namespace Nexo.Ui.Desktop
 
             if (await Escaneo.IniciarRevisionAsync(rutas)) Pestanas.SelectedIndex = PestanaEscaneo;
             else await MessageBox.ShowDialog(this, Escaneo.Mensaje, "Revisar lo que no se vio", MessageBoxButtons.Ok, MessageBoxIcon.Warning);
+        }
+
+        // ------------------------------------------------------------ Disco
+        private async void LeerDiscos(object? sender, RoutedEventArgs e)
+        {
+            await Disco.PedirLecturaAsync();
+            await Modelo.ActualizarAsync();
         }
 
         // ------------------------------------------------------------ Cuarentena

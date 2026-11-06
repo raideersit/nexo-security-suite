@@ -160,6 +160,25 @@ namespace Nexo.Ui.Desktop.Nucleo
         }
     }
 
+    /// <summary>disco.estado y disco.leer por el pipe. Los dos solo leen; el servicio limita las lecturas nuevas.</summary>
+    public sealed class ServicioDeDiscoPorPipe : IServicioDeDisco
+    {
+        private readonly string _pipe;
+        private readonly TimeSpan _espera;
+
+        public ServicioDeDiscoPorPipe(string pipe, TimeSpan espera)
+        {
+            _pipe = pipe;
+            _espera = espera;
+        }
+
+        public async Task<Consulta<EstadoDeDiscos>> EstadoAsync(CancellationToken ct)
+            => LectorDeDisco.Estado(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "disco.estado", null, ct).ConfigureAwait(false));
+
+        public async Task<Consulta<PedidoDeLectura>> PedirLecturaAsync(CancellationToken ct)
+            => LectorDeDisco.Pedido(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "disco.leer", null, ct).ConfigureAwait(false));
+    }
+
     internal static class LlamadaPorPipe
     {
         /// <summary>Una llamada en su propia conexion. Un fallo de conexion vuelve como respuesta con error, no como excepcion.</summary>

@@ -59,11 +59,9 @@ namespace Nexo.Ui.Desktop.Nucleo
                 i.Conectado ? FilaDelProgramado(e.Programado) : SinConexion(Programado),
                 i.Conectado ? FilaDelFirewall(e.Firewall) : SinConexion(Firewall),
                 i.Conectado ? FilaDeLaCuarentena(e.Cuarentena) : SinConexion(Cuarentena),
+                i.Conectado ? FilaDelDisco(e.Disco) : SinConexion(Disco),
                 i.Conectado
-                    ? new FilaDeModulo(Disco, Indicador.SinDatos, "Sin consultar", "El servicio todavía no informa la salud del disco.")
-                    : SinConexion(Disco),
-                i.Conectado
-                    ? new FilaDeModulo(Limpieza, Indicador.SinDatos, "A pedido", "No tiene estado: se usa desde la bandeja o con nexo-cleanup.")
+                    ? new FilaDeModulo(Limpieza, Indicador.SinDatos, "A pedido", "No tiene estado: se usa desde su pestaña o desde la bandeja.")
                     : SinConexion(Limpieza)
             };
 
@@ -221,6 +219,12 @@ namespace Nexo.Ui.Desktop.Nucleo
             return new FilaDeModulo(Cuarentena, Indicador.Correcto, q.Elementos == 1 ? "1 elemento" : q.Elementos + " elementos",
                 // El servicio NO purga solo: lo vencido se elimina cuando alguien lo pide (pestaña Cuarentena).
                 q.ProximoVencimiento is DateTimeOffset v ? "El más antiguo vence el " + Fecha(v) + " (después se puede eliminar)." : "Guardados cifrados.");
+        }
+
+        private static FilaDeModulo FilaDelDisco(Consulta<EstadoDeDiscos>? c)
+        {
+            (Indicador ind, string estado, string detalle) = ResumirDisco.General(c);
+            return new FilaDeModulo(Disco, ind, estado, detalle);
         }
 
         private static string NombreDePerfil(string p) => p switch

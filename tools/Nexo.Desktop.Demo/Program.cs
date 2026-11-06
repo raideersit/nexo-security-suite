@@ -41,6 +41,7 @@ namespace Nexo.Desktop.Demo
             ProbarFirewall();
             ProbarLimpieza();
             ProbarTiempoReal();
+            ProbarDisco();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -952,6 +953,183 @@ namespace Nexo.Desktop.Demo
             Check(sinServicio.Titulo.StartsWith("No se pudo") && !sinServicio.PuedeRevisar, "sin servicio (esta compilacion): no se pudo, no «apagado»");
         }
 
+        // ============================================================ Disco
+        private sealed class SmartFalsa : Nexo.Modules.Cleanup.Disco.IFuenteSmart
+        {
+            public System.Collections.Generic.List<Nexo.Modules.Cleanup.Disco.LecturaDeDisco> Discos = new System.Collections.Generic.List<Nexo.Modules.Cleanup.Disco.LecturaDeDisco>();
+            public Exception? Fallar;
+            public int Lecturas;
+            public System.Collections.Generic.IReadOnlyList<Nexo.Modules.Cleanup.Disco.LecturaDeDisco> Leer()
+            {
+                Lecturas++;
+                if (Fallar is not null) throw Fallar;
+                return Discos.ToList();
+            }
+        }
+
+        private sealed class NotasEnMemoria : Nexo.Reports.IReportWriter
+        {
+            public int Notas;
+            public Task<Nexo.Reports.Model.NoteRef> EscribirAsync(Nexo.Reports.Model.NexoEvent evento, CancellationToken ct = default)
+            { Notas++; return Task.FromResult(new Nexo.Reports.Model.NoteRef(evento.Id, "(memoria)", evento.Titulo, false)); }
+            public Task InicializarVaultAsync(CancellationToken ct = default) => Task.CompletedTask;
+        }
+
+        private static Nexo.Modules.Cleanup.Disco.LecturaDeDisco Sata(string modelo, ulong pendientes = 0)
+            => new Nexo.Modules.Cleanup.Disco.LecturaDeDisco(modelo, "****1A2B")
+            {
+                PrediccionDeFallo = false,
+                Atributos = new[]
+                {
+                    new Nexo.Modules.Cleanup.Disco.AtributoSmart(5, 0, 100, 100, 0), new Nexo.Modules.Cleanup.Disco.AtributoSmart(9, 0, 90, 90, 12345),
+                    new Nexo.Modules.Cleanup.Disco.AtributoSmart(197, 0, 100, 100, pendientes)
+                },
+                TemperaturaC = 38,
+                HorasEncendido = 12345
+            };
+
+        private static Nexo.Modules.Cleanup.Disco.LecturaDeDisco Nvme()
+            => new Nexo.Modules.Cleanup.Disco.LecturaDeDisco("NVMe Rapido 512", "****9F00")
+            {
+                TemperaturaC = 41, DesgastePorcentaje = 3, HorasEncendido = 800,
+                Limitaciones = new[] { "NVMe: no expone atributos ATA; se usan los contadores de fiabilidad de Storage." }
+            };
+
+        private static Nexo.Modules.Cleanup.Disco.LecturaDeDisco Usb()
+            => new Nexo.Modules.Cleanup.Disco.LecturaDeDisco("USB Pendrive", "sin-serie")
+            { Limitaciones = new[] { "Puente USB: normalmente no pasa los comandos S.M.A.R.T." } };
+
+        /// <summary>disco.estado tal como lo manda el servicio: VigiaDeSalud.ParaJson con las opciones del pipe (sin nulos).</summary>
+        private static Consulta<EstadoDeDiscos> DiscoPorPipe(Nexo.Modules.Cleanup.Disco.VigiaDeSalud v)
+            => LectorDeDisco.Estado(Json(JsonSerializer.Serialize(Nexo.Modules.Cleanup.Disco.VigiaDeSalud.ParaJson(v.Estado()),
+                new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull })));
+
+        private static (Nexo.Modules.Cleanup.Disco.VigiaDeSalud Vigia, SmartFalsa Fuente, Func<DateTimeOffset> Avanzar) Vigia(params Nexo.Modules.Cleanup.Disco.LecturaDeDisco[] discos)
+        {
+            var f = new SmartFalsa();
+            f.Discos.AddRange(discos);
+            DateTimeOffset ahora = Hoy;
+            var v = new Nexo.Modules.Cleanup.Disco.VigiaDeSalud(new Nexo.Modules.Cleanup.Disco.MonitorDeSalud(f, new NotasEnMemoria()),
+                                                               reloj: () => ahora);
+            return (v, f, () => ahora = ahora.AddMinutes(6));
+        }
+
+        private sealed class DiscoFalso : IServicioDeDisco
+        {
+            public Consulta<EstadoDeDiscos> Valor = Consulta<EstadoDeDiscos>.Mal("sin datos de prueba");
+            public Consulta<PedidoDeLectura> AlPedir = Consulta<PedidoDeLectura>.Bien(new PedidoDeLectura(true, "lectura iniciada"));
+            public int Consultas, Pedidos;
+            public Task<Consulta<EstadoDeDiscos>> EstadoAsync(CancellationToken ct) { Consultas++; return Task.FromResult(Valor); }
+            public Task<Consulta<PedidoDeLectura>> PedirLecturaAsync(CancellationToken ct) { Pedidos++; return Task.FromResult(AlPedir); }
+        }
+
+        private static void ProbarDisco()
+        {
+            Console.WriteLine("== Disco: vigia del servicio, lector, resumen y modelo de la pestaña");
+
+            // ---- el vigia (codigo del servicio) y su JSON leido por la ventana
+            var (v, fuente, avanzar) = Vigia(Sata("Disco Sano"), Nvme(), Sata("Disco Viejo", pendientes: 3), Usb());
+            Consulta<EstadoDeDiscos> c = DiscoPorPipe(v);
+            Check(c.Valor is { Estado: "nunca", Leyendo: false, Discos.Count: 0 } && ResumirDisco.General(c).Estado == "Sin leer todavía",
+                "antes de la primera lectura: «sin leer todavía», nunca «bien»", c.Error);
+            Esperar(v.LeerAsync());
+            c = DiscoPorPipe(v);
+            Check(c.Valor is { Estado: "listo", Discos.Count: 4 } && c.Valor.UltimaLectura == Hoy && c.Valor.ProximaLectura == Hoy.AddHours(6),
+                "tras leer: los 4 discos, la fecha y la proxima lectura (6 h)", c.Error);
+            EstadoDeDiscos s = c.Valor!;
+            var sano = ResumirDisco.Disco(s.Discos[0]);
+            Check(sano.Indicador == Indicador.Correcto && sano.Detalle == "Se revisó la bandera de fallo y 2 de 5 atributos que anticipan fallos.",
+                "un SATA sano: sin alertas, y dice que se reviso", sano.Detalle);
+            var nvme = ResumirDisco.Disco(s.Discos[1]);
+            Check(nvme.Indicador == Indicador.SinDatos && nvme.Estado == "Sin evaluar" && nvme.Detalle.Contains("la temperatura, el desgaste, las horas de uso"),
+                "un NVMe con solo temperatura y desgaste: «sin evaluar», no «bien»", nvme.Detalle);
+            var viejo = ResumirDisco.Disco(s.Discos[2]);
+            Check(viejo.Indicador == Indicador.Alerta && viejo.Detalle.StartsWith("Sectores pendientes de reasignar (197): 3"),
+                "197 > 0: alerta con la explicacion del evaluador", viejo.Detalle);
+            var usb = ResumirDisco.Disco(s.Discos[3]);
+            Check(usb.Indicador == Indicador.SinDatos && usb.Estado == "Sin datos" && usb.Detalle.Contains("Puente USB"),
+                "un USB sin datos: «sin datos» con el motivo", usb.Detalle);
+            Check(ResumirDisco.Temperatura(s.Discos[1]) == "41 °C" && ResumirDisco.Desgaste(s.Discos[0]) == "—" && ResumirDisco.Horas(s.Discos[0]) == "12 345 h",
+                "temperatura, desgaste (o «—») y horas");
+            var g = ResumirDisco.General(c);
+            Check(g.Indicador == Indicador.Alerta && g.Estado == "1 disco con problemas" && g.Detalle.StartsWith("Disco Viejo:"),
+                "en general manda el disco con problemas", g.Detalle);
+
+            var (v2, _, _) = Vigia(Sata("Disco Sano"), Nvme());
+            Esperar(v2.LeerAsync());
+            g = ResumirDisco.General(DiscoPorPipe(v2));
+            Check(g.Indicador == Indicador.Correcto && g.Detalle.StartsWith("1 de 2 discos revisados; 1 sin datos"), "uno sano y uno sin evaluar: lo dice", g.Detalle);
+            var (v3, _, _) = Vigia(Nvme());
+            Esperar(v3.LeerAsync());
+            Check(ResumirDisco.General(DiscoPorPipe(v3)).Indicador == Indicador.SinDatos, "solo un NVMe sin atributos: sin datos, no correcto");
+            var (v4, _, _) = Vigia();
+            Esperar(v4.LeerAsync());
+            Check(ResumirDisco.General(DiscoPorPipe(v4)).Estado == "Ningún disco", "sin discos: lo dice");
+
+            // Limite de lecturas a pedido.
+            Check(!v.PedirLectura(out string motivo) && motivo.Contains("menos de 5 minutos") && fuente.Lecturas == 1,
+                "pedir otra lectura enseguida se niega y no lee", motivo);
+            avanzar();
+            Check(v.PedirLectura(out _), "pasados 5 minutos, si");
+            for (int i = 0; i < 50 && v.Estado().Leyendo; i++) Thread.Sleep(20);
+            Check(fuente.Lecturas == 2 && !v.Estado().Leyendo, "y lee una vez");
+
+            // Una lectura que falla: los datos anteriores se quedan, con su fecha, y se dice.
+            avanzar();
+            fuente.Fallar = new InvalidOperationException("proveedor WMI roto");
+            Esperar(v.LeerAsync());
+            c = DiscoPorPipe(v);
+            Check(c.Valor is { Estado: "fallido", Discos.Count: 4 } && c.Valor.Error!.Contains("proveedor WMI roto") && c.Valor.UltimaLectura < Hoy.AddMinutes(12),
+                "lectura fallida: estado «fallido», el motivo y los datos anteriores con su fecha", c.Valor?.Error);
+            g = ResumirDisco.General(c);
+            Check(g.Indicador == Indicador.Alerta && g.Detalle.StartsWith("La última lectura falló"), "con un disco en alerta, sigue en alerta y dice que fallo", g.Detalle);
+            var (v5, f5, av5) = Vigia(Sata("Disco Sano"));
+            Esperar(v5.LeerAsync());
+            av5();
+            f5.Fallar = new InvalidOperationException("x");
+            Esperar(v5.LeerAsync());
+            g = ResumirDisco.General(DiscoPorPipe(v5));
+            Check(g.Indicador == Indicador.Atencion && g.Estado == "Falló la lectura", "sano pero la ultima lectura fallo: atencion, no «sin alertas»", g.Estado);
+
+            // ---- el lector con respuestas raras
+            Check(LectorDeDisco.Estado(Json("{\"estado\":\"listo\",\"leyendo\":false,\"discos\":[{\"modelo\":\"X\",\"sin_datos\":false,\"atributos_leidos\":1," +
+                                            "\"atributos_clave_leidos\":[5],\"severidad\":\"rarisima\",\"alertas\":[],\"limitaciones\":[]}]}")).Valor is null,
+                "una severidad desconocida no se interpreta");
+            Check(LectorDeDisco.Estado(Json("{\"estado\":\"listo\",\"leyendo\":false,\"discos\":[{\"sin_datos\":true}]}")).Valor is null, "un disco sin modelo invalida la respuesta");
+            Check(LectorDeDisco.Estado(new RespuestaCruda(false, "metodo desconocido", null)).Error == "metodo desconocido", "un error del servicio, tal cual");
+            var apagado = LectorDeDisco.Estado(Json("{\"estado\":\"apagado\",\"leyendo\":false,\"discos\":[],\"error\":\"La salud del disco está apagada en appsettings.json (Nexo:Disco:Activo).\"}"));
+            Check(ResumirDisco.General(apagado).Estado == "Apagado", "el modulo apagado del servicio se lee como «apagado»");
+            var pedido = LectorDeDisco.Pedido(Json("{\"iniciada\":false,\"motivo\":\"ya se están leyendo los discos\"}"));
+            Check(pedido.Valor is { Iniciada: false, Motivo: "ya se están leyendo los discos" }, "disco.leer");
+
+            // ---- la fila de la pestaña Estado
+            var conDisco = Completo(Conectada()) with { Disco = DiscoPorPipe(v) };
+            ResumenDeEstado r = Resumen(conDisco);
+            Check(Fila(r, Resumir.Disco).Indicador == Indicador.Alerta && r.Indicador == Indicador.Alerta && r.Titulo.Contains("Salud del disco"),
+                "pestaña Estado: la fila del disco y, si es lo mas grave, la cabecera", r.Titulo);
+            Check(Fila(Resumen(Completo(Conectada())), Resumir.Disco).Estado == "Sin consultar", "sin consulta del disco: «sin consultar»");
+
+            // ---- el modelo de la pestaña
+            var srv = new DiscoFalso { Valor = DiscoPorPipe(v2) };
+            var m = new DiscoModelo(srv);
+            Check(m.Titulo == "Sin consultar" && !m.PuedeLeer, "antes de consultar: sin datos y sin «volver a leer»");
+            Esperar(m.ActualizarAsync());
+            Check(m.Discos.Count == 2 && m.Discos[1].Estado == "Sin evaluar" && m.Discos[1].HayLimitaciones && m.PuedeLeer
+                  && m.Lectura.StartsWith("Última lectura:"), "lee los discos, sus limitaciones y cuando se leyeron", m.Lectura);
+            Esperar(m.PedirLecturaAsync());
+            Check(srv.Pedidos == 1 && m.Mensaje.StartsWith("Leyendo los discos") && srv.Consultas == 2, "volver a leer: lo pide y vuelve a consultar");
+            srv.AlPedir = Consulta<PedidoDeLectura>.Bien(new PedidoDeLectura(false, "se leyeron hace menos de 5 minutos"));
+            Esperar(m.PedirLecturaAsync());
+            Check(m.Mensaje == "No se volvió a leer: se leyeron hace menos de 5 minutos.", "si el servicio se niega, dice por que", m.Mensaje);
+            srv.Valor = Consulta<EstadoDeDiscos>.Mal("el servicio no está en marcha");
+            Esperar(m.ActualizarAsync());
+            Check(m.Discos.Count == 0 && !m.PuedeLeer && m.Titulo == "Sin datos", "si no se puede consultar, no se muestran los discos de antes");
+
+            var sinServicio = new DiscoModelo(Fuentes.DiscoPorDefecto("NexoIpc"));
+            Esperar(sinServicio.ActualizarAsync());
+            Check(sinServicio.Titulo == "Sin datos" && sinServicio.Explicacion.StartsWith("No se pudo consultar"), "sin servicio (esta compilacion): sin datos");
+        }
+
         // ============================================================
         private static void ProbarVentana(string? captura)
         {
@@ -984,10 +1162,14 @@ namespace Nexo.Desktop.Demo
                 Valor = Tr(EstadoTrJson(cobertura: false, porRevisar: "\"C:\\\\Users\\\\u\\\\Downloads\""), DeteccionesTrJson)
             };
             var tm = new TiempoRealModelo(tiempoReal, escaneo);
+            var (vd, _, _) = Vigia(Sata("ST1000LM035-1RK172"), Nvme(), Usb());
+            Esperar(vd.LeerAsync());
+            var disco = new DiscoFalso { Valor = DiscoPorPipe(vd) };
+            var dm = new DiscoModelo(disco);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm);
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -1089,6 +1271,20 @@ namespace Nexo.Desktop.Demo
                     string sexta = System.IO.Path.ChangeExtension(captura, null) + "-tiempo-real.png";
                     w.CaptureRenderedFrame()?.Save(sexta);
                     Console.WriteLine("           captura: " + sexta);
+                }
+
+                // La pestaña Disco: se lee al entrar.
+                Check(disco.Consultas == 0, "los discos no se consultan hasta entrar en su pestaña");
+                w.Pestanas.SelectedIndex = 5;
+                Dispatcher.UIThread.RunJobs();
+                Check(disco.Consultas == 1 && w.ListaDeDiscos.ItemCount == 3 && w.BotonLeerDiscos.IsEnabled
+                      && w.TituloDeDisco.Text == "Sin alertas", "pestaña Disco: 3 discos, «volver a leer» y el titulo", w.TituloDeDisco.Text);
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string septima = System.IO.Path.ChangeExtension(captura, null) + "-disco.png";
+                    w.CaptureRenderedFrame()?.Save(septima);
+                    Console.WriteLine("           captura: " + septima);
                 }
 
                 w.Pestanas.SelectedIndex = 6;

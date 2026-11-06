@@ -44,12 +44,14 @@ namespace Nexo.Ui.Desktop.Nucleo
         Consulta<EstadoDelMotor> Motor,
         Consulta<EstadoDeEscaneoProgramado> Programado,
         Consulta<EstadoDeFirewall> Firewall,
-        Consulta<EstadoDeCuarentena> Cuarentena)
+        Consulta<EstadoDeCuarentena> Cuarentena,
+        Consulta<EstadoDeDiscos>? Disco = null)
     {
         /// <summary>Solo se sabe lo del tiempo real (o ni eso): el resto de modulos, con el motivo.</summary>
         public static EstadoCompleto SoloServicio(InstantaneaDelServicio s, string motivo)
             => new EstadoCompleto(s, Consulta<EstadoDelMotor>.Mal(motivo), Consulta<EstadoDeEscaneoProgramado>.Mal(motivo),
-                                  Consulta<EstadoDeFirewall>.Mal(motivo), Consulta<EstadoDeCuarentena>.Mal(motivo));
+                                  Consulta<EstadoDeFirewall>.Mal(motivo), Consulta<EstadoDeCuarentena>.Mal(motivo),
+                                  Consulta<EstadoDeDiscos>.Mal(motivo));
 
         public static EstadoCompleto SinConexion(InstantaneaDelServicio s) => SoloServicio(s, "sin conexión con el servicio");
     }

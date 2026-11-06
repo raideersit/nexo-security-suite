@@ -855,7 +855,33 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
   - Pruebas: +31. Rota a propósito «cobertura completa solo si nada la contradice»: fallan 2.
   - **SIN PROBAR:** contra el servicio real (JSON escrito a partir de `ModuloTiempoReal.cs`, no capturado), la cuarentena con UAC y
     `Nexo.Tray.Demo` tras mover `RutasParaRevisar` (solo Windows; compila en Linux con 0/0).
-- **Siguiente:** «Disco», que necesita antes que el servicio exponga la salud del disco (hoy no hay método en el pipe).
+- **Pestaña «Disco» (hecha), y la salud del disco en el servicio (nuevo):**
+  - **Servicio:** `ModuloSaludDisco` con `disco.estado` y `disco.leer` (los métodos pasan de 24 a 26). La lógica es portable,
+    `Nexo.Modules.Cleanup/Disco/VigiaDeSalud.cs`: lee al arrancar y cada `Nexo:Disco:IntervaloHoras` (6 por omisión) con el
+    `MonitorDeSalud` de siempre (`FuenteSmartWmi` + `HistorialDeSalud` en `ProgramData\Nexo\salud-disco.json`, configurable con
+    `Nexo:Disco:Historial`). **`disco.estado` no lee los discos**: devuelve lo guardado (WMI tarda y cada lectura deja una nota por
+    disco en el vault). `disco.leer` pide una lectura nueva en segundo plano, **como mucho una cada 5 min** (la marca se pone dentro
+    del cerrojo: dos pedidos seguidos no lanzan dos lecturas). Encendido por omisión porque solo lee; `Nexo:Disco:Activo = false`
+    lo apaga y entonces el servicio contesta `estado: "apagado"` (`ModuloSaludDiscoApagado`), no «método desconocido».
+  - **Una lectura fallida** deja `estado: "fallido"` con el motivo, y los discos de la última lectura buena **con su fecha**.
+  - **El JSON** sale de `VigiaDeSalud.ParaJson`, y las pruebas de la ventana lo usan tal cual (con las opciones del pipe, sin nulos):
+    es la primera pestaña cuyo JSON de prueba no está escrito a mano. `Nexo.Desktop.Demo` referencia `Nexo.Modules.Cleanup` para eso.
+  - **Ventana:** cabecera (lo más grave de todos los discos), cuándo se leyó y cuándo se lee otra vez, «Volver a leer», y una fila por
+    disco con estado, temperatura, desgaste, horas, las alertas del evaluador y las limitaciones. Se consulta al entrar, con F5 y
+    cada 5 s mientras se mira (barato: no lee los discos). La fila «Salud del disco» de «Estado» ya no dice «Sin consultar»: usa
+    lo mismo, y si un disco está en alerta manda en la cabecera.
+  - **Reglas:** «Sin alertas» solo si se leyó la bandera de fallo o alguno de los 5 atributos clave (05, 187, 188, 197, 198), y dice
+    cuáles. Un disco del que solo hay temperatura, desgaste u horas (NVMe típico) es **«Sin evaluar»**, gris; sin nada, «Sin datos».
+    Una lectura fallida es al menos «atención» aunque los datos anteriores estuvieran bien. Severidad desconocida: no se interpreta.
+  - Pruebas: +32 en `Nexo.Desktop.Demo` (el vigía real con discos falsos: SATA sano, NVMe, 197 > 0, USB; el límite de 5 min, la
+    lectura fallida, el lector, la fila de Estado, el modelo y la pestaña cargada) y +2 en `Nexo.Service.Demo` (sin ejecutar: solo
+    Windows; usa una fuente S.M.A.R.T. falsa y el historial junto al vault de prueba). Rota a propósito «solo temperatura no es sin
+    alertas»: fallan 4.
+  - **SIN PROBAR:** con WMI real dentro del servicio (como SYSTEM debería ver los atributos ATA que sin administrador no se ven) y la
+    pestaña contra el servicio real. **Hueco:** el evaluador no mira temperatura ni desgaste (un NVMe al 100 % de desgaste sale
+    «sin evaluar», no «alerta»); decidir umbrales es trabajo aparte.
+- **Siguiente:** las 7 pestañas están hechas. Lo que falta es probar la ventana en Windows contra el servicio real (§2l, todos los
+  «SIN PROBAR»).
 
 ---
 

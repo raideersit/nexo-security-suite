@@ -484,7 +484,81 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Disco">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana, y la salud del disco aún no tiene herramienta de consola propia." />
+                <ScrollViewer x:Name="PanelDeDisco" x:DataType="local:DiscoModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Salud de los discos">
+                            <StackPanel Spacing="4">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                    <Button x:Name="BotonLeerDiscos" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                            Content="Volver a leer" IsEnabled="{Binding PuedeLeer}" Click="LeerDiscos" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeDisco" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="{Binding Lectura}" TextWrapping="Wrap" Margin="34,4,0,0" Foreground="#404040" />
+                                <TextBlock Text="{Binding Advertencia}" TextWrapping="Wrap" Margin="34,0,0,0" Foreground="#800000"
+                                           IsVisible="{Binding Advertencia, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding Mensaje}" TextWrapping="Wrap" Margin="34,0,0,0" Foreground="#800000"
+                                           IsVisible="{Binding Mensaje, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Discos">
+                            <Border Background="White" BorderBrush="#808080" BorderThickness="1" MinHeight="70">
+                                <DockPanel>
+                                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,130,70,70,90" Background="#C0C0C0">
+                                        <TextBlock Grid.Column="0" Margin="6,3" Text="Disco" />
+                                        <TextBlock Grid.Column="1" Margin="6,3" Text="Estado" />
+                                        <TextBlock Grid.Column="2" Margin="6,3" Text="Temp." />
+                                        <TextBlock Grid.Column="3" Margin="6,3" Text="Desgaste" />
+                                        <TextBlock Grid.Column="4" Margin="6,3" Text="Encendido" />
+                                    </Grid>
+                                    <ItemsControl x:Name="ListaDeDiscos" ItemsSource="{Binding Discos}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaDeDisco">
+                                                <StackPanel Margin="0,3,0,5" Spacing="2">
+                                                    <Grid ColumnDefinitions="*,130,70,70,90">
+                                                        <StackPanel Grid.Column="0" Margin="6,0" Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="{Binding Modelo}" FontWeight="Bold" />
+                                                            <TextBlock Text="{Binding Serie}" Foreground="#404040" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Margin="6,0" Orientation="Horizontal" Spacing="6">
+                                                            <Border Width="10" Height="10" VerticalAlignment="Center"
+                                                                    Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                            <TextBlock Text="{Binding Estado}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" Margin="6,0" Text="{Binding Temperatura}" />
+                                                        <TextBlock Grid.Column="3" Margin="6,0" Text="{Binding Desgaste}" />
+                                                        <TextBlock Grid.Column="4" Margin="6,0" Text="{Binding Horas}" />
+                                                    </Grid>
+                                                    <TextBlock Margin="12,0,6,0" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                    <ItemsControl Margin="12,0,6,0" ItemsSource="{Binding Alertas}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="x:String">
+                                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <TextBlock Margin="12,0,6,0" Text="{Binding Limitaciones}" TextWrapping="Wrap" Foreground="#404040"
+                                                               IsVisible="{Binding HayLimitaciones}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DockPanel>
+                            </Border>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Qué se revisa">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="La bandera de predicción de fallo del propio disco y los cinco atributos S.M.A.R.T. que, según los datos públicos de Backblaze, anticipan un fallo: sectores reasignados (05), errores incorregibles (187), tiempos de espera (188), sectores pendientes (197) e incorregibles fuera de línea (198). La temperatura, el desgaste y las horas se muestran, pero no se evalúan. El servicio lee los discos al arrancar y cada pocas horas (6 por omisión); solo lee, nunca escribe en ellos. Muchos discos NVMe, USB o tras una controladora RAID no exponen estos datos: entonces se dice «sin evaluar», no «bien»." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Cuarentena">
                 <DockPanel x:Name="PanelDeCuarentena" x:DataType="local:CuarentenaModelo" Margin="10">

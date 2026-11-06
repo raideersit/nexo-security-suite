@@ -46,7 +46,8 @@ namespace Nexo.Ui.Desktop.Nucleo
                     LectorDeModulos.Motor(await LlamarAsync(c, "escaneo.estado", ct).ConfigureAwait(false)),
                     LectorDeModulos.Programado(await LlamarAsync(c, "escaneo-programado.estado", ct).ConfigureAwait(false)),
                     LectorDeModulos.Firewall(await LlamarAsync(c, "firewall.estado", ct).ConfigureAwait(false)),
-                    LectorDeModulos.Cuarentena(await LlamarAsync(c, "cuarentena.listar", ct).ConfigureAwait(false)));
+                    LectorDeModulos.Cuarentena(await LlamarAsync(c, "cuarentena.listar", ct).ConfigureAwait(false)),
+                    LectorDeDisco.Estado(await LlamarAsync(c, "disco.estado", ct).ConfigureAwait(false)));
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
             {
@@ -131,6 +132,15 @@ namespace Nexo.Ui.Desktop.Nucleo
             return new ServicioDeTiempoRealPorPipe(pipe, Espera);
 #else
             return new ServicioDeTiempoRealNoDisponible(SinServicio);
+#endif
+        }
+
+        public static IServicioDeDisco DiscoPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeDiscoPorPipe(pipe, Espera);
+#else
+            return new ServicioDeDiscoNoDisponible(SinServicio);
 #endif
         }
 
