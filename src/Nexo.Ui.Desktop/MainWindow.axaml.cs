@@ -65,6 +65,7 @@ namespace Nexo.Ui.Desktop
             Pestanas.SelectionChanged += async (_, _) =>
             {
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
+                else if (Pestanas.SelectedIndex == PestanaEscaneo) await Escaneo.ActualizarProgramadasAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
@@ -78,6 +79,8 @@ namespace Nexo.Ui.Desktop
                 await Modelo.ActualizarAsync();
                 // El detalle del tiempo real, solo mientras se esta mirando su pestaña.
                 if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
+                // Lo del escaneo programado (lo corre el servicio solo, sin que nadie mire): se ve aparecer.
+                else if (Pestanas.SelectedIndex == PestanaEscaneo) await Escaneo.ActualizarProgramadasAsync();
                 // Y el de los discos (barato: el servicio devuelve lo que ya leyo), para ver terminar una lectura pedida.
                 else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
             };
@@ -88,6 +91,7 @@ namespace Nexo.Ui.Desktop
                 await Modelo.ActualizarAsync();
                 await Cuarentena.ActualizarAsync();
                 await Firewall.ActualizarAsync();
+                await Escaneo.ActualizarProgramadasAsync();
                 _temporizador.Start();
                 _temporizadorDeEscaneo.Start();
             };
@@ -115,6 +119,7 @@ namespace Nexo.Ui.Desktop
             await Modelo.ActualizarAsync();
             await Cuarentena.ActualizarAsync();
             await Firewall.ActualizarAsync();
+            await Escaneo.ActualizarProgramadasAsync();
             if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
             if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
         }
@@ -154,6 +159,16 @@ namespace Nexo.Ui.Desktop
                 "¿Mover estos archivos a la cuarentena? Se guardan cifrados y se pueden restaurar.");
             if (token is null) return;
             await MostrarResultadoAsync("Cuarentena", await Escaneo.AplicarCuarentenaAsync(token));
+            await Modelo.ActualizarAsync();
+            await Cuarentena.ActualizarAsync();
+        }
+
+        private async void PonerEnCuarentenaLoProgramado(object? sender, RoutedEventArgs e)
+        {
+            string? token = await ConfirmarPlanAsync(await Escaneo.PrevisualizarCuarentenaProgramadaAsync(), "Poner en cuarentena",
+                "¿Mover estos archivos a la cuarentena? Se guardan cifrados y se pueden restaurar.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Cuarentena", await Escaneo.AplicarCuarentenaProgramadaAsync(token));
             await Modelo.ActualizarAsync();
             await Cuarentena.ActualizarAsync();
         }

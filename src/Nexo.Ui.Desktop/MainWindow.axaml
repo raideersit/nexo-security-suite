@@ -196,6 +196,29 @@
                                 </DockPanel>
                             </StackPanel>
                         </HeaderedContentControl>
+
+                        <!-- Lo que encontró el escaneo programado (el servicio lo corre solo). Solo aparece si hay algo, o si no se pudo leer. -->
+                        <HeaderedContentControl Header="Escaneo programado" IsVisible="{Binding HayProgramadas}">
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="TextoDeProgramadas" Text="{Binding TextoProgramadas}" TextWrapping="Wrap" />
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1">
+                                    <ItemsControl x:Name="ListaDeProgramadas" ItemsSource="{Binding Programadas}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaDeDeteccion">
+                                                <Grid ColumnDefinitions="*,220,80">
+                                                    <TextBlock Grid.Column="0" Margin="6,3" Text="{Binding Ruta}" TextWrapping="Wrap"
+                                                               FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                    <TextBlock Grid.Column="1" Margin="6,3" Text="{Binding Firma}" TextWrapping="Wrap" Foreground="#C00000" />
+                                                    <TextBlock Grid.Column="2" Margin="6,3" Text="{Binding Tamano}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                                <Button x:Name="BotonCuarentenaProgramada" HorizontalAlignment="Right" Content="Poner en cuarentena..." FontWeight="Bold"
+                                        IsEnabled="{Binding PuedePonerEnCuarentenaProgramadas}" Click="PonerEnCuarentenaLoProgramado" />
+                            </StackPanel>
+                        </HeaderedContentControl>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -588,12 +611,13 @@
                                         <TextBlock Grid.Column="3" Margin="6,3" Text="Vence" />
                                     </Grid>
                                     <ListBox x:Name="TablaDeCuarentena" ItemsSource="{Binding Elementos}" SelectedItem="{Binding Seleccionado}"
-                                             BorderThickness="0" Background="White">
+                                             BorderThickness="0" Background="White" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="local:FilaDeCuarentena">
                                                 <Grid ColumnDefinitions="*,200,110,90">
-                                                    <TextBlock Grid.Column="0" Margin="2,1" Text="{Binding Ruta}" TextWrapping="Wrap"
-                                                               FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                    <!-- Una ruta larga sin espacios no se parte: se recorta con «…» (la ruta completa, en el tooltip) para no empujar las otras columnas. -->
+                                                    <TextBlock Grid.Column="0" Margin="2,1" Text="{Binding Ruta}" TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding Ruta}" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
                                                     <TextBlock Grid.Column="1" Margin="6,1" Text="{Binding Firma}" TextWrapping="Wrap" />
                                                     <TextBlock Grid.Column="2" Margin="6,1" Text="{Binding Desde}" />
                                                     <TextBlock Grid.Column="3" Margin="6,1" Text="{Binding Vence}" />

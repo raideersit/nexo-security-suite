@@ -47,6 +47,9 @@ namespace Nexo.Ui.Desktop.Nucleo
         public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
             => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Cuarentena, token, _lanzador, ct);
 
+        public async Task<Consulta<IReadOnlyList<DeteccionDeEscaneo>>> DeteccionesProgramadasAsync(CancellationToken ct)
+            => LectorDeEscaneo.DeteccionesProgramadas(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "escaneo-programado.detecciones", null, ct).ConfigureAwait(false));
+
         private Task<RespuestaCruda> LlamarAsync(string metodo, object parametros, CancellationToken ct)
             => LlamadaPorPipe.LlamarAsync(_pipe, _espera, metodo, parametros, ct);
     }

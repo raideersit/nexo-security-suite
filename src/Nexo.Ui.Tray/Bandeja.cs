@@ -113,19 +113,19 @@ namespace Nexo.Ui.Tray
                                string.Join("\n", rutas.Select(x => "  • " + x)) +
                                (total > rutas.Count ? "\n\n(Hay mas; se revisaran en otra pasada.)" : "") +
                                "\n\n¿Escanearlas ahora? Solo se leen los archivos: no se mueve ni borra nada. Puede tardar varios minutos.";
-                if (MessageBox.Show(texto, "Nexo — revisar lo que no se vio", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                if (Dialogo.Mostrar(texto, "Nexo — revisar lo que no se vio", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
                 string? motivo;
                 (id, motivo) = await AccionesDelServicio.IniciarRevisionAsync(_pipe, rutas, Espera);
                 if (id is null)
                 {
-                    MessageBox.Show("No se pudo iniciar la revision: " + motivo, "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Dialogo.Mostrar("No se pudo iniciar la revision: " + motivo, "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
             }
             catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException)
             {
-                MessageBox.Show("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Dialogo.Mostrar("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             finally { _ocupado = false; }
@@ -163,14 +163,14 @@ namespace Nexo.Ui.Tray
                 if (_modelo.Todas.Count > 10) sb.Append("  … y ").Append(_modelo.Todas.Count - 10).Append(" mas\n");
                 sb.Append("\nLos archivos NO se han tocado. ¿Preparar el traslado a cuarentena? (podras revisar el plan antes de aprobarlo)");
 
-                if (MessageBox.Show(sb.ToString(), "Nexo — detecciones", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                if (Dialogo.Mostrar(sb.ToString(), "Nexo — detecciones", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
 
                 PlanPropuesto plan = await AccionesDelServicio.PrevisualizarCuarentenaAsync(_pipe, "tiempo-real", Espera);
                 await ConfirmarYAplicarAsync("Poner en cuarentena", plan, TipoDeAccion.Cuarentena);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException)
             {
-                MessageBox.Show("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Dialogo.Mostrar("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { _ocupado = false; await ConsultarAsync(); }
         }
@@ -186,7 +186,7 @@ namespace Nexo.Ui.Tray
             }
             catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException)
             {
-                MessageBox.Show("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Dialogo.Mostrar("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { _ocupado = false; }
         }
@@ -196,7 +196,7 @@ namespace Nexo.Ui.Tray
         {
             if (!plan.HayCambios || plan.Token is null)
             {
-                MessageBox.Show(plan.Descripcion.Length > 0 ? plan.Descripcion : "No hay nada que hacer.", titulo, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Dialogo.Mostrar(plan.Descripcion.Length > 0 ? plan.Descripcion : "No hay nada que hacer.", titulo, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -204,10 +204,10 @@ namespace Nexo.Ui.Tray
             if (plan.Avisos.Count > 0) sb.Append("\n").Append(string.Join("\n", plan.Avisos.Select(a => "• " + a)));
             sb.Append("\n\n¿Aplicar este plan? Windows puede pedirte confirmacion (UAC).");
 
-            if (MessageBox.Show(sb.ToString(), titulo, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (Dialogo.Mostrar(sb.ToString(), titulo, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             ResultadoDeAplicar r = await AccionesDelServicio.AplicarConAprobacionAsync(_pipe, tipo, plan.Token, _lanzador, Espera);
-            MessageBox.Show(r.Mensaje, titulo, MessageBoxButtons.OK, r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            Dialogo.Mostrar(r.Mensaje, titulo, MessageBoxButtons.OK, r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
         }
 
         // ------------------------------------------------------------

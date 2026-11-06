@@ -37,6 +37,7 @@ namespace Nexo.Desktop.Demo
             ProbarLectorDeEscaneo();
             ProbarResumenDeEscaneo();
             ProbarModeloDeEscaneo();
+            ProbarDeteccionesProgramadas();
             ProbarCuarentena();
             ProbarFirewall();
             ProbarLimpieza();
@@ -348,6 +349,10 @@ namespace Nexo.Desktop.Demo
             { Llamadas.Add("previsualizar:" + id); return Task.FromResult(AlPlan); }
             public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct)
             { Llamadas.Add("aplicar"); TokenAplicado = token; return Task.FromResult(AlAplicar); }
+            public Consulta<System.Collections.Generic.IReadOnlyList<DeteccionDeEscaneo>> AlProgramado =
+                Consulta<System.Collections.Generic.IReadOnlyList<DeteccionDeEscaneo>>.Bien(new DeteccionDeEscaneo[0]);
+            public Task<Consulta<System.Collections.Generic.IReadOnlyList<DeteccionDeEscaneo>>> DeteccionesProgramadasAsync(CancellationToken ct)
+            { Llamadas.Add("programado"); return Task.FromResult(AlProgramado); }
         }
 
         private static Consulta<AvanceDeEscaneo> Avance(string estado, int analizados, string? error = null)
@@ -383,6 +388,54 @@ namespace Nexo.Desktop.Demo
             Check(p.Valor is { HayCambios: true } && p.Valor.Token!.Length == 64 && p.Valor.Avisos.Count == 1, "cuarentena.previsualizar con token y avisos");
             p = LectorDeEscaneo.Plan(Json("{\"descripcion\":\"Nada que mover\",\"hay_cambios\":false}"));
             Check(p.Valor is { HayCambios: false, Token: null }, "plan sin cambios: sin token");
+
+            // escaneo-programado.detecciones
+            var dp = LectorDeEscaneo.DeteccionesProgramadas(Json("{\"id_escaneo\":\"programado\",\"detecciones\":[{\"ruta\":\"C:\\\\a.exe\",\"firma\":\"F.1\",\"bytes\":5,\"sha256\":\"ab\"}]}"));
+            Check(dp.Valor is { Count: 1 } && dp.Valor[0].Firma == "F.1" && dp.Valor[0].Bytes == 5, "escaneo-programado.detecciones se lee");
+            Check(LectorDeEscaneo.DeteccionesProgramadas(Json("{\"id_escaneo\":\"programado\",\"detecciones\":[]}")).Valor is { Count: 0 }, "lista vacia: sin detecciones");
+            Check(LectorDeEscaneo.DeteccionesProgramadas(Json("{\"id_escaneo\":\"programado\"}")).Valor is null,
+                "sin la lista no se toma por «sin detecciones»");
+            Check(LectorDeEscaneo.DeteccionesProgramadas(new RespuestaCruda(false, "metodo desconocido", null)).Error == "metodo desconocido", "un error del servicio, tal cual");
+        }
+
+        private static void ProbarDeteccionesProgramadas()
+        {
+            Console.WriteLine("== Detecciones del escaneo programado en la pestaña Escaneo");
+            string real = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexo-prog-" + Guid.NewGuid().ToString("N") + ".bin");
+            System.IO.File.WriteAllText(real, "x");
+            try
+            {
+                var s = new EscaneoFalso();
+                var m = ModeloDeEscaneo(s);
+                Esperar(m.ActualizarProgramadasAsync());
+                Check(!m.HayProgramadas && !m.PuedePonerEnCuarentenaProgramadas && m.Programadas.Count == 0, "sin detecciones programadas: el bloque no aparece");
+
+                s.AlProgramado = Consulta<System.Collections.Generic.IReadOnlyList<DeteccionDeEscaneo>>.Bien(new[]
+                {
+                    new DeteccionDeEscaneo(real, "Test.Firma", 1, "aa"),
+                    new DeteccionDeEscaneo(@"Z:\no\existe\ya.exe", "Test.Otra", 1, "bb")
+                });
+                Esperar(m.ActualizarProgramadasAsync());
+                Check(m.HayProgramadas && m.Programadas.Count == 1 && m.Programadas[0].Ruta == real && m.PuedePonerEnCuarentenaProgramadas,
+                    "lista lo que sigue en su sitio y deja fuera lo que ya no existe", m.Programadas.Count.ToString());
+                Check(m.TextoProgramadas.Contains("1 archivo") && m.TextoProgramadas.Contains("No se han tocado"), "dice que no se ha tocado nada", m.TextoProgramadas);
+
+                Consulta<PlanDelServicio> plan = m.PrevisualizarCuarentenaProgramadaAsync().GetAwaiter().GetResult();
+                Check(s.Llamadas.Contains("previsualizar:programado"), "la cuarentena se pide con el id «programado», no con el del escaneo manual");
+                Check(plan.Valor is not null && !s.Llamadas.Contains("aplicar"), "previsualizar no aplica nada");
+                m.AplicarCuarentenaProgramadaAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
+                Check(s.Llamadas.Contains("aplicar") && m.Programadas.Count == 1, "si el archivo sigue en su sitio tras aplicar, se sigue mostrando");
+                System.IO.File.Delete(real);
+                Esperar(m.ActualizarProgramadasAsync());
+                Check(!m.HayProgramadas && m.Programadas.Count == 0, "cuando el archivo ya no esta, desaparece de la lista");
+
+                // Si no se puede leer, no se muestra lo anterior como actual ni se da por limpio.
+                s.AlProgramado = Consulta<System.Collections.Generic.IReadOnlyList<DeteccionDeEscaneo>>.Mal("el servicio no responde");
+                Esperar(m.ActualizarProgramadasAsync());
+                Check(m.HayProgramadas && m.Programadas.Count == 0 && !m.PuedePonerEnCuarentenaProgramadas && m.TextoProgramadas.Contains("el servicio no responde"),
+                    "si no se pudo leer, lo dice (no lo presenta como «sin detecciones»)", m.TextoProgramadas);
+            }
+            finally { if (System.IO.File.Exists(real)) System.IO.File.Delete(real); }
         }
 
         private static void ProbarResumenDeEscaneo()
@@ -454,6 +507,29 @@ namespace Nexo.Desktop.Demo
             Check(!s.Llamadas.Contains("aplicar"), "previsualizar no aplica nada");
             ResultadoDeAccion ap = m.AplicarCuarentenaAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
             Check(ap.Exito && s.TokenAplicado == plan.Valor.Token && m.Mensaje == "1 archivos en cuarentena.", "aplicar manda el token del plan y muestra el resultado");
+
+            Check(m.Detecciones.Count == 0 && !m.PuedePonerEnCuarentena,
+                "tras la cuarentena, la deteccion cuyo archivo ya no esta deja de listarse y no se ofrece otra vez", m.Detecciones.Count.ToString());
+
+            // Si el archivo SIGUE en su sitio (no se pudo mover), la deteccion se queda: no se da por resuelta sin mirar.
+            string real = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexo-det-" + Guid.NewGuid().ToString("N") + ".bin");
+            System.IO.File.WriteAllText(real, "x");
+            try
+            {
+                var sRet = new EscaneoFalso();
+                sRet.AlResultado = Consulta<ResultadoDeEscaneoVista>.Bien(new ResultadoDeEscaneoVista("abc", "terminado", true, 1, false, false, null, 1.0,
+                    new[] { new DeteccionDeEscaneo(real, "Test.Firma", 1, "aa") }, new string[0], 0, null));
+                var mRet = ModeloDeEscaneo(sRet);
+                Esperar(mRet.IniciarAsync());
+                sRet.Avances.Enqueue(Avance("terminado", 1));
+                Esperar(mRet.SondearAsync());
+                mRet.AplicarCuarentenaAsync("tok").GetAwaiter().GetResult();
+                Check(mRet.Detecciones.Count == 1 && mRet.PuedePonerEnCuarentena, "si el archivo sigue en su sitio, la deteccion se queda en la lista");
+                System.IO.File.Delete(real);
+                mRet.RetirarLasQueYaNoEstan();
+                Check(mRet.Detecciones.Count == 0, "cuando el archivo desaparece, se retira al refrescar");
+            }
+            finally { if (System.IO.File.Exists(real)) System.IO.File.Delete(real); }
 
             // Un escaneo limpio no ofrece cuarentena.
             var s2 = new EscaneoFalso();

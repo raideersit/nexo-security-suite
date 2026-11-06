@@ -43,6 +43,8 @@ namespace Nexo.Ui.Desktop.Nucleo
         Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct);
         Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct);
         Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct);
+        /// <summary>escaneo-programado.detecciones: lo que encontro el ultimo escaneo programado (solo lee).</summary>
+        Task<Consulta<IReadOnlyList<DeteccionDeEscaneo>>> DeteccionesProgramadasAsync(CancellationToken ct);
     }
 
     /// <summary>Sin servicio (Linux): todo contesta que no se puede, con el motivo.</summary>
@@ -58,6 +60,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         public Task<Consulta<string>> CancelarAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<string>.Mal(_motivo));
         public Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<PlanDelServicio>.Mal(_motivo));
         public Task<ResultadoDeAccion> AplicarCuarentenaAsync(string token, CancellationToken ct) => Task.FromResult(new ResultadoDeAccion(false, false, _motivo));
+        public Task<Consulta<IReadOnlyList<DeteccionDeEscaneo>>> DeteccionesProgramadasAsync(CancellationToken ct) => Task.FromResult(Consulta<IReadOnlyList<DeteccionDeEscaneo>>.Mal(_motivo));
     }
 
     /// <summary>Lee las respuestas de escaneo.* y cuarentena.previsualizar. Mismas reglas que <see cref="LectorDeModulos"/>.</summary>
@@ -94,6 +97,18 @@ namespace Nexo.Ui.Desktop.Nucleo
                     OmitidosTotal: e.GetProperty("omitidos_total").GetInt32(),
                     Error: Texto(e, "error"));
             });
+
+        /// <summary>escaneo-programado.detecciones. Una respuesta sin la lista no se toma por «sin detecciones».</summary>
+        public static Consulta<IReadOnlyList<DeteccionDeEscaneo>> DeteccionesProgramadas(RespuestaCruda r)
+        {
+            Consulta<ListaDeDetecciones> c = Leer(r, e => new ListaDeDetecciones(e.GetProperty("detecciones").EnumerateArray().Select(d => new DeteccionDeEscaneo(
+                d.GetProperty("ruta").GetString() ?? throw new InvalidOperationException(), d.GetProperty("firma").GetString() ?? "",
+                d.GetProperty("bytes").GetInt64(), Texto(d, "sha256"))).ToList()));
+            return c.Valor is null ? Consulta<IReadOnlyList<DeteccionDeEscaneo>>.Mal(c.Error ?? "sin datos")
+                                   : Consulta<IReadOnlyList<DeteccionDeEscaneo>>.Bien(c.Valor.Lista);
+        }
+
+        private sealed record ListaDeDetecciones(IReadOnlyList<DeteccionDeEscaneo> Lista);
 
         public static Consulta<string> Cancelar(RespuestaCruda r) => Leer(r, e => e.GetProperty("id").GetString() ?? "");
 

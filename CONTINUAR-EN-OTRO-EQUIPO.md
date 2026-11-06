@@ -1014,6 +1014,31 @@ administrador) con el vault, la cuarentena y el historial en una carpeta tempora
 
 ---
 
+## 2o. Cierre de huecos de la ventana (2026-11-06, en el HP)
+
+Todo con pruebas en `Nexo.Desktop.Demo` (rotas a propósito para ver que fallan sin el arreglo).
+
+- **Detecciones del escaneo programado en la ventana** (el hueco de §2n): la pestaña «Escaneo» tiene un bloque «Escaneo programado»
+  que lee `escaneo-programado.detecciones`, lista los archivos y ofrece «Poner en cuarentena...» por el flujo de siempre (vista previa
+  + token) con el id `programado`. Solo aparece si hay algo que mostrar o si **no se pudo leer** (en ese caso lo dice, no lo da por
+  limpio). Se lee al abrir, al entrar en la pestaña, con F5 y en cada sondeo mientras se mira la pestaña.
+  - Una detección cuyo archivo **ya no existe** deja de listarse; si sigue en su sitio (no se pudo mover, o la aprobación está
+    pendiente) se queda: no se da nada por resuelto sin mirarlo.
+  - **Sigue pendiente (servicio, no ventana):** un reinicio del servicio olvida las detecciones hasta el siguiente escaneo (solo se
+    guarda la fecha). Es del servicio, no de la ventana.
+  - Rotas a propósito: id equivocado (1 fallo) y no filtrar lo inexistente (3 fallos).
+- **La lista de «Escaneo» se refresca tras la cuarentena** (`RetirarLasQueYaNoEstan`, mismo criterio: el archivo ya no está). Rotas a
+  propósito: 2 fallos.
+- **Cuarentena con ruta larga:** la ruta se recorta con «…» (tooltip con la completa) y la lista no tiene barra horizontal, así que ya
+  no empuja las otras columnas. Es solo XAML: **no se comprobó a ojo**, solo que compila y que la ventana abre.
+- **Botones de los avisos de la bandeja en español:** `Dialogo` (WinForms) sustituye a `MessageBox`, que ponía «Yes/No/OK» según el
+  idioma de Windows. Solo admite Aceptar y Sí/No (los únicos usados). **No se vio en pantalla** (solo compila y pasa `Nexo.Tray.Demo`).
+- **Observación cerrada:** el `.json` de la cuarentena guarda la `Clave` junto al `.nxq` a propósito (§2e): el cifrado es para que
+  ningún antivirus re-detecte el archivo, no para ocultarlo.
+- **No probado contra el servicio real:** el bloque nuevo de la ventana (solo servicio falso y la ventana sin pantalla).
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

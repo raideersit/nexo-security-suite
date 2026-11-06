@@ -44,6 +44,8 @@ namespace Nexo.Ui.Desktop
         private string _mensaje = "";
         private string _mensajeDeInicio = "";
         private bool _ocupado;
+        // Detecciones cuyo archivo ya no esta en su sitio tras aplicar una cuarentena (se dejan de listar).
+        private readonly HashSet<string> _retiradas = new(StringComparer.OrdinalIgnoreCase);
 
         public EscaneoModelo(IServicioDeEscaneo servicio, string? carpetaDeUsuario = null, string? unidadDelSistema = null)
         {
@@ -143,6 +145,7 @@ namespace Nexo.Ui.Desktop
         {
             _fase = FaseDeEscaneo.Iniciando;
             _id = null; _resultado = null; _error = null; _analizados = 0; _fallosDeAvance = 0;
+            _retiradas.Clear();
             _mensajeDeInicio = mensaje;
             Mensaje = mensaje;
             Actualizar();
@@ -234,6 +237,75 @@ namespace Nexo.Ui.Desktop
         {
             ResultadoDeAccion r = await _servicio.AplicarCuarentenaAsync(token, ct);
             Mensaje = r.Mensaje;
+            RetirarLasQueYaNoEstan();
+            return r;
+        }
+
+        /// <summary>
+        /// Tras aplicar una cuarentena deja de listar las detecciones cuyo archivo ya no existe (se movio). Las que siguen
+        /// en su sitio (no se pudieron mover, o la aprobacion esta pendiente) se quedan: no se da nada por resuelto sin mirarlo.
+        /// </summary>
+        public void RetirarLasQueYaNoEstan()
+        {
+            if (_resultado is null) return;
+            foreach (DeteccionDeEscaneo d in _resultado.Detecciones)
+                if (!File.Exists(d.Ruta)) _retiradas.Add(d.Ruta);
+            Actualizar();
+        }
+
+        // ------------------------------------------------------------ Escaneo programado (solo lo que detecto; el servicio lo corre solo)
+        /// <summary>El id con el que la cuarentena ve las detecciones del escaneo programado (ModuloEscaneoProgramado.IdDeEscaneo).</summary>
+        public const string IdProgramado = "programado";
+
+        /// <summary>Lo que encontro el ultimo escaneo programado y sigue en su sitio. Vacio si no se pudo leer (ver <see cref="TextoProgramadas"/>).</summary>
+        public IReadOnlyList<FilaDeDeteccion> Programadas { get; private set; } = Array.Empty<FilaDeDeteccion>();
+        public string TextoProgramadas { get; private set; } = "";
+        public bool PuedePonerEnCuarentenaProgramadas { get; private set; }
+        public bool HayProgramadas { get; private set; }
+
+        /// <summary>
+        /// Lee las detecciones del escaneo programado. Se descartan las que ya no existen (se movieron), igual que tras una cuarentena.
+        /// Si no se puede leer, no se muestra lo anterior como actual: se dice que no se sabe.
+        /// </summary>
+        public async Task ActualizarProgramadasAsync(CancellationToken ct = default)
+        {
+            Consulta<IReadOnlyList<DeteccionDeEscaneo>> c;
+            try { c = await _servicio.DeteccionesProgramadasAsync(ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            { c = Consulta<IReadOnlyList<DeteccionDeEscaneo>>.Mal("error inesperado (" + ex.GetType().Name + ")"); }
+
+            if (c.Valor is null)
+            {
+                Programadas = Array.Empty<FilaDeDeteccion>();
+                TextoProgramadas = "No se pudieron leer las detecciones del escaneo programado: " + c.Error + ".";
+                PuedePonerEnCuarentenaProgramadas = false;
+                HayProgramadas = true;
+            }
+            else
+            {
+                var vivas = c.Valor.Where(d => File.Exists(d.Ruta)).ToList();
+                Programadas = vivas.Select(d => new FilaDeDeteccion(d.Ruta, d.Firma, Tamano(d.Bytes))).ToList();
+                PuedePonerEnCuarentenaProgramadas = vivas.Count > 0;
+                HayProgramadas = vivas.Count > 0;
+                TextoProgramadas = vivas.Count == 0 ? ""
+                    : "El escaneo programado encontró " + (vivas.Count == 1 ? "1 archivo" : vivas.Count + " archivos")
+                      + ". No se han tocado: siguen aquí hasta que se pongan en cuarentena.";
+            }
+            foreach (string p in new[] { nameof(Programadas), nameof(TextoProgramadas), nameof(PuedePonerEnCuarentenaProgramadas), nameof(HayProgramadas) })
+                Avisar(p);
+        }
+
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarCuarentenaProgramadaAsync(CancellationToken ct = default)
+        {
+            if (!PuedePonerEnCuarentenaProgramadas) return Consulta<PlanDelServicio>.Mal("no hay detecciones del escaneo programado");
+            return await _servicio.PrevisualizarCuarentenaAsync(IdProgramado, ct);
+        }
+
+        public async Task<ResultadoDeAccion> AplicarCuarentenaProgramadaAsync(string token, CancellationToken ct = default)
+        {
+            ResultadoDeAccion r = await _servicio.AplicarCuarentenaAsync(token, ct);
+            Mensaje = r.Mensaje;
+            await ActualizarProgramadasAsync(ct);
             return r;
         }
 
@@ -243,7 +315,9 @@ namespace Nexo.Ui.Desktop
             EnCurso = _fase is FaseDeEscaneo.Iniciando or FaseDeEscaneo.Corriendo;
             PuedeIniciar = !EnCurso;
             PuedeCancelar = _fase == FaseDeEscaneo.Corriendo;
-            PuedePonerEnCuarentena = _fase == FaseDeEscaneo.Terminado && _resultado is { Detecciones.Count: > 0 };
+            IReadOnlyList<DeteccionDeEscaneo> pendientes = (_resultado?.Detecciones ?? Array.Empty<DeteccionDeEscaneo>())
+                .Where(d => !_retiradas.Contains(d.Ruta)).ToList();
+            PuedePonerEnCuarentena = _fase == FaseDeEscaneo.Terminado && pendientes.Count > 0;
             TextoDeAvance = _fase switch
             {
                 FaseDeEscaneo.Iniciando => "Pidiendo el escaneo al servicio...",
@@ -257,7 +331,7 @@ namespace Nexo.Ui.Desktop
             Detalle = detalle;
             Color = Colores.De(ind);
 
-            Detecciones = (_resultado?.Detecciones ?? Array.Empty<DeteccionDeEscaneo>())
+            Detecciones = pendientes
                 .Select(d => new FilaDeDeteccion(d.Ruta, d.Firma, Tamano(d.Bytes))).ToList();
             Omitidos = _resultado?.Omitidos ?? Array.Empty<string>();
             int total = _resultado?.OmitidosTotal ?? 0;

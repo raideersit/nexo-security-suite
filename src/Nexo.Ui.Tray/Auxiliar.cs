@@ -15,7 +15,7 @@ namespace Nexo.Ui.Tray
             if (i + 2 >= args.Length || !Enum.TryParse(args[i + 1], ignoreCase: true, out TipoDeAccion tipo)
                 || !AccionesDelServicio.EsTokenValido(args[i + 2]))
             {
-                MessageBox.Show("Argumentos no validos.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Dialogo.Mostrar("Argumentos no validos.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 2;
             }
 
@@ -29,7 +29,7 @@ namespace Nexo.Ui.Tray
                 r = new ResultadoDeAplicar(false, false, "No se pudo hablar con el servicio.");
             }
 
-            MessageBox.Show(
+            Dialogo.Mostrar(
                 r.Exito ? r.Mensaje : (r.NecesitaElevacion ? "El servicio sigue pidiendo aprobacion: " : "No se aplico: ") + r.Mensaje,
                 "Nexo", MessageBoxButtons.OK, r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
             return r.Exito ? 0 : 1;
