@@ -343,7 +343,7 @@ Se comprobó que las pruebas tienen dientes: rompiendo a propósito la regla
 
 **Huecos conocidos (sin hacer):**
 
-- **YARA** (heurística) no está; el escaneo es solo por firmas de ClamAV.
+- **YARA** (heurística): hay un motor (`MotorYara`, §2m), pero no corre junto a ClamAV y no trae reglas propias.
 - ~~Sin tiempo real~~ Hecho (2026-10-22, ver §2g). Siguen sin AMSI (el escaneo programado se hizo después, ver §2k).
 - ~~La cuarentena no purga~~ Hecho (2026-10-22): `nexo-scan cuarentena purgar` elimina lo que superó los 30 días, con vista previa, token y confirmación `PURGAR`. Es manual: nada la ejecuta sola hasta que exista el servicio.
 - Sin exclusión mutua con Defender (añadir la carpeta de cuarentena a sus exclusiones).
@@ -885,6 +885,41 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
 
 ---
 
+## 2m. Motor YARA (2026-11-05)
+
+`MotorYara : IMotorDeFirmas` (`src/Nexo.Modules.Threats/Escaner/MotorYara.cs`), con el ejecutable de línea de comandos `yara64.exe`
+(BSD-3, así que ejecutarlo no tiene el problema de licencia de libclamav). Se elige con `Nexo:Motor = yara` en `appsettings.json`;
+por omisión sigue siendo `clamd`.
+
+- **Comprobado con `yara64.exe` 4.6.0** (zip oficial `yara-4.6.0-2443-win64.zip`, SHA-256 `5e7124f1…81e6dc`, el mismo que publica
+  GitHub), antes de escribir código:
+  - **No lee stdin en Windows**: `reglas.yar -` y `CON` fallan con `could not open file`. Solo escanea rutas de archivo.
+  - **Código de salida 0 tanto si encuentra algo como si no**; 1 para cualquier error (archivo inexistente, regla rota). La detección
+    se lee de la salida estándar: una línea `Regla ruta` por regla. Los errores salen por stderr.
+  - Opciones usadas: `-N` (no seguir enlaces), `-w` (sin advertencias), `-a N` (tiempo máximo).
+- **Decisión (la tomó el usuario, 2026-11-05):** como `AnalizarAsync` recibe un `Stream` y YARA solo lee rutas, el contenido se
+  vuelca a una **copia temporal privada** que se borra al terminar. Descartadas: añadir un camino por ruta a la interfaz (se pierde
+  la garantía de analizar el mismo archivo que se abrió) y enlazar `libyara.dll` (el zip oficial no la trae; habría que compilarla).
+  - Copia: `ProgramData\Nexo\yara-tmp` (la carpeta Nexo ya queda restringida a SYSTEM y Administradores, como la cuarentena), nombre
+    aleatorio, `FileMode.CreateNew`, tope de tamaño (100 MB; pasarse es **error**, no limpio), borrada en un `finally` (también si se
+    cancela o YARA se cuelga) y barrido de restos de más de 1 h al construir el motor.
+  - **Regla del proyecto:** ante la duda, nunca «limpio». Código distinto de 0, salida que no es «regla + la ruta de la copia»,
+    mensajes en stderr aunque el código sea 0, tiempo agotado, ejecutable o reglas inexistentes: todo es `Error`, y el escáner lo
+    cuenta como omitido (el escaneo no se da por «completamente limpio»).
+  - Firma: `YARA.Regla` (hasta 5 reglas, separadas por coma).
+- **Configuración** (`Nexo:Yara:*`): `Ejecutable` y `Reglas` (rutas absolutas, obligatorias), `CarpetaTemporal`, `TimeoutSegundos` (30),
+  `MaximoMB` (100). Si `Nexo:Motor = yara` y falta alguna de las dos rutas, se usa clamd y se avisa en la nota de arranque.
+- **Pruebas:** +42 en `Nexo.Scan.Demo`: 35 portables con un yara **falso** (el propio ejecutable de la prueba, lanzado con
+  `--yara-falso`: veredictos, errores, tiempo, tope, cancelación, restos y el motor dentro del escáner) y 7 contra el `yara64.exe`
+  **real**, que solo corren si `NEXO_YARA_EXE` apunta a él (si no, salen como «OMITIDA», no como pasadas). Corrieron en Windows con el real: todas OK.
+- **SIN PROBAR:** `Nexo:Motor = yara` dentro del servicio real (la prueba del servicio inyecta el motor por DI y no pasa por
+  `CrearMotor`); un archivo de reglas real de verdad (solo se probó con dos reglas de prueba); el rendimiento de volcar y lanzar un
+  proceso por archivo (con el escaneo en paralelo habrá un `yara64.exe` por archivo; no se midió).
+- **Hueco:** YARA y ClamAV no se pueden usar a la vez: el motor es uno u otro. Combinarlos pide leer el `Stream` una sola vez y
+  pasarlo a los dos.
+
+---
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
@@ -1052,7 +1087,7 @@ Según el plan recortado:
   falta pegar la salida del Prompt 0 en el prompt: el contrato de la
   [[Salida 0 - Arquitectura general del sistema]] se aplicó directamente.)
 - ~~Escaneo bajo demanda (`clamd`)~~ Hecho: ver §2e (falta probarlo con ClamAV
-  real en una VM). Pendiente de ese paso: YARA.
+  real en una VM). Pendiente de ese paso: probar `MotorYara` en el servicio real (§2m).
 - Siguiente en el orden de la Salida 0 §4: **probar con ClamAV real en la VM**
   y la integración de los módulos en `Nexo.Service` + `Nexo.Ui.Tray` (Fase 0).
 - **Punto de decisión del mes 3** (§4 de la Salida 6): si para entonces no hay

@@ -58,9 +58,7 @@ namespace Nexo.Service
             var guardia = new GuardiaDeReglas(adicionales: GuardiaDeReglas.LeerAdicionales(protegidos, out _));
 
             // Motor de firmas: clamd por TCP local (o uno inyectado por DI en las pruebas).
-            IMotorDeFirmas motor = _servicios.GetService<IMotorDeFirmas>() ?? new ClamdClient(
-                _config["Nexo:ClamdHost"] is { Length: > 0 } h ? h : "127.0.0.1",
-                int.TryParse(_config["Nexo:ClamdPuerto"], out int puerto) ? puerto : ClamdClient.PuertoPorDefecto);
+            IMotorDeFirmas motor = _servicios.GetService<IMotorDeFirmas>() ?? CrearMotor();
 
             // La carpeta de cuarentena guarda las claves junto a los archivos: solo SYSTEM y
             // Administradores deben poder escribir ahi (lo fija nexo-service.ps1 sobre la carpeta Nexo de ProgramData).
@@ -170,6 +168,36 @@ namespace Nexo.Service
             if (programado is not null) fuentes.Add(programado);
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
+        }
+
+        /// <summary>
+        /// El motor de firmas. «clamd» por omision; «yara» (Nexo:Motor) usa yara64.exe con un archivo de reglas, y exige
+        /// Nexo:Yara:Ejecutable y Nexo:Yara:Reglas (rutas absolutas). Si falta algo, se usa clamd y se avisa en la nota de
+        /// arranque: un motor mal configurado no debe dejar el equipo sin escaneo.
+        /// </summary>
+        private IMotorDeFirmas CrearMotor()
+        {
+            if (string.Equals(_config["Nexo:Motor"], "yara", StringComparison.OrdinalIgnoreCase))
+            {
+                string? exe = _config["Nexo:Yara:Ejecutable"], reglas = _config["Nexo:Yara:Reglas"];
+                if (Path.IsPathRooted(exe) && Path.IsPathRooted(reglas))
+                {
+                    string tmp = _config["Nexo:Yara:CarpetaTemporal"] is { Length: > 0 } t
+                        ? t
+                        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "yara-tmp");
+                    var o = new OpcionesDeYara(exe!, reglas!, tmp);
+                    if (double.TryParse(_config["Nexo:Yara:TimeoutSegundos"], System.Globalization.NumberStyles.Float,
+                                        System.Globalization.CultureInfo.InvariantCulture, out double seg) && seg > 0)
+                        o = o with { Timeout = TimeSpan.FromSeconds(seg) };
+                    if (long.TryParse(_config["Nexo:Yara:MaximoMB"], out long mb) && mb > 0)
+                        o = o with { MaximoDeBytes = mb * 1024 * 1024 };
+                    return new MotorYara(o);
+                }
+                AvisosDeArranque.Add("Nexo:Motor = yara, pero faltan Nexo:Yara:Ejecutable y Nexo:Yara:Reglas (rutas absolutas): se usa clamd.");
+            }
+            return new ClamdClient(
+                _config["Nexo:ClamdHost"] is { Length: > 0 } h ? h : "127.0.0.1",
+                int.TryParse(_config["Nexo:ClamdPuerto"], out int puerto) ? puerto : ClamdClient.PuertoPorDefecto);
         }
 
         /// <summary>Avisos que se anotan en la nota de arranque (p. ej. un modo de borrado pedido y no permitido).</summary>

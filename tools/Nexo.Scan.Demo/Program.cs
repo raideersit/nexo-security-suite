@@ -25,8 +25,11 @@ namespace Nexo.Scan.Demo
         private static int _fallos;
         private static readonly byte[] Marcador = Encoding.ASCII.GetBytes(ClamdFalso.Marcador);
 
-        public static async Task<int> Main()
+        public static async Task<int> Main(string[] args)
         {
+            // Este mismo ejecutable hace de yara64.exe falso para las pruebas de MotorYara.
+            if (args.Length > 0 && args[0] == "--yara-falso") return YaraFalso(args);
+
             Console.OutputEncoding = new UTF8Encoding(false);
 
             string raiz = Path.Combine(Path.GetTempPath(), "nexo-scan-demo-" + Guid.NewGuid().ToString("N")[..8]);
@@ -38,6 +41,7 @@ namespace Nexo.Scan.Demo
                 await ProbarEscanerAsync(Path.Combine(raiz, "escaner")).ConfigureAwait(false);
                 await ProbarCuarentenaAsync(Path.Combine(raiz, "cuarentena")).ConfigureAwait(false);
                 await ProbarIdentidadAsync(Path.Combine(raiz, "identidad")).ConfigureAwait(false);
+                await ProbarYaraAsync(Path.Combine(raiz, "yara")).ConfigureAwait(false);
             }
             finally
             {
