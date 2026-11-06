@@ -88,7 +88,7 @@ namespace Nexo.Ui.Desktop.Nucleo
                     : "Servicio: sin conexión",
                 BarraTiempoReal: !i.Conectado ? "Tiempo real: sin datos"
                     : i.TiempoRealActivo ? "Tiempo real: activo" : "Tiempo real: apagado",
-                BarraMotor: motor is not null ? (motor.Disponible ? "Motor clamd: listo" : "Motor clamd: no responde")
+                BarraMotor: motor is not null ? (motor.Disponible ? "Motor " + NombreCorto(motor) + ": listo" : "Motor " + NombreCorto(motor) + ": no responde")
                     // Sin la consulta del motor, solo el tiempo real sabe algo (y solo si esta activo).
                     : !i.Conectado || !i.TiempoRealActivo ? "Motor clamd: sin datos"
                     : i.MotorCaido ? "Motor clamd: no responde" : "Motor clamd: sin datos");
@@ -161,8 +161,15 @@ namespace Nexo.Ui.Desktop.Nucleo
             if (c.Valor is not EstadoDelMotor m) return NoSePudo(Motor, c.Error);
             return m.Disponible
                 ? new FilaDeModulo(Motor, Indicador.Correcto, "Listo", m.Version ?? m.Motor ?? "clamd")
-                : new FilaDeModulo(Motor, Indicador.Atencion, "No responde", "clamd no contesta: los escaneos no pueden analizar nada.");
+                : new FilaDeModulo(Motor, Indicador.Atencion, "No responde", NombreCorto(m) + " no contesta: los escaneos no pueden analizar nada.");
         }
+
+        /// <summary>
+        /// El motor tal como lo nombra el servicio («ClamAV (clamd)», «YARA»). Sin nombre, o si es ClamAV, «clamd»: es el motor por omision
+        /// y asi se llamaba siempre en la barra. Un motor distinto se nombra tal cual: la barra no debe decir «clamd» si es YARA.
+        /// </summary>
+        private static string NombreCorto(EstadoDelMotor m)
+            => string.IsNullOrWhiteSpace(m.Motor) || m.Motor.Contains("clamd", StringComparison.OrdinalIgnoreCase) ? "clamd" : m.Motor.Trim();
 
         private static FilaDeModulo FilaDelProgramado(Consulta<EstadoDeEscaneoProgramado> c)
         {

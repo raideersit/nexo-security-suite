@@ -912,11 +912,34 @@ por omisión sigue siendo `clamd`.
 - **Pruebas:** +42 en `Nexo.Scan.Demo`: 35 portables con un yara **falso** (el propio ejecutable de la prueba, lanzado con
   `--yara-falso`: veredictos, errores, tiempo, tope, cancelación, restos y el motor dentro del escáner) y 7 contra el `yara64.exe`
   **real**, que solo corren si `NEXO_YARA_EXE` apunta a él (si no, salen como «OMITIDA», no como pasadas). Corrieron en Windows con el real: todas OK.
-- **SIN PROBAR:** `Nexo:Motor = yara` dentro del servicio real (la prueba del servicio inyecta el motor por DI y no pasa por
-  `CrearMotor`); un archivo de reglas real de verdad (solo se probó con dos reglas de prueba); el rendimiento de volcar y lanzar un
+- **Probado después (§2n):** `Nexo:Motor = yara` dentro del servicio real, con la ventana.
+- **SIN PROBAR:** un archivo de reglas real de verdad (solo se probó con dos reglas de prueba); el rendimiento de volcar y lanzar un
   proceso por archivo (con el escaneo en paralelo habrá un `yara64.exe` por archivo; no se midió).
 - **Hueco:** YARA y ClamAV no se pueden usar a la vez: el motor es uno u otro. Combinarlos pide leer el `Stream` una sola vez y
   pasarlo a los dos.
+
+---
+
+## 2n. La ventana contra el servicio real (2026-11-05, en el HP)
+
+Primera vez que la ventana (§2l) habla con el servicio de verdad. Se arrancó `nexo-service` en consola (no como SYSTEM; sin
+administrador) con el vault, la cuarentena y el historial en una carpeta temporal, `Nexo__Motor=yara` y `yara64.exe` real, y se abrió
+`nexo-desktop --pipe NexoPrueba`. Se recorrieron a mano las 7 pestañas.
+
+- **Qué ejecutable:** la ventana tiene dos compilaciones. **`bin\Debug\net8.0-windows\nexo-desktop.exe` es la que habla con el servicio;**
+  la de `net8.0` es la de Linux y dice «Sin conexión… esta compilación no incluye la conexión con el servicio». Con `dotnet run` en
+  Windows se usa la buena; al abrir el `.exe` a mano hay que mirar la carpeta.
+- **Estado, Escaneo, Tiempo real, Firewall, Limpieza, Disco y Cuarentena cargan datos reales.** El firewall real se leyó (3 perfiles
+  activados, 0 reglas de Nexo). El catálogo de limpieza cargó. Los 4 discos se listaron.
+- **Escaneo con YARA real, de punta a punta:** una carpeta con un archivo limpio y otro con la cadena marcadora → «Analizados: 2»,
+  «1 detección» `YARA.Prueba_Cadena` (20 B). Los archivos quedaron intactos, la cuarentena vacía y **ninguna copia temporal** en
+  `yara-tmp`.
+- **Disco:** «Sin datos» en los 4 discos con el motivo «Sin permisos de administrador: no se pudo leer root\wmi». Es lo esperado sin
+  SYSTEM/administrador, y el mensaje es honesto. **Sigue SIN PROBAR como SYSTEM** (donde sí deberían verse los atributos ATA).
+- **Fallo encontrado y corregido:** la barra inferior decía «Motor clamd: listo» aunque el motor era YARA (el texto estaba escrito a
+  mano). Ahora usa el nombre que da el servicio; ClamAV sigue diciendo «clamd». +3 pruebas en `Nexo.Desktop.Demo`.
+- **SIN PROBAR:** poner en cuarentena desde la pestaña (UAC y token), limpiar con «BORRAR», bloquear un programa en el firewall, el
+  tiempo real con carpetas vigiladas y el escaneo programado desde la ventana (todo lo que cambia algo).
 
 ---
 

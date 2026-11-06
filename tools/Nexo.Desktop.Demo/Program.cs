@@ -199,6 +199,16 @@ namespace Nexo.Desktop.Demo
             r = Resumen(Completo(Conectada(), motor: new EstadoDelMotor(false, "clamd", null)));
             Check(r.Indicador == Indicador.Atencion && r.Titulo == "Requiere atención: Motor de análisis: no responde.", "motor sin responder: manda en la cabecera", r.Titulo);
             Check(r.BarraMotor == "Motor clamd: no responde", "y la barra lo dice");
+            Check(Resumen(Completo(Conectada(), motor: new EstadoDelMotor(true, "ClamAV (clamd)", "ClamAV 1.5.4"))).BarraMotor == "Motor clamd: listo",
+                  "la barra con el nombre real de ClamAV sigue diciendo «clamd»");
+
+            // El motor es YARA (Nexo:Motor = yara): la barra y la fila lo dicen, no «clamd» (se vio en la ventana real, 2026-11-05).
+            r = Resumen(Completo(Conectada(), motor: new EstadoDelMotor(true, "YARA", "YARA 4.6.0 (reglas: reglas.yar)")));
+            Check(r.BarraMotor == "Motor YARA: listo" && Fila(r, Resumir.Motor).Detalle == "YARA 4.6.0 (reglas: reglas.yar)",
+                  "motor YARA: la barra dice YARA", r.BarraMotor);
+            r = Resumen(Completo(Conectada(), motor: new EstadoDelMotor(false, "YARA", null)));
+            Check(r.BarraMotor == "Motor YARA: no responde" && Fila(r, Resumir.Motor).Detalle.StartsWith("YARA no contesta", StringComparison.Ordinal),
+                  "motor YARA sin responder: la barra y la fila dicen YARA, no clamd", Fila(r, Resumir.Motor).Detalle);
 
             r = Resumen(Completo(Conectada(), firewall: new EstadoDeFirewall(0, false, new[]
                 { new PerfilDeFirewall("Dominio", true), new PerfilDeFirewall("Privado", true), new PerfilDeFirewall("Publico", false) })));
