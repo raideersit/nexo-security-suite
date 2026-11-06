@@ -935,7 +935,13 @@ administrador) con el vault, la cuarentena y el historial en una carpeta tempora
   «1 detección» `YARA.Prueba_Cadena` (20 B). Los archivos quedaron intactos, la cuarentena vacía y **ninguna copia temporal** en
   `yara-tmp`.
 - **Disco:** «Sin datos» en los 4 discos con el motivo «Sin permisos de administrador: no se pudo leer root\wmi». Es lo esperado sin
-  SYSTEM/administrador, y el mensaje es honesto. **Sigue SIN PROBAR como SYSTEM** (donde sí deberían verse los atributos ATA).
+  SYSTEM/administrador, y el mensaje es honesto. Como SYSTEM sí se leen (ver abajo).
+- **Disco como SYSTEM (2026-11-05):** el servicio se ejecutó como SYSTEM con una tarea programada temporal (ya borrada) y se consultó
+  `disco.estado` por el pipe. El SATA ST1000LM035 salió con **23 atributos ATA reales** (los 5 clave leídos), 29 °C, 18 407 h,
+  severidad **«alta»** y la alerta «Errores incorregibles reportados (187): 90». El NVMe salió con temperatura (41 °C) y desgaste
+  0 % («info», sin atributos ATA, con el motivo); los dos puentes USB, «info» con su limitación. Es decir: **SYSTEM ve lo que un
+  usuario sin administrador no ve**, que era el motivo de que el servicio lea los discos. No se hizo por la ventana (un juego a
+  pantalla completa tapó la ventana): se usó una sonda que habla con el pipe con `Nexo.Ipc`.
 - **Fallo encontrado y corregido:** la barra inferior decía «Motor clamd: listo» aunque el motor era YARA (el texto estaba escrito a
   mano). Ahora usa el nombre que da el servicio; ClamAV sigue diciendo «clamd». +3 pruebas en `Nexo.Desktop.Demo`.
 - **SIN PROBAR:** poner en cuarentena desde la pestaña (UAC y token), limpiar con «BORRAR», bloquear un programa en el firewall, el
