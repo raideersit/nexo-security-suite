@@ -97,7 +97,9 @@ namespace Nexo.Modules.Cleanup.Disco
             lock (_cerrojo)
             {
                 return new EstadoDeSalud(
-                    _ultimoIntento is null ? "nunca" : _fallido ? "fallido" : "listo",
+                    // «nunca» hasta que una lectura termine (o falle): durante la primera lectura ya hay un intento,
+                    // pero todavia no hay discos, y «listo» sin discos se leeria como «no hay ningun disco».
+                    _fallido ? "fallido" : _ultimaLectura is null ? "nunca" : "listo",
                     _leyendo, _ultimaLectura, _ultimoIntento,
                     _ultimoIntento is DateTimeOffset u ? u + _intervalo : null,
                     _error, _advertencia, _discos);
