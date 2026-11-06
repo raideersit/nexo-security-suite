@@ -967,9 +967,50 @@ administrador) con el vault, la cuarentena y el historial en una carpeta tempora
   - **Defectos pequeños que quedan:** los botones de los avisos salen en inglés («Yes»/«No»); tras poner en cuarentena la lista de
     Escaneo sigue mostrando el archivo ya movido; en la pestaña Cuarentena la ruta larga empuja las columnas Amenaza/Desde/Vence
     fuera de la vista.
-- **Para llegar al UAC real** hay que instalar `nexo-desktop` y `nexo-tray` (con sus archivos) en una carpeta como
-  `C:\Program Files\Nexo\` y probar desde ahí. **SIN PROBAR.** Tampoco el tiempo real con carpetas vigiladas ni el escaneo
-  programado desde la ventana.
+- **UAC real, probado (2026-11-05, 23:22).** `nexo-desktop` + `nexo-tray` copiados a `C:\Program Files\NexoPrueba\` y `nexo-service`
+  como SYSTEM (tarea programada temporal, ya borrada) con la aprobación por omisión (sin `Nexo:Aprobacion:Modo`), YARA y la
+  ventana contra su tubería. Escaneo → 1 detección → «Poner en cuarentena» → confirmación → **aviso de UAC en el escritorio
+  seguro** (lo aceptó el usuario) → `nexo-tray.exe` elevado aplicó el plan con el mismo token → `malo.txt` salió de su carpeta y
+  quedó como `.nxq` + `.json`; el vecino limpio y el `.exe` no se tocaron; el vault registró la amenaza y la cuarentena.
+  - **Con el servicio como usuario normal** (sin SYSTEM) el proceso elevado muestra «No se aplicó: el servicio no puede actuar con
+    tu identidad (conecta con nivel de suplantación)…». Es el comportamiento correcto: sin `SeImpersonatePrivilege` el servicio no
+    puede suplantar un token elevado y no recurre a SYSTEM. Para probar la aprobación hace falta el servicio como SYSTEM.
+  - **No se vio** el cuadro de resultado del proceso elevado (la captura no lo recogió); la comprobación fue por el efecto en
+    disco y el vault.
+  - **Observación sin investigar:** el `.json` de cada entrada de cuarentena guarda la `Clave` (32 bytes en base64) junto al
+    `.nxq`. Puede ser intencional (cifrar evita ejecuciones accidentales, no guarda un secreto); confirmar y dejarlo escrito.
+  - **Escaneo programado:** ver la entrada siguiente (probado).
+- **Tiempo real con carpetas vigiladas, probado (2026-11-05, 23:25).** Servicio como usuario normal (fuente `watcher`, sin
+  administrador; la fuente `usn` sigue sin probarse en real), `Nexo:TiempoReal:Activo=true` y `Raices` = una carpeta de prueba, motor
+  YARA real, ventana (`bin\Debug\net8.0-windows`) contra su propia tubería. La pestaña «Tiempo real» mostró la carpeta como
+  «Vigilada», motor «YARA — responde» y los contadores.
+  - `.txt` → **ignorado a propósito**: solo se analizan extensiones de riesgo (`.exe .dll .ps1 .bat .js .lnk .iso`…, ver
+    `OpcionesDeTiempoReal.Extensiones`). La primera prueba con `.txt` dio «Cambios vistos: 4 · Analizados: 0» y parecía un fallo; no
+    lo era. **Confusión posible:** la ventana no muestra cuántos cambios se descartaron por extensión.
+  - `sospechoso.ps1` (cadena marcadora) → «1 detección del tiempo real», `YARA.Prueba_Cadena`, 15 B, **archivo sin tocar**, evento
+    de amenaza en el vault. `limpio.bat` → analizado y limpio.
+  - **Se reanaliza si cambia:** se añadió la cadena a `limpio.bat` ya dado por limpio → segunda detección y su evento.
+  - `enorme.exe` (30 MB, por encima del límite de 25 MB) → «Sin analizar: 1», con «Último aviso: mayor que el límite del motor».
+    **Nunca como limpio.** Como no se arregla reescaneando, «Por revisar» queda en «Nada por revisar» (diseño del vigilante). Ojo:
+    el único rastro de ese archivo es el «Último aviso», que otro aviso sobrescribe.
+  - Sin copias sobrantes en `yara-tmp`. **Sin probar:** carpetas por revisar tras perder eventos reales (desborde), motor caído en
+    pleno vuelo, y la fuente USN.
+- **Escaneo programado, probado (2026-11-05, 23:27).** Servicio como usuario normal, `Nexo:EscaneoProgramado:Activo=true`,
+  `IntervaloHoras=0.02` (el servicio lo sube al mínimo de 1 min), `Raices` = la carpeta de prueba, `Registro` en el scratchpad (sin
+  `ProgramData`), YARA real; se mira la fila «Escaneo programado» de la pestaña Estado.
+  - **Antes del primer escaneo:** «Vencido · Nunca terminó uno completo» (no «Al día»), con la espera inicial de 2 min.
+  - **Tras el primero:** «3 detecciones · En el último escaneo completo (05/11 23:30)» y el estado general pasó a rojo «Alerta en
+    Escaneo programado: 3 detecciones». Encontró las 3 (`.txt`, `.ps1`, `.bat`): el escaneo completo mira todas las extensiones, el
+    tiempo real no. Se guardó `ultimo_completo` en el registro.
+  - **Reinicio del servicio** (intervalo 24 h): «**Resultado desconocido** · Último completo: 05/11 23:30, pero el servicio no
+    recordaba su resultado». Honesto: no aparece «Al día» aunque la fecha sea reciente. **Pero** las 3 detecciones se olvidan hasta
+    el siguiente escaneo (solo se guarda la fecha); un reinicio las borra de la ventana. Sigue en el vault.
+  - **Hueco de la ventana:** el servicio ofrece `escaneo-programado.detecciones`, pero la ventana solo muestra la fila de Estado: no
+    lista esos archivos ni permite ponerlos en cuarentena desde ahí (no se probó otro camino).
+  - **Error mío (sin consecuencia grave):** arranqué un servicio sin mis variables de entorno y creó notas de salud de disco en
+    `C:\ProgramData\Nexo\Vault` (esa carpeta ya existía de antes). Las variables no persisten entre llamadas de shell.
+  - **Sin probar:** que el escaneo programado se reintente a la hora tras un fallo/incompleto, y la espera inicial tras un equipo
+    apagado largo (solo se vio la de «nunca»).
 
 ---
 
