@@ -80,8 +80,12 @@ namespace Nexo.Service.Demo
                 ["Nexo:Cuarentena"] = _carpetaQ,
                 ["Nexo:Aprobacion:Modo"] = _aprobacion,
                 ["Nexo:TiempoReal:Activo"] = tiempoReal is null ? "false" : "true",
-                ["Nexo:TiempoReal:Raices"] = tiempoReal is null ? "" : _carpetaQ + "-no-se-usa"
+                ["Nexo:TiempoReal:Raices"] = tiempoReal is null ? "" : _carpetaQ + "-no-se-usa",
+                // El historial de la salud del disco, junto al vault de prueba (nunca el de ProgramData).
+                ["Nexo:Disco:Historial"] = Path.Combine(vault, "..", Path.GetFileName(vault) + "-salud-disco.json")
             });
+            // Salud del disco: una fuente falsa (WMI real no se toca desde el arnes).
+            b.Services.AddSingleton<Nexo.Modules.Cleanup.Disco.IFuenteSmart>(new SmartFalsa());
             if (tiempoReal is not null) b.Services.AddSingleton<Nexo.Modules.Threats.TiempoReal.IFuenteDeCambios>(tiempoReal);
             // El firewall REAL no se toca nunca desde el arnes: el servicio recibe un almacen en memoria.
             b.Services.AddSingleton<IAlmacenDeFirewall>(Almacen);
@@ -93,6 +97,20 @@ namespace Nexo.Service.Demo
             b.Services.AddHostedService<NexoWorker>();
             b.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(4));
             return b.Build();
+        }
+
+        /// <summary>Un disco con 3 sectores pendientes (197): el evaluador lo da como «alta».</summary>
+        private sealed class SmartFalsa : Nexo.Modules.Cleanup.Disco.IFuenteSmart
+        {
+            public IReadOnlyList<Nexo.Modules.Cleanup.Disco.LecturaDeDisco> Leer()
+                => new[]
+                {
+                    new Nexo.Modules.Cleanup.Disco.LecturaDeDisco("Disco De Prueba", "****1234")
+                    {
+                        PrediccionDeFallo = false,
+                        Atributos = new[] { new Nexo.Modules.Cleanup.Disco.AtributoSmart(197, 0, 100, 100, 3) }
+                    }
+                };
         }
 
         private static IEnumerable<string> Notas(string vault)
@@ -124,8 +142,23 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 24,
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 26,
                       "estado lista los metodos que expone: los basicos y los del firewall");
+
+                // Salud del disco: el servicio lee al arrancar (en segundo plano); disco.estado no vuelve a leer.
+                Respuesta disco = await c.LlamarAsync("disco.estado").ConfigureAwait(false);
+                for (int i = 0; i < 50 && disco.Exito && disco.Resultado?.GetProperty("estado").GetString() == "nunca"; i++)
+                {
+                    await Task.Delay(100).ConfigureAwait(false);
+                    disco = await c.LlamarAsync("disco.estado").ConfigureAwait(false);
+                }
+                Check(disco.Exito && disco.Resultado?.GetProperty("estado").GetString() == "listo"
+                      && disco.Resultado?.GetProperty("discos")[0].GetProperty("severidad").GetString() == "alta",
+                      "disco.estado: la lectura del arranque, con la severidad del evaluador (197 > 0 = alta)");
+                Respuesta leer = await c.LlamarAsync("disco.leer").ConfigureAwait(false);
+                Check(leer.Exito && leer.Resultado?.GetProperty("iniciada").GetBoolean() == false
+                      && leer.Resultado?.GetProperty("motivo").GetString()!.Contains("menos de 5 minutos") == true,
+                      "disco.leer justo despues del arranque se niega (como mucho una lectura cada 5 min)");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })
                 {

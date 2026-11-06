@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nexo.Ipc;
 using Nexo.Modules.Cleanup.Abstractions;
+using Nexo.Modules.Cleanup.Disco;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Platform;
 using Nexo.Modules.Cleanup.Windows;
@@ -146,6 +147,23 @@ namespace Nexo.Service
                 _servicios.GetService<Func<ContextoDeLlamada, IReadOnlyDictionary<BaseDeRuta, string>?>>(),
                 politica: politica));
             if (avisoBorrador is not null) AvisosDeArranque.Add(avisoBorrador);
+
+            // Salud de los discos: solo lee, asi que esta encendida por omision (Nexo:Disco:Activo = false la apaga).
+            if (!(bool.TryParse(_config["Nexo:Disco:Activo"], out bool discoActivo) && !discoActivo))
+            {
+                string historial = _config["Nexo:Disco:Historial"] is { Length: > 0 } hd
+                    ? hd
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "salud-disco.json");
+                TimeSpan? cada = double.TryParse(_config["Nexo:Disco:IntervaloHoras"], System.Globalization.NumberStyles.Float,
+                                                 System.Globalization.CultureInfo.InvariantCulture, out double hDisco) && hDisco > 0
+                    ? TimeSpan.FromHours(hDisco) : null;
+                IFuenteSmart fuenteSmart = _servicios.GetService<IFuenteSmart>() ?? new FuenteSmartWmi();
+                var disco = new ModuloSaludDisco(new VigiaDeSalud(
+                    new MonitorDeSalud(fuenteSmart, reportes, new HistorialDeSalud(historial)), cada));
+                disco.Iniciar();
+                modulos.Add(disco);
+            }
+            else modulos.Add(new ModuloSaludDiscoApagado());
 
             var fuentes = new List<IResultadosDeEscaneo> { escaneo };
             if (tiempoReal is not null) fuentes.Add(tiempoReal);
