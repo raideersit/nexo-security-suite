@@ -58,6 +58,12 @@ namespace Nexo.Service
 
         public IReadOnlyList<string> Metodos { get; } = new[] { "limpieza.reglas", "limpieza.previsualizar", "limpieza.aplicar" };
 
+        /// <summary>El simulador tambien es «reversible» (no borra nada); sin distinguirlo, el cliente leeria «papelera».</summary>
+        private string ModoDelBorrador()
+            => _borrador is Nexo.Modules.Cleanup.Platform.BorradorSimulado
+                ? "simulado"
+                : _borrador.EsReversible ? "papelera" : "borrado-permanente";
+
         public async Task<object?> ManejarAsync(string metodo, JsonElement? p, CancellationToken ct)
         {
             switch (metodo)
@@ -66,9 +72,7 @@ namespace Nexo.Service
                     return new
                     {
                         // El simulador tambien es "reversible" (no borra nada); sin distinguirlo, el cliente leeria "papelera".
-                        modo = _borrador is Nexo.Modules.Cleanup.Platform.BorradorSimulado
-                            ? "simulado"
-                            : _borrador.EsReversible ? "papelera" : "borrado-permanente",
+                        modo = ModoDelBorrador(),
                         reversible = _borrador.EsReversible,
                         reglas = _catalogo.Reglas.Select(r => new
                         {
@@ -157,6 +161,8 @@ namespace Nexo.Service
                     eliminados = r.Eliminados,
                     bytes_liberados = r.BytesLiberados,
                     reversible = _borrador.EsReversible,
+                    // El cliente no debe decir «limpiados» si el modo es simulado (no se borro nada).
+                    modo = ModoDelBorrador(),
                     omitidos = r.Omitidos.Take(MaxOmitidosEnRespuesta).ToList(),
                     omitidos_total = r.Omitidos.Count
                 };

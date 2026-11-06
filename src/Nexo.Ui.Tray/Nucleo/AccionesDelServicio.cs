@@ -150,21 +150,40 @@ namespace Nexo.Ui.Tray.Nucleo
         /// <summary>El codigo que usa el servicio cuando exige UAC (PoliticaDeAprobacion.AprobacionRequerida).</summary>
         public const int AprobacionRequerida = -32040;
 
-        private static string Resumir(TipoDeAccion tipo, JsonElement e)
+        internal static string Resumir(TipoDeAccion tipo, JsonElement e)
         {
             switch (tipo)
             {
-                case TipoDeAccion.Cuarentena: return e.GetProperty("movidos").GetArrayLength() + " archivos en cuarentena. " + Omitidos(e);
+                case TipoDeAccion.Cuarentena: { int n = e.GetProperty("movidos").GetArrayLength(); return n + (n == 1 ? " archivo" : " archivos") + " en cuarentena. " + Omitidos(e); }
                 case TipoDeAccion.Restauracion: return e.GetProperty("exito").GetBoolean() ? "Archivo restaurado." : "No se restauro: " + e.GetProperty("motivo").GetString();
-                case TipoDeAccion.Purga: return e.GetProperty("purgados").GetInt32() + " entradas purgadas. " + Omitidos(e);
-                case TipoDeAccion.Limpieza: return e.GetProperty("eliminados").GetInt32() + " archivos limpiados (" + FormatearBytes(e.GetProperty("bytes_liberados").GetInt64()) + "). " + Omitidos(e);
-                case TipoDeAccion.Firewall: return e.GetProperty("aplicados").GetInt32() + " cambios aplicados. " + Omitidos(e);
+                case TipoDeAccion.Purga: { int n = e.GetProperty("purgados").GetInt32(); return n + (n == 1 ? " entrada purgada. " : " entradas purgadas. ") + Omitidos(e); }
+                case TipoDeAccion.Limpieza:
+                {
+                    int n = e.GetProperty("eliminados").GetInt32();
+                    string peso = FormatearBytes(e.GetProperty("bytes_liberados").GetInt64());
+                    // En modo simulado no se borro nada: decir «limpiados» seria mentir (el servicio dice el modo en la respuesta).
+                    if (e.TryGetProperty("modo", out JsonElement modo) && modo.GetString() == "simulado")
+                        return "SIMULACION: " + n + (n == 1 ? " archivo se habria limpiado" : " archivos se habrian limpiado") + " (" + peso + "). No se borro nada. " + Omitidos(e);
+                    return n + (n == 1 ? " archivo limpiado" : " archivos limpiados") + " (" + peso + "). " + Omitidos(e);
+                }
+                case TipoDeAccion.Firewall: { int n = e.GetProperty("aplicados").GetInt32(); return n + (n == 1 ? " cambio aplicado. " : " cambios aplicados. ") + Omitidos(e); }
                 default: return "";
             }
         }
 
+        /// <summary>«2 omitidos», y el primer motivo si el servicio lo da (una cadena): sin motivo, quien lo lee no sabe que hacer.</summary>
         private static string Omitidos(JsonElement e)
-            => e.TryGetProperty("omitidos", out JsonElement o) && o.GetArrayLength() > 0 ? o.GetArrayLength() + " omitidos." : "";
+        {
+            if (!e.TryGetProperty("omitidos", out JsonElement o) || o.ValueKind != JsonValueKind.Array || o.GetArrayLength() == 0) return "";
+            int n = o.GetArrayLength();
+            string cuenta = n == 1 ? "1 omitido" : n + " omitidos";
+            JsonElement primero = o[0];
+            string? motivo = primero.ValueKind == JsonValueKind.String ? primero.GetString() : null;
+            if (string.IsNullOrWhiteSpace(motivo)) return cuenta + ".";
+            motivo = motivo.Trim();
+            if (motivo.Length > 160) motivo = motivo[..160] + "...";
+            return cuenta + ". " + (n == 1 ? "Motivo: " : "El primero: ") + motivo;
+        }
 
         public static string FormatearBytes(long b)
             => b >= 1L << 30 ? (b / (double)(1L << 30)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " GB"

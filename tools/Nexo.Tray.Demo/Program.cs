@@ -33,6 +33,7 @@ namespace Nexo.Tray.Demo
             try
             {
                 ProbarModelo();
+                ProbarResumenDeAcciones();
                 ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);
             }
@@ -44,6 +45,38 @@ namespace Nexo.Tray.Demo
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
+        }
+
+        // Lo que la ventana y la bandeja le cuentan a quien acaba de aplicar una accion. Visto en la ventana real (2026-11-05):
+        // la limpieza simulada decia «36149 archivos limpiados», un archivo era «1 archivos» y «2 omitidos» no decia por que.
+        private static void ProbarResumenDeAcciones()
+        {
+            Console.WriteLine("Resumen de lo aplicado");
+            static string R(TipoDeAccion t, string json) { using JsonDocument d = JsonDocument.Parse(json); return AccionesDelServicio.Resumir(t, d.RootElement.Clone()); }
+
+            string r = R(TipoDeAccion.Limpieza, "{\"eliminados\":36149,\"bytes_liberados\":16431000000,\"modo\":\"simulado\",\"omitidos\":[],\"omitidos_total\":0}");
+            Check(r.StartsWith("SIMULACION:", StringComparison.Ordinal) && r.Contains("No se borro nada") && !r.Contains("limpiados"),
+                  "limpieza simulada: lo dice y NO dice «limpiados»", r);
+            r = R(TipoDeAccion.Limpieza, "{\"eliminados\":2311,\"bytes_liberados\":1932735283,\"modo\":\"papelera\",\"omitidos\":[],\"omitidos_total\":0}");
+            Check(r.StartsWith("2311 archivos limpiados (1.8 GB).", StringComparison.Ordinal), "limpieza a la Papelera: «limpiados»", r);
+            r = R(TipoDeAccion.Limpieza, "{\"eliminados\":3,\"bytes_liberados\":10,\"omitidos\":[],\"omitidos_total\":0}");
+            Check(r.StartsWith("3 archivos limpiados", StringComparison.Ordinal), "sin «modo» (un servicio antiguo): se lee como una limpieza normal", r);
+            Check(R(TipoDeAccion.Limpieza, "{\"eliminados\":1,\"bytes_liberados\":10,\"modo\":\"papelera\",\"omitidos\":[]}").StartsWith("1 archivo limpiado", StringComparison.Ordinal),
+                  "uno: «1 archivo limpiado»");
+
+            Check(R(TipoDeAccion.Cuarentena, "{\"movidos\":[\"a\"],\"omitidos\":[]}") == "1 archivo en cuarentena. ", "uno en cuarentena: singular");
+            Check(R(TipoDeAccion.Cuarentena, "{\"movidos\":[\"a\",\"b\"],\"omitidos\":[]}") == "2 archivos en cuarentena. ", "dos en cuarentena: plural");
+            Check(R(TipoDeAccion.Firewall, "{\"aplicados\":1,\"omitidos\":[]}") == "1 cambio aplicado. ", "un cambio de firewall: singular");
+
+            r = R(TipoDeAccion.Firewall, "{\"aplicados\":0,\"omitidos\":[\"necesita administrador\",\"necesita administrador\"]}");
+            Check(r == "0 cambios aplicados. 2 omitidos. El primero: necesita administrador", "omitidos: cuantos y el primer motivo", r);
+            r = R(TipoDeAccion.Firewall, "{\"aplicados\":0,\"omitidos\":[\"ya existe\"]}");
+            Check(r == "0 cambios aplicados. 1 omitido. Motivo: ya existe", "un omitido: «Motivo:»", r);
+            r = R(TipoDeAccion.Firewall, "{\"aplicados\":0,\"omitidos\":[{\"x\":1}]}");
+            Check(r == "0 cambios aplicados. 1 omitido.", "omitidos que no son texto: solo la cuenta, sin romper", r);
+            r = R(TipoDeAccion.Firewall, "{\"aplicados\":0,\"omitidos\":[\"" + new string('m', 500) + "\"]}");
+            Check(r.Length < 260 && r.EndsWith("...", StringComparison.Ordinal), "un motivo larguisimo se recorta", r.Length + " caracteres");
+            Check(R(TipoDeAccion.Restauracion, "{\"exito\":true}") == "Archivo restaurado.", "restaurar: sin cambios");
         }
 
         private static void Check(bool condicion, string descripcion, string? detalle = null)

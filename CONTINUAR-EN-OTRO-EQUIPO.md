@@ -944,8 +944,32 @@ administrador) con el vault, la cuarentena y el historial en una carpeta tempora
   pantalla completa tapó la ventana): se usó una sonda que habla con el pipe con `Nexo.Ipc`.
 - **Fallo encontrado y corregido:** la barra inferior decía «Motor clamd: listo» aunque el motor era YARA (el texto estaba escrito a
   mano). Ahora usa el nombre que da el servicio; ClamAV sigue diciendo «clamd». +3 pruebas en `Nexo.Desktop.Demo`.
-- **SIN PROBAR:** poner en cuarentena desde la pestaña (UAC y token), limpiar con «BORRAR», bloquear un programa en el firewall, el
-  tiempo real con carpetas vigiladas y el escaneo programado desde la ventana (todo lo que cambia algo).
+- **Acciones que cambian algo, desde la ventana (2026-11-05, con clics reales):** con la aprobación en modo `ninguna` (ver abajo).
+  - **Cuarentena:** vista previa (regla, tamaño, ruta, «se cifran, no se eliminan») → el archivo salió de su carpeta y quedó como
+    `.nxq` + `.json` en la carpeta de cuarentena; el vecino limpio no se tocó; sin copias en `yara-tmp`. **Restaurar:** aviso claro
+    («Es tu decisión») → el archivo volvió con el contenido idéntico y la cuarentena quedó vacía.
+  - **Firewall (servicio como SYSTEM):** «Bloquear programa» → vista previa con las 2 reglas → **2 reglas reales** en el firewall de
+    Windows (grupo «Nexo Security Suite», bloquear entrante y saliente, verificado con `netsh`) → «Quitar regla» una a una → 0
+    restantes. Sin administrador el servicio las **omite** («0 cambios aplicados. 2 omitidos.») y el firewall queda intacto.
+    **Ojo:** `Get-NetFirewallRule` sin administrador devuelve 0 reglas siempre; para comprobar desde un usuario normal hay que usar
+    `netsh advfirewall firewall show rule name=all`.
+  - **Limpieza (modo `simulado`):** vista previa (tarda ~1 min con un perfil grande; «15.3 GB, 36 149 archivos», con los omitidos y
+    los motivos) → escribir BORRAR → «Simular limpieza». No se borró nada. **No se probó el borrado real** desde la ventana a
+    propósito: `%TEMP%` es una categoría del catálogo y ahí vive la carpeta de trabajo de la sesión.
+  - **Dos protecciones de la aprobación (por diseño, §2i), que explican por qué no se pudo probar el UAC:** (1) la ventana pide la
+    aprobación a `nexo-tray.exe`, que debe estar **junto a ella** (la compilación de desarrollo no lo copia); (2) Nexo **no eleva un
+    ejecutable que el usuario pueda modificar** (Escritorio, `bin\Debug`…): solo desde una ubicación tipo Program Files. Con la
+    aprobación por omisión («elevada») la ventana dice «No se aprobó: no se encontró nexo-tray.exe junto a la ventana… No se ha
+    cambiado nada», que es el fallo seguro. Para las pruebas se usó `Nexo:Aprobacion:Modo = ninguna`.
+  - **Defectos encontrados y corregidos** (+12 pruebas en `Nexo.Tray.Demo`): la limpieza simulada decía «36149 archivos limpiados»
+    (ahora «SIMULACION: … se habrían limpiado… No se borró nada», con el campo `modo` en la respuesta de `limpieza.aplicar`);
+    «1 archivos» / «1 cambios» (singular); y «2 omitidos» sin motivo (ahora, «El primero: …»).
+  - **Defectos pequeños que quedan:** los botones de los avisos salen en inglés («Yes»/«No»); tras poner en cuarentena la lista de
+    Escaneo sigue mostrando el archivo ya movido; en la pestaña Cuarentena la ruta larga empuja las columnas Amenaza/Desde/Vence
+    fuera de la vista.
+- **Para llegar al UAC real** hay que instalar `nexo-desktop` y `nexo-tray` (con sus archivos) en una carpeta como
+  `C:\Program Files\Nexo\` y probar desde ahí. **SIN PROBAR.** Tampoco el tiempo real con carpetas vigiladas ni el escaneo
+  programado desde la ventana.
 
 ---
 
