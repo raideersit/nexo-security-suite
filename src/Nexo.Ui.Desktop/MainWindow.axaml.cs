@@ -18,6 +18,7 @@ namespace Nexo.Ui.Desktop
         private static readonly TimeSpan SondeoDeEscaneo = TimeSpan.FromSeconds(1);
 
         private const int PestanaEscaneo = 1;
+        private const int PestanaTiempoReal = 2;
         private const int PestanaFirewall = 3;
         private const int PestanaLimpieza = 4;
         private const int PestanaCuarentena = 6;
@@ -30,10 +31,12 @@ namespace Nexo.Ui.Desktop
                                    new EscaneoModelo(new ServicioDeEscaneoNoDisponible("vista de diseño")),
                                    new CuarentenaModelo(new ServicioDeCuarentenaNoDisponible("vista de diseño")),
                                    new FirewallModelo(new ServicioDeFirewallNoDisponible("vista de diseño")),
-                                   new LimpiezaModelo(new ServicioDeLimpiezaNoDisponible("vista de diseño"))) { }
+                                   new LimpiezaModelo(new ServicioDeLimpiezaNoDisponible("vista de diseño")),
+                                   new TiempoRealModelo(new ServicioDeTiempoRealNoDisponible("vista de diseño"),
+                                                        new ServicioDeEscaneoNoDisponible("vista de diseño"))) { }
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
-                          LimpiezaModelo limpieza)
+                          LimpiezaModelo limpieza, TiempoRealModelo tiempoReal)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -46,22 +49,30 @@ namespace Nexo.Ui.Desktop
             Cuarentena = cuarentena;
             Firewall = firewall;
             Limpieza = limpieza;
+            TiempoReal = tiempoReal;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
             PanelDeFirewall.DataContext = firewall;
             PanelDeLimpieza.DataContext = limpieza;
+            PanelDeTiempoReal.DataContext = tiempoReal;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, _) =>
             {
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
+                else if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
                 // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
 
             _temporizador = new DispatcherTimer { Interval = Sondeo };
-            _temporizador.Tick += async (_, _) => await Modelo.ActualizarAsync();
+            _temporizador.Tick += async (_, _) =>
+            {
+                await Modelo.ActualizarAsync();
+                // El detalle del tiempo real, solo mientras se esta mirando su pestaña.
+                if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
+            };
             _temporizadorDeEscaneo = new DispatcherTimer { Interval = SondeoDeEscaneo };
             _temporizadorDeEscaneo.Tick += async (_, _) => await Escaneo.SondearAsync();
             Opened += async (_, _) =>
@@ -88,12 +99,14 @@ namespace Nexo.Ui.Desktop
         public CuarentenaModelo Cuarentena { get; }
         public FirewallModelo Firewall { get; }
         public LimpiezaModelo Limpieza { get; }
+        public TiempoRealModelo TiempoReal { get; }
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {
             await Modelo.ActualizarAsync();
             await Cuarentena.ActualizarAsync();
             await Firewall.ActualizarAsync();
+            if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
         }
 
         private void Salir(object? sender, RoutedEventArgs e) => Close();
@@ -133,6 +146,37 @@ namespace Nexo.Ui.Desktop
             await MostrarResultadoAsync("Cuarentena", await Escaneo.AplicarCuarentenaAsync(token));
             await Modelo.ActualizarAsync();
             await Cuarentena.ActualizarAsync();
+        }
+
+        // ------------------------------------------------------------ Tiempo real
+        private async void PonerEnCuarentenaLoDelTiempoReal(object? sender, RoutedEventArgs e)
+        {
+            string? token = await ConfirmarPlanAsync(await TiempoReal.PrevisualizarCuarentenaAsync(), "Poner en cuarentena",
+                "¿Mover estos archivos a la cuarentena? Se guardan cifrados y se pueden restaurar.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Cuarentena", await TiempoReal.AplicarCuarentenaAsync(token));
+            await Modelo.ActualizarAsync();
+            await Cuarentena.ActualizarAsync();
+        }
+
+        /// <summary>
+        /// Lo ofrece, no lo lanza solo: un escaneo bajo demanda de las carpetas por revisar (solo lee). Se sigue en la pestaña
+        /// «Escaneo»; cuando termina COMPLETO, el servicio las da por revisadas.
+        /// </summary>
+        private async void RevisarLoNoVisto(object? sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<string> rutas = TiempoReal.RutasParaRevisar();
+            if (rutas.Count == 0) return;
+            int total = TiempoReal.PorRevisar.Count;
+            string texto = "El tiempo real no pudo analizar todo lo que cambió en estas carpetas:\n\n"
+                           + string.Join("\n", rutas.Select(x => "• " + x))
+                           + (total > rutas.Count ? "\n\n(Hay más; se revisarán en otra pasada.)" : "")
+                           + "\n\n¿Escanearlas ahora? Solo se leen los archivos: no se mueve ni borra nada. Puede tardar varios minutos.";
+            if (await MessageBox.ShowDialog(this, texto, "Revisar lo que no se vio", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+                != MessageBoxResult.Yes) return;
+
+            if (await Escaneo.IniciarRevisionAsync(rutas)) Pestanas.SelectedIndex = PestanaEscaneo;
+            else await MessageBox.ShowDialog(this, Escaneo.Mensaje, "Revisar lo que no se vio", MessageBoxButtons.Ok, MessageBoxIcon.Warning);
         }
 
         // ------------------------------------------------------------ Cuarentena

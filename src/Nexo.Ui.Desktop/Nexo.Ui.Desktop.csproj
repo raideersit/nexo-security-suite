@@ -33,6 +33,7 @@
   <ItemGroup>
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\InstantaneaDelServicio.cs" Link="Compartido\InstantaneaDelServicio.cs" />
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\ModeloDeBandeja.cs" Link="Compartido\ModeloDeBandeja.cs" />
+    <Compile Include="..\Nexo.Ui.Tray\Nucleo\RevisionDeLoNoVisto.cs" Link="Compartido\RevisionDeLoNoVisto.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">

@@ -837,8 +837,25 @@ https://claude.ai/artifact/NXNyp5WZA2jY3p9kdVGLnT.
     no se limpia nada».
   - **SIN PROBAR:** contra el servicio real (incluido cuánto tarda la vista previa en un perfil grande, que hoy no muestra avance) y
     el aviso de UAC.
-- **Siguiente:** «Tiempo real» (las detecciones y la cobertura ya las da `tiempo-real.estado|detecciones`) y «Disco», que necesita
-  antes que el servicio exponga la salud del disco (hoy no hay método en el pipe).
+- **Pestaña «Tiempo real» (hecha):** cabecera con lo más grave (detección > apagado > motor caído > cobertura incompleta >
+  «Vigilando N carpetas»), motor, contadores (históricos), último aviso y la nota del servicio («detecta DESPUÉS de escribir»),
+  carpetas vigiladas (las que la fuente no pudo vigilar, en amarillo), detecciones y carpetas por revisar. Lee
+  `tiempo-real.estado` + `tiempo-real.detecciones` al entrar en la pestaña, con F5 y cada 5 s **solo mientras se mira**.
+  - **No ofrece encender, apagar ni cambiar carpetas:** el pipe no tiene esos métodos a propósito; la pestaña explica que lo hace un
+    administrador en `appsettings.json`.
+  - **Poner en cuarentena...:** `cuarentena.previsualizar` con el id `tiempo-real` → confirmar → token, por `IServicioDeEscaneo`
+    (mismo camino y misma aprobación por `nexo-tray.exe` que el escaneo).
+  - **Revisar lo que no se vio...:** confirma y lanza `escaneo.iniciar` con esas carpetas (sin subcarpetas repetidas, máximo 8; si hay
+    más lo dice) y salta a la pestaña «Escaneo», donde se sigue como cualquier escaneo. No cambia lo elegido allí. Si ya hay un escaneo
+    en curso, no lanza otro. `RutasParaRevisar` pasó de `AccionesDelServicio` (solo Windows) a `Nucleo/RevisionDeLoNoVisto.cs`
+    (portable, enlazado en la ventana); `AccionesDelServicio` delega en él, así la bandeja no cambia.
+  - **La ventana no se fía de `cobertura_completa` sola:** si el servicio dice `true` pero manda carpetas por revisar, carpetas no
+    vigiladas o el motor caído, se muestra como incompleta. Encendido sin los campos de cobertura, o con las detecciones fallidas,
+    no se interpreta a medias. Si la lectura falla, se vacía todo y no se ofrece ninguna acción.
+  - Pruebas: +31. Rota a propósito «cobertura completa solo si nada la contradice»: fallan 2.
+  - **SIN PROBAR:** contra el servicio real (JSON escrito a partir de `ModuloTiempoReal.cs`, no capturado), la cuarentena con UAC y
+    `Nexo.Tray.Demo` tras mover `RutasParaRevisar` (solo Windows; compila en Linux con 0/0).
+- **Siguiente:** «Disco», que necesita antes que el servicio exponga la salud del disco (hoy no hay método en el pipe).
 
 ---
 

@@ -125,6 +125,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeTiempoReal TiempoRealPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeTiempoRealPorPipe(pipe, Espera);
+#else
+            return new ServicioDeTiempoRealNoDisponible(SinServicio);
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

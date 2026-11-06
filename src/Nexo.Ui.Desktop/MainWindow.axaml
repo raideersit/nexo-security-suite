@@ -200,7 +200,106 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Tiempo real">
-                <TextBlock Classes="pendiente" Text="Esta sección todavía no está hecha en la ventana. Las detecciones del tiempo real se revisan desde la bandeja del sistema (nexo-tray)." />
+                <ScrollViewer x:Name="PanelDeTiempoReal" x:DataType="local:TiempoRealModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Análisis en tiempo real">
+                            <StackPanel Spacing="4">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeTiempoReal" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock x:Name="MotorDeTiempoReal" Text="{Binding Motor}" TextWrapping="Wrap" Margin="34,4,0,0" />
+                                <TextBlock x:Name="ContadoresDeTiempoReal" Text="{Binding Contadores}" TextWrapping="Wrap" Margin="34,0,0,0" />
+                                <TextBlock Text="{Binding UltimoAviso}" TextWrapping="Wrap" Margin="34,0,0,0"
+                                           IsVisible="{Binding UltimoAviso, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding Nota}" TextWrapping="Wrap" Margin="34,0,0,0" Foreground="#404040" FontStyle="Italic" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <Grid ColumnDefinitions="*,10,240">
+                            <HeaderedContentControl Grid.Column="0" Header="Carpetas vigiladas">
+                                <ItemsControl x:Name="ListaDeCarpetasVigiladas" ItemsSource="{Binding Carpetas}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FilaDeCarpetaVigilada">
+                                            <Grid ColumnDefinitions="110,*" Margin="0,1">
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                                    <Border Width="10" Height="10" VerticalAlignment="Center"
+                                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                    <TextBlock Text="{Binding Estado}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Ruta}" TextWrapping="Wrap"
+                                                           FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </HeaderedContentControl>
+
+                            <HeaderedContentControl Grid.Column="2" Header="Configuración">
+                                <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                           Text="Encenderlo, apagarlo y elegir las carpetas lo hace un administrador en appsettings.json del servicio. Esta ventana no puede cambiarlo, a propósito: así un programa malicioso tampoco puede apagar la protección." />
+                            </HeaderedContentControl>
+                        </Grid>
+
+                        <HeaderedContentControl Header="Detecciones">
+                            <StackPanel Spacing="8">
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1" MinHeight="70">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,200,80,100" Background="#C0C0C0">
+                                            <TextBlock Grid.Column="0" Margin="6,3" Text="Archivo" />
+                                            <TextBlock Grid.Column="1" Margin="6,3" Text="Amenaza" />
+                                            <TextBlock Grid.Column="2" Margin="6,3" Text="Tamaño" />
+                                            <TextBlock Grid.Column="3" Margin="6,3" Text="Modificado" />
+                                        </Grid>
+                                        <ItemsControl x:Name="ListaDeDeteccionesEnTiempoReal" ItemsSource="{Binding Detecciones}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="local:FilaDeDeteccionEnTiempoReal">
+                                                    <Grid ColumnDefinitions="*,200,80,100">
+                                                        <TextBlock Grid.Column="0" Margin="6,1" Text="{Binding Ruta}" TextWrapping="Wrap"
+                                                                   FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                        <TextBlock Grid.Column="1" Margin="6,1" Text="{Binding Firma}" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="2" Margin="6,1" Text="{Binding Tamano}" />
+                                                        <TextBlock Grid.Column="3" Margin="6,1" Text="{Binding Cuando}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DockPanel>
+                                </Border>
+                                <DockPanel>
+                                    <Button x:Name="BotonCuarentenaDeTiempoReal" DockPanel.Dock="Right" Content="Poner en cuarentena..." FontWeight="Bold"
+                                            IsEnabled="{Binding PuedePonerEnCuarentena}" Click="PonerEnCuarentenaLoDelTiempoReal" />
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding TextoDetecciones}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Por revisar">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="TextoPorRevisar" Text="{Binding TextoPorRevisar}" TextWrapping="Wrap" />
+                                <ItemsControl x:Name="ListaPorRevisar" ItemsSource="{Binding PorRevisar}" Margin="12,0,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <DockPanel>
+                                    <Button x:Name="BotonRevisar" DockPanel.Dock="Right" Content="Revisar lo que no se vio..."
+                                            IsEnabled="{Binding PuedeRevisar}" Click="RevisarLoNoVisto" />
+                                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#404040"
+                                               Text="Revisar es un escaneo normal (solo lee) y se sigue en la pestaña «Escaneo»." />
+                                </DockPanel>
+                                <TextBlock Text="{Binding Mensaje}" TextWrapping="Wrap" Foreground="#800000" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Firewall">
                 <ScrollViewer x:Name="PanelDeFirewall" x:DataType="local:FirewallModelo" HorizontalScrollBarVisibility="Disabled">

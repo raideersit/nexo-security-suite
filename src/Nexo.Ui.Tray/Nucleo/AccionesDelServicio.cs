@@ -109,22 +109,10 @@ namespace Nexo.Ui.Tray.Nucleo
         }
 
         /// <summary>Lo que acepta escaneo.iniciar por peticion (ModuloEscaneo.MaxRutas).</summary>
-        public const int MaxRutasPorEscaneo = 8;
+        public const int MaxRutasPorEscaneo = RevisionDeLoNoVisto.MaxRutasPorEscaneo;
 
-        /// <summary>
-        /// Las carpetas a escanear para revisar lo que el tiempo real no vio: sin las que ya estan dentro de otra, y como
-        /// maximo <see cref="MaxRutasPorEscaneo"/>. Lo que no quepa sigue por revisar y se hace en otra pasada.
-        /// </summary>
-        public static IReadOnlyList<string> RutasParaRevisar(IEnumerable<string> carpetas)
-        {
-            var distintas = carpetas.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.TrimEnd('\\'))
-                                    .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c.Length).ToList();
-            var elegidas = new List<string>();
-            foreach (string c in distintas)
-                if (!elegidas.Any(e => c.StartsWith(e + "\\", StringComparison.OrdinalIgnoreCase)))
-                    elegidas.Add(c);
-            return elegidas.Take(MaxRutasPorEscaneo).ToList();
-        }
+        /// <summary>Ver <see cref="RevisionDeLoNoVisto.RutasParaRevisar"/> (portable: la ventana tambien lo usa).</summary>
+        public static IReadOnlyList<string> RutasParaRevisar(IEnumerable<string> carpetas) => RevisionDeLoNoVisto.RutasParaRevisar(carpetas);
 
         /// <summary>Lanza un escaneo bajo demanda (solo lee). Devuelve su id, o null y el motivo.</summary>
         public static async Task<(string? Id, string? Motivo)> IniciarRevisionAsync(

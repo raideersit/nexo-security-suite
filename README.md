@@ -36,7 +36,7 @@ puede **prevenir**. Esa limitación está documentada, no escondida.
 | `Nexo.Modules.Threats` — escaneo bajo demanda y cuarentena (clamd) | ✅ Implementado; verificado contra un clamd falso, **sin probar con ClamAV real** |
 | `Nexo.Ipc` + `Nexo.Service` — servicio de Windows y canal por named pipe | ✅ Implementado y probado **en consola**; **sin instalar como servicio**. Aloja firewall, escaneo, cuarentena, tiempo real y limpieza (lo que cambia algo lleva vista previa y token) |
 | `Nexo.Ui.Tray` — bandeja del sistema (icono, avisos, revisar detecciones, limpiar) | ✅ Implementada; **la parte visual (menú y diálogos) no la ha visto una persona**; aprobar con UAC sin probar |
-| `Nexo.Ui.Desktop` — ventana principal (Avalonia + tema Classic, Windows y Linux) | 🚧 Empezada: funcionan «Estado» (tiempo real, motor, escaneo programado, firewall y cuarentena, solo lectura) «Escaneo» (escanear, ver el avance, cancelar, resultado; poner en cuarentena) «Cuarentena» (lista, restaurar, eliminar vencidos) «Firewall» (perfiles, modo sigiloso, bloquear un programa, quitar una regla de Nexo) y «Limpieza» (reglas del catálogo, vista previa, BORRAR); lo que cambia algo va con vista previa, token y la aprobación de la bandeja. «Tiempo real» y «Disco» son marcadores. Probada en Linux (sin pantalla y en un escritorio real); **sin probar en Windows contra el servicio** |
+| `Nexo.Ui.Desktop` — ventana principal (Avalonia + tema Classic, Windows y Linux) | 🚧 Empezada: funcionan «Estado» (tiempo real, motor, escaneo programado, firewall y cuarentena, solo lectura) «Escaneo» (escanear, ver el avance, cancelar, resultado; poner en cuarentena) «Cuarentena» (lista, restaurar, eliminar vencidos) «Firewall» (perfiles, modo sigiloso, bloquear un programa, quitar una regla de Nexo) «Limpieza» (reglas del catálogo, vista previa, BORRAR) y «Tiempo real» (cobertura, carpetas, detecciones a cuarentena, revisar lo que no se vio; no se puede encender ni apagar desde la ventana, a propósito); lo que cambia algo va con vista previa, token y la aprobación de la bandeja. «Disco» es un marcador. Probada en Linux (sin pantalla y en un escritorio real); **sin probar en Windows contra el servicio** |
 | `Nexo.Modules.Threats` — tiempo real (FileSystemWatcher y diario USN) | ✅ Implementado; **apagado por omisión**; el diario USN probado **como administrador** en el equipo principal (2026-10-22): abre el volumen y entrega un archivo nuevo con su ruta |
 | `Nexo.Modules.Threats` — heurística YARA, anti-ransomware | 📐 Diseñado |
 | `Nexo.Modules.Identity` / `Nexo.Modules.Privacy` | 📐 Diseñado, pospuesto |
@@ -47,7 +47,7 @@ la lógica portable de limpieza y 29 que solo tienen sentido en Windows
 (registro, Papelera, archivos bloqueados, tipo de disco, discos reales), más 66
 portables del firewall y 28 contra el Firewall de Windows real (como
 administrador; 9 sin serlo) y 92 del escáner y la cuarentena, 43 del protocolo IPC, 170 del servicio, 57 del tiempo real y 40 de la bandeja. Como administrador se cubren además la escritura
-en `HKLM` y los enlaces simbólicos de archivo. Aparte, 190 de la ventana principal
+en `HKLM` y los enlaces simbólicos de archivo. Aparte, 221 de la ventana principal
 pasan en Linux (todavía no se han corrido en Windows).
 
 **Todavía sin verificar:**
@@ -125,7 +125,7 @@ dotnet run --project tools/Nexo.RealTime.Demo
 dotnet run --project tools/Nexo.Tray.Demo
 
 # Ventana principal: el resumen de estado, su modelo con fuentes falsas y la ventana cargada sin pantalla.
-# Corre en Linux y en Windows (190 comprobaciones, 191 con --captura f.png, que guarda imágenes de la ventana)
+# Corre en Linux y en Windows (221 comprobaciones, 222 con --captura f.png, que guarda imágenes de la ventana)
 dotnet run --project tools/Nexo.Desktop.Demo
 ```
 

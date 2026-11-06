@@ -42,6 +42,7 @@ namespace Nexo.Ui.Desktop
         private ResultadoDeEscaneoVista? _resultado;
         private string? _error;
         private string _mensaje = "";
+        private string _mensajeDeInicio = "";
         private bool _ocupado;
 
         public EscaneoModelo(IServicioDeEscaneo servicio, string? carpetaDeUsuario = null, string? unidadDelSistema = null)
@@ -123,10 +124,27 @@ namespace Nexo.Ui.Desktop
             if (!PuedeIniciar) return;
             (IReadOnlyList<string>? rutas, string? motivo) = RutasElegidas();
             if (rutas is null) { Mensaje = "No se puede iniciar: " + motivo + "."; return; }
+            await IniciarConAsync(rutas, "", ct);
+        }
 
+        /// <summary>
+        /// Escanea las carpetas donde el tiempo real perdio o no pudo analizar algo (solo lee). Cuando un escaneo COMPLETO
+        /// termina, el servicio las da por revisadas. Devuelve false si no se lanzo (hay otro en curso o el servicio no quiso).
+        /// </summary>
+        public async Task<bool> IniciarRevisionAsync(IReadOnlyList<string> rutas, CancellationToken ct = default)
+        {
+            if (!PuedeIniciar) { Mensaje = "Ya hay un escaneo en curso: espere a que termine para revisar lo que no se vio."; return false; }
+            if (rutas.Count == 0) { Mensaje = "No hay nada por revisar."; return false; }
+            await IniciarConAsync(rutas, "Revisando lo que el tiempo real no vio: " + string.Join(", ", rutas) + ".", ct);
+            return _fase == FaseDeEscaneo.Corriendo;
+        }
+
+        private async Task IniciarConAsync(IReadOnlyList<string> rutas, string mensaje, CancellationToken ct)
+        {
             _fase = FaseDeEscaneo.Iniciando;
             _id = null; _resultado = null; _error = null; _analizados = 0; _fallosDeAvance = 0;
-            Mensaje = "";
+            _mensajeDeInicio = mensaje;
+            Mensaje = mensaje;
             Actualizar();
 
             Consulta<string> c = await _servicio.IniciarAsync(rutas, _paralelo, ct);
@@ -164,8 +182,9 @@ namespace Nexo.Ui.Desktop
                     return;
                 }
 
+                // Los avisos sueltos se borran al recuperar el avance; el de la revision (que dice que se esta revisando) se queda.
+                Mensaje = _mensajeDeInicio;
                 _fallosDeAvance = 0;
-                Mensaje = "";
                 _analizados = a.Valor.Analizados;
                 if (a.Valor.Estado == "corriendo") { Actualizar(); return; }
 

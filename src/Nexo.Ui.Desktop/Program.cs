@@ -15,6 +15,7 @@ namespace Nexo.Ui.Desktop
             App.Cuarentena = Fuentes.CuarentenaPorDefecto(pipe);
             App.Firewall = Fuentes.FirewallPorDefecto(pipe);
             App.Limpieza = Fuentes.LimpiezaPorDefecto(pipe);
+            App.TiempoReal = Fuentes.TiempoRealPorDefecto(pipe);
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
 

@@ -139,6 +139,27 @@ namespace Nexo.Ui.Desktop.Nucleo
             => LlamadaPorPipe.AplicarAsync(_pipe, _espera, TipoDeAccion.Limpieza, token, _lanzador, ct);
     }
 
+    /// <summary>tiempo-real.estado y tiempo-real.detecciones por el pipe. Solo lectura: el pipe no ofrece cambiar nada del tiempo real.</summary>
+    public sealed class ServicioDeTiempoRealPorPipe : IServicioDeTiempoReal
+    {
+        private readonly string _pipe;
+        private readonly TimeSpan _espera;
+
+        public ServicioDeTiempoRealPorPipe(string pipe, TimeSpan espera)
+        {
+            _pipe = pipe;
+            _espera = espera;
+        }
+
+        public async Task<Consulta<DetalleDeTiempoReal>> ConsultarAsync(CancellationToken ct)
+        {
+            RespuestaCruda estado = await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "tiempo-real.estado", null, ct).ConfigureAwait(false);
+            if (!estado.Exito) return LectorDeTiempoReal.Leer(estado, estado);
+            RespuestaCruda detecciones = await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "tiempo-real.detecciones", null, ct).ConfigureAwait(false);
+            return LectorDeTiempoReal.Leer(estado, detecciones);
+        }
+    }
+
     internal static class LlamadaPorPipe
     {
         /// <summary>Una llamada en su propia conexion. Un fallo de conexion vuelve como respuesta con error, no como excepcion.</summary>

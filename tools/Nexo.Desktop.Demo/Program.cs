@@ -40,6 +40,7 @@ namespace Nexo.Desktop.Demo
             ProbarCuarentena();
             ProbarFirewall();
             ProbarLimpieza();
+            ProbarTiempoReal();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -824,6 +825,133 @@ namespace Nexo.Desktop.Demo
             Check(esc.Fase == FaseDeEscaneo.Listo && esc.Mensaje.StartsWith("No se pudo iniciar"), "y el escaneo dice que no puede, sin quedarse «escaneando»", esc.Mensaje);
         }
 
+        // ============================================================ Tiempo real
+        // La forma de ModuloTiempoReal (encendido) y de ModuloTiempoRealApagado, en src/Nexo.Service/ModuloTiempoReal.cs.
+        private static string EstadoTrJson(bool cobertura = true, bool motorCaido = false, string porRevisar = "", string noVigiladas = "",
+                                           bool minimo = false)
+            => "{\"activo\":true,\"cobertura_completa\":" + (cobertura ? "true" : "false") +
+               ",\"raices\":[\"C:\\\\Users\\\\u\\\\Downloads\",\"C:\\\\Users\\\\u\\\\Desktop\",\"C:\\\\Windows\\\\Temp\"]" +
+               ",\"raices_no_vigiladas\":[" + noVigiladas + "],\"motor\":\"clamd 127.0.0.1:3310\",\"motor_caido\":" + (motorCaido ? "true" : "false") +
+               ",\"cambios_vistos\":5021,\"analizados\":4004,\"no_analizados\":3,\"perdidos\":1017,\"perdidos_es_minimo\":" + (minimo ? "true" : "false") +
+               ",\"desbordes_de_fuente\":0,\"por_revisar\":[" + porRevisar + "],\"descartados\":12,\"pendientes\":2,\"detecciones\":0" +
+               ",\"ultimo_aviso\":null,\"nota\":\"Detecta y avisa DESPUES de que el archivo se escribe; no puede impedir que se cree ni que se ejecute.\"}";
+
+        private const string ApagadoTrJson =
+            "{\"activo\":false,\"cobertura_completa\":false,\"nota\":\"El analisis en tiempo real esta apagado. Se activa en appsettings.json (Nexo:TiempoReal:Activo).\"}";
+
+        private const string SinDeteccionesTrJson = "{\"id_escaneo\":\"tiempo-real\",\"detecciones\":[]}";
+
+        private const string DeteccionesTrJson =
+            "{\"id_escaneo\":\"tiempo-real\",\"detecciones\":[{\"ruta\":\"C:\\\\Users\\\\u\\\\Downloads\\\\factura.exe\",\"firma\":\"Win.Test.EICAR_HDB-1\"," +
+            "\"bytes\":68,\"sha256\":\"275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f\",\"modificado\":\"2026-11-05T11:58:00+00:00\"}]}";
+
+        private static Consulta<DetalleDeTiempoReal> Tr(string estado, string detecciones = SinDeteccionesTrJson)
+            => LectorDeTiempoReal.Leer(Json(estado), Json(detecciones));
+
+        private sealed class TiempoRealFalso : IServicioDeTiempoReal
+        {
+            public Consulta<DetalleDeTiempoReal> Valor = Tr(EstadoTrJson());
+            public int Consultas;
+            public Task<Consulta<DetalleDeTiempoReal>> ConsultarAsync(CancellationToken ct) { Consultas++; return Task.FromResult(Valor); }
+        }
+
+        private static void ProbarTiempoReal()
+        {
+            Console.WriteLine("== Tiempo real: lector, resumen y modelo de la pestaña");
+
+            // ---- lector
+            var bien = Tr(EstadoTrJson(), DeteccionesTrJson);
+            Check(bien.Valor is { Activo: true, CoberturaCompleta: true, Raices.Count: 3, Perdidos: 1017, Pendientes: 2, Motor: "clamd 127.0.0.1:3310" }
+                  && bien.Valor.Detecciones.Count == 1 && bien.Valor.Detecciones[0] is { Bytes: 68, Firma: "Win.Test.EICAR_HDB-1", Modificado: not null },
+                "tiempo-real.estado + detecciones: todo leido", bien.Error);
+            var apagado = Tr(ApagadoTrJson);
+            Check(apagado.Valor is { Activo: false, CoberturaCompleta: false, Raices.Count: 0 } && apagado.Valor.Nota!.Contains("appsettings"),
+                "apagado: el servicio solo manda activo, cobertura y nota, y se lee igual", apagado.Error);
+            Check(Tr(EstadoTrJson(cobertura: true, porRevisar: "\"C:\\\\Users\\\\u\\\\Downloads\"")).Valor is { CoberturaCompleta: false },
+                "si dice cobertura completa pero hay carpetas por revisar, NO es completa");
+            Check(Tr(EstadoTrJson(cobertura: true, noVigiladas: "\"D:\\\\\"")).Valor is { CoberturaCompleta: false }
+                  && Tr(EstadoTrJson(cobertura: true, motorCaido: true)).Valor is { CoberturaCompleta: false },
+                "ni con carpetas sin vigilar ni con el motor caido");
+            var sinCampo = Tr(EstadoTrJson().Replace(",\"por_revisar\":[]", ""));
+            Check(sinCampo.Valor is null && sinCampo.Error == "respuesta del servicio no reconocida",
+                "encendido sin «por_revisar»: no se interpreta a medias", sinCampo.Error);
+            var detMal = LectorDeTiempoReal.Leer(Json(EstadoTrJson()), new RespuestaCruda(false, "metodo desconocido", null));
+            Check(detMal.Valor is null && detMal.Error == "metodo desconocido", "si fallan las detecciones, no se muestra el estado solo");
+            Check(Tr(EstadoTrJson(), "{\"id_escaneo\":\"tiempo-real\",\"detecciones\":[{\"firma\":\"X\",\"bytes\":1}]}").Valor is null,
+                "una deteccion sin ruta invalida la respuesta");
+
+            // ---- resumen
+            var (ind, titulo, _) = ResumirTiempoReal.Desde(Tr(EstadoTrJson(motorCaido: true), DeteccionesTrJson));
+            Check(ind == Indicador.Alerta && titulo == "1 detección del tiempo real.", "una deteccion manda sobre el motor caido", titulo);
+            (ind, titulo, string expl) = ResumirTiempoReal.Desde(apagado);
+            Check(ind == Indicador.Atencion && titulo.Contains("apagado") && expl.Contains("appsettings.json"), "apagado: atencion y como se activa", expl);
+            (ind, titulo, _) = ResumirTiempoReal.Desde(Tr(EstadoTrJson(motorCaido: true)));
+            Check(ind == Indicador.Atencion && titulo.Contains("motor"), "motor caido: atencion", titulo);
+            (ind, titulo, _) = ResumirTiempoReal.Desde(Tr(EstadoTrJson(cobertura: false, porRevisar: "\"C:\\\\a\",\"C:\\\\b\"", noVigiladas: "\"D:\\\\\"")));
+            Check(ind == Indicador.Atencion && titulo == "Cobertura incompleta: 1 carpeta sin vigilar, 2 carpetas por revisar.", "incompleta: dice por que", titulo);
+            (ind, titulo, expl) = ResumirTiempoReal.Desde(bien with { Valor = bien.Valor! with { Detecciones = Array.Empty<DeteccionDeTiempoReal>() } });
+            Check(ind == Indicador.Correcto && titulo.StartsWith("Vigilando 3 carpetas") && !titulo.Contains("todo en orden") && expl.Contains("después"),
+                "completa: vigilando, y recuerda que avisa despues de escribir (nunca «todo en orden»)", titulo);
+            (ind, titulo, _) = ResumirTiempoReal.Desde(Consulta<DetalleDeTiempoReal>.Mal("el servicio no está en marcha"));
+            Check(ind == Indicador.SinDatos && titulo.StartsWith("No se pudo"), "sin respuesta: sin datos, no «apagado» ni «bien»");
+            Check(ResumirTiempoReal.Contadores(Tr(EstadoTrJson(minimo: true)).Valor!).Contains("Perdidos: 1 017 (al menos)"),
+                "los perdidos con tope se dicen como minimo");
+
+            // ---- modelo
+            var s = new TiempoRealFalso
+            {
+                Valor = Tr(EstadoTrJson(cobertura: false, porRevisar: "\"C:\\\\Users\\\\u\\\\Downloads\\\\x\",\"C:\\\\Users\\\\u\\\\Downloads\"",
+                                        noVigiladas: "\"C:\\\\Windows\\\\Temp\""), DeteccionesTrJson)
+            };
+            var esc = new EscaneoFalso();
+            var m = new TiempoRealModelo(s, esc);
+            Check(m.Titulo == "Sin consultar todavía." && !m.PuedePonerEnCuarentena && !m.PuedeRevisar, "antes de leer: sin datos y sin acciones");
+            Esperar(m.ActualizarAsync());
+            Check(m.Detecciones.Count == 1 && m.PuedePonerEnCuarentena && m.PuedeRevisar && m.PorRevisar.Count == 2, "lee detecciones y carpetas por revisar");
+            Check(m.Carpetas.Count == 3 && m.Carpetas.Single(c => c.Ruta == @"C:\Windows\Temp").Estado == "NO vigilada"
+                  && m.Carpetas.Count(c => c.Estado == "Vigilada") == 2, "la carpeta que la fuente no pudo vigilar se marca");
+            Check(m.RutasParaRevisar().SequenceEqual(new[] { @"C:\Users\u\Downloads" }), "revisar pide la carpeta de arriba una sola vez");
+            Check(m.Motor.Contains("responde") && m.Nota.Contains("DESPUES"), "motor y la nota del servicio, siempre visibles");
+
+            Consulta<PlanDelServicio> plan = m.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult();
+            Check(plan.Valor is not null && esc.Llamadas.SequenceEqual(new[] { "previsualizar:tiempo-real" }),
+                "la cuarentena se previsualiza con el id «tiempo-real», y nada mas");
+            int antes = s.Consultas;
+            ResultadoDeAccion r = m.AplicarCuarentenaAsync(plan.Valor!.Token!).GetAwaiter().GetResult();
+            Check(r.Exito && esc.TokenAplicado == plan.Valor.Token && s.Consultas == antes + 1 && m.Mensaje == r.Mensaje,
+                "aplicar manda el token del plan, muestra el resultado y vuelve a leer");
+
+            s.Valor = Consulta<DetalleDeTiempoReal>.Mal("el servicio no está en marcha");
+            Esperar(m.ActualizarAsync());
+            Check(m.Detecciones.Count == 0 && m.Carpetas.Count == 0 && m.PorRevisar.Count == 0 && !m.PuedePonerEnCuarentena && !m.PuedeRevisar
+                  && m.Titulo.StartsWith("No se pudo"), "si la lectura falla, no se muestra lo anterior ni se ofrece nada", m.Titulo);
+            Check(m.PrevisualizarCuarentenaAsync().GetAwaiter().GetResult().Valor is null && esc.Llamadas.Count(x => x.StartsWith("previsualizar")) == 1,
+                "sin datos no se pide cuarentena al servicio");
+
+            var muchas = new TiempoRealFalso { Valor = Tr(EstadoTrJson(cobertura: false,
+                porRevisar: string.Join(",", Enumerable.Range(0, 12).Select(i => "\"C:\\\\d" + i + "\"")))) };
+            var mm = new TiempoRealModelo(muchas, new EscaneoFalso());
+            Esperar(mm.ActualizarAsync());
+            Check(mm.RutasParaRevisar().Count == RevisionDeLoNoVisto.MaxRutasPorEscaneo && mm.TextoPorRevisar.Contains("Se revisan 8 por pasada"),
+                "con 12 por revisar se piden 8 y se dice", mm.TextoPorRevisar);
+
+            // ---- la revision es un escaneo normal
+            var e2 = new EscaneoFalso();
+            var em = ModeloDeEscaneo(e2);
+            bool lanzado = em.IniciarRevisionAsync(new[] { @"C:\Users\u\Downloads", @"C:\d1" }).GetAwaiter().GetResult();
+            Check(lanzado && em.Fase == FaseDeEscaneo.Corriendo && e2.RutasPedidas!.SequenceEqual(new[] { @"C:\Users\u\Downloads", @"C:\d1" })
+                  && em.DestinoDescargas, "revisar lanza escaneo.iniciar con esas carpetas, sin cambiar lo elegido en «Escaneo»");
+            e2.Avances.Enqueue(Avance("corriendo", 10));
+            Esperar(em.SondearAsync());
+            Check(em.Mensaje.StartsWith("Revisando lo que el tiempo real no vio"), "mientras corre, dice que es la revision", em.Mensaje);
+            Check(!em.IniciarRevisionAsync(new[] { @"C:\x" }).GetAwaiter().GetResult() && e2.Llamadas.Count(x => x == "iniciar") == 1,
+                "con un escaneo en curso no se lanza otro");
+
+            var sinServicio = new TiempoRealModelo(Fuentes.TiempoRealPorDefecto("NexoIpc"), Fuentes.EscaneoPorDefecto("NexoIpc"));
+            Esperar(sinServicio.ActualizarAsync());
+            Check(sinServicio.Titulo.StartsWith("No se pudo") && !sinServicio.PuedeRevisar, "sin servicio (esta compilacion): no se pudo, no «apagado»");
+        }
+
         // ============================================================
         private static void ProbarVentana(string? captura)
         {
@@ -851,10 +979,15 @@ namespace Nexo.Desktop.Demo
             var fm = new FirewallModelo(firewall);
             var limpieza = new LimpiezaFalsa();
             var lm = new LimpiezaModelo(limpieza, () => Hoy);
+            var tiempoReal = new TiempoRealFalso
+            {
+                Valor = Tr(EstadoTrJson(cobertura: false, porRevisar: "\"C:\\\\Users\\\\u\\\\Downloads\""), DeteccionesTrJson)
+            };
+            var tm = new TiempoRealModelo(tiempoReal, escaneo);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm);
+                w = new MainWindow(vm, em, cm, fm, lm, tm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -940,6 +1073,22 @@ namespace Nexo.Desktop.Demo
                     string quinta = System.IO.Path.ChangeExtension(captura, null) + "-limpieza.png";
                     w.CaptureRenderedFrame()?.Save(quinta);
                     Console.WriteLine("           captura: " + quinta);
+                }
+
+                // La pestaña Tiempo real: se lee al entrar, no al abrir la ventana.
+                Check(tiempoReal.Consultas == 0, "el detalle del tiempo real no se pide hasta entrar en su pestaña");
+                w.Pestanas.SelectedIndex = 2;
+                Dispatcher.UIThread.RunJobs();
+                Check(tiempoReal.Consultas == 1 && w.ListaDeDeteccionesEnTiempoReal.ItemCount == 1 && w.ListaDeCarpetasVigiladas.ItemCount == 3
+                      && w.ListaPorRevisar.ItemCount == 1, "pestaña Tiempo real: 1 deteccion, 3 carpetas y 1 por revisar");
+                Check(w.TituloDeTiempoReal.Text == "1 detección del tiempo real." && w.BotonCuarentenaDeTiempoReal.IsEnabled && w.BotonRevisar.IsEnabled,
+                    "titulo enlazado; cuarentena y revisar habilitados", w.TituloDeTiempoReal.Text);
+                if (captura is not null)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    string sexta = System.IO.Path.ChangeExtension(captura, null) + "-tiempo-real.png";
+                    w.CaptureRenderedFrame()?.Save(sexta);
+                    Console.WriteLine("           captura: " + sexta);
                 }
 
                 w.Pestanas.SelectedIndex = 6;
