@@ -7,7 +7,7 @@ using Nexo.Reports.Model;
 
 namespace Nexo.Vuln.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
 
@@ -32,6 +32,11 @@ namespace Nexo.Vuln.Demo
             ProbarAutologon();
             ProbarNoEvaluado();
             ProbarEventos();
+            ProbarParserWifi();
+            ProbarReglasWifi();
+            ProbarConexionWifi();
+            ProbarEstadosWifi();
+            ProbarEventosWifi();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

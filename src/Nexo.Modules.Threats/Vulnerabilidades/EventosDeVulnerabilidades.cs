@@ -11,12 +11,33 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         /// confianza: una revision incompleta nunca se presenta como «sin problemas».
         /// </summary>
         public static NexoEvent RevisionDeCuentas(ResultadoDeAnalisis r)
+            => Construir("Revision de cuentas y contrasenas", "No se encontro nada en las cuentas, la politica de contrasenas ni el inicio automatico.", r);
+
+        /// <summary>
+        /// Un evento por revision de Wi-Fi. Lleva los nombres de las redes guardadas (es lo accionable) y NUNCA claves. Sin
+        /// adaptador Wi-Fi es un hecho (Info), no una revision incompleta.
+        /// </summary>
+        public static NexoEvent RevisionDeWifi(ResultadoDeAnalisis r, EstadoDeLecturaWifi estado)
+        {
+            if (estado == EstadoDeLecturaWifi.SinAdaptador)
+            {
+                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, "Revision de Wi-Fi: este equipo no tiene adaptador Wi-Fi")
+                {
+                    Severidad = Severidad.Info,
+                    Accion = Accion.Registrada,
+                    Cuerpo = "No hay ningun adaptador Wi-Fi: no hay redes que revisar."
+                };
+            }
+            return Construir("Revision de Wi-Fi", "No se encontro nada en las redes Wi-Fi guardadas ni en la conexion actual.", r);
+        }
+
+        private static NexoEvent Construir(string area, string textoLimpio, ResultadoDeAnalisis r)
         {
             // Incompleta sin hallazgos: severidad Media (lo desconocido no es «bien»); completa y limpia: Info.
             Severidad sev = r.Hallazgos.Count > 0 ? r.Maxima : r.Completo ? Severidad.Info : Severidad.Media;
             string titulo = r.Hallazgos.Count > 0
-                ? "Revision de cuentas y contrasenas: " + r.Hallazgos.Count + " hallazgo(s)"
-                : r.Completo ? "Revision de cuentas y contrasenas: sin hallazgos" : "Revision de cuentas y contrasenas: incompleta";
+                ? area + ": " + r.Hallazgos.Count + " hallazgo(s)"
+                : r.Completo ? area + ": sin hallazgos" : area + ": incompleta";
 
             var sb = new StringBuilder();
             if (r.Hallazgos.Count > 0)
@@ -34,7 +55,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             }
             else if (r.Hallazgos.Count == 0)
             {
-                sb.AppendLine("No se encontro nada en las cuentas, la politica de contrasenas ni el inicio automatico.");
+                sb.AppendLine(textoLimpio);
             }
 
             var e = new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, titulo)

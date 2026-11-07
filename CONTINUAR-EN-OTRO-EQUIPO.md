@@ -1172,6 +1172,33 @@ Primer paso del bloque de vulnerabilidades (funciones 5a/5b/5c del plan; aquí s
 - **No cubierto:** sin cableado a servicio/ventana/bandeja; no mira pertenencia a grupos (quién es administrador además del RID 500); no revisa complejidad de
   contraseñas (requiere `secedit` como administrador); no cubre cuentas de dominio ni Microsoft Account en línea; faltan 5a (aplicaciones desactualizadas) y 5c (Wi-Fi).
 
+## 2t. Vulnerabilidades 5c: Wi-Fi inseguro (2026-11-07, en el HP)
+
+Segundo paso del bloque de vulnerabilidades. Código: `Nexo.Native/Wifi/WlanNativo`, `Nexo.Modules.Threats/Vulnerabilidades/ModeloWifi` (parser de perfiles y
+reglas, portable), `Nexo.Modules.Threats.Windows/LectorDeWifiWindows`, y `RevisionDeWifi` en `EventosDeVulnerabilidades`. Sin commit.
+
+- **Qué lee (solo lectura, sin administrador, sin red):** adaptadores, perfiles guardados y conexión actual con la Native Wifi API. **Nunca pide la clave**: la
+  bandera de lectura es siempre 0 (jamás `WLAN_PROFILE_GET_PLAINTEXT_KEY`); el XML puede traer la clave CIFRADA y el parser **salta `keyMaterial` sin leer su
+  texto**. `PerfilWifi` no tiene ningún campo para una clave (comprobado por reflexión). Nunca modifica perfiles ni conecta/desconecta.
+- **Parser del XML** (`ParserDePerfilWifi`): se trata como no confiable (sin DTD ni entidades, tope de 64 K caracteres), usa solo el nombre local de los elementos
+  (v1/v2/v3), extrae cuatro datos (autenticación, cifrado, modo auto/manual, red oculta) y devuelve null si falta autenticación o cifrado: no se adivina.
+- **Reglas:** red abierta que se conecta sola (Alta) / abierta manual (Media); WEP, también con autenticación abierta (Alta); TKIP (Media); red oculta (Baja: delata
+  la red y no mejora la seguridad); conexión actual sin cifrado (Alta), con WEP (Alta), con TKIP (Media). WPA2-AES, WPA3 y OWE no dan hallazgos. **Una combinación
+  que Nexo no reconoce (p. ej. `open` con AES) queda como «no evaluado»**, no como buena.
+- **«Sin Wi-Fi» ≠ «no pude leer»:** para saber si el equipo tiene adaptador se usan los adaptadores de red de .NET (`NetworkInterfaceType.Wireless80211`), sin
+  depender del servicio WLAN. Sin adaptador = hecho (Info, completo). Con adaptador y servicio parado, o error de la API = «no evaluado» (Media, «incompleta»).
+- **Probado:** `Nexo.Vuln.Demo` secciones 7–11 (portable; 625 cortes del XML sin excepción; DTD, bomba de entidades, tope; keyMaterial falso ANTES de la seguridad real;
+  clave sentinela que nunca sale a un evento). **Con dientes** (6 roturas: DTD permitido, leer dentro de keyMaterial, TKIP como moderno, servicio parado como completo,
+  combinación desconocida como buena, conexión sin cifrado ignorada). Al revisarlas detecté dos pruebas débiles (la bomba de entidades daba null por no traer
+  autenticación, y el keyMaterial falso venía después de la real) y las rehíce antes de comprobar los dientes.
+- **Contra el HP real** (`Nexo.Vuln.Windows.Demo`, sección 3): adaptador Realtek RTL8822BE, **16 redes guardadas, las 16 leídas e interpretadas**, todas
+  WPA2-Personal/AES salvo una WPA3-SAE; **0 hallazgos**. Cruzado con `netsh wlan show profiles` (16 perfiles), `show interfaces` (desconectado) y
+  `show profile name=…` de 3 redes (mismo modo auto/manual y mismas autenticación/cifrado; ninguna es oculta).
+- **SIN PROBAR con datos reales:** el camino de «conexión actual» (`WlanQueryInterface` + `WLAN_CONNECTION_ATTRIBUTES`): el HP estaba desconectado del Wi-Fi.
+  Solo se comprobó que la estructura mide 604 bytes (8 + 512 + 68 + 16; un primer cálculo mío de 608 estaba mal, no la estructura). **Repetir con el Wi-Fi conectado.**
+- **No cubierto:** categoría de red (Pública/Privada, `INetworkListManager`); redes de WPA empresarial (802.1X) más allá de leer su autenticación; sin cableado a
+  servicio/ventana/bandeja. Falta 5a (aplicaciones desactualizadas).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

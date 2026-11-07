@@ -63,9 +63,59 @@ namespace Nexo.Vuln.Windows.Demo
             string todo = string.Join("\n", r.Hallazgos.Select(h => h.Titulo + h.Detalle + h.Recomendacion));
             Check(!todo.Contains("DefaultPassword=", StringComparison.OrdinalIgnoreCase), "ningun hallazgo contiene un valor de contrasena");
 
+            ProbarWifi();
+
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
+        }
+
+        private static void ProbarWifi()
+        {
+            Console.WriteLine("3. Wi-Fi (native Wifi API; nunca se pide la clave)");
+            bool hay = LectorDeWifiWindows.HayAdaptadorWifi();
+            Console.WriteLine("      INFO: adaptador Wi-Fi presente: " + (hay ? "si" : "no"));
+
+            InstantaneaDeWifi w = LectorDeWifiWindows.Leer();
+            Console.WriteLine("      INFO: estado de lectura: " + w.Estado + ", adaptadores: " + w.Adaptadores.Count);
+            Check(hay ? w.Estado == EstadoDeLecturaWifi.Correcta : w.Estado == EstadoDeLecturaWifi.SinAdaptador,
+                  hay ? "con adaptador Wi-Fi la lectura es correcta" : "sin adaptador Wi-Fi el estado es SinAdaptador (un hecho)", w.Estado.ToString());
+
+            foreach (AdaptadorWifi a in w.Adaptadores)
+            {
+                Console.WriteLine("      INFO: adaptador «" + a.Descripcion + "»: " + a.Perfiles.Count + " red(es) guardada(s); conexion actual: " +
+                                  (a.Conexion is null ? "ninguna" : "«" + a.Conexion.Perfil + "» (seguridad " + (a.Conexion.SeguridadActiva ? "si" : "NO") + ", auth " + a.Conexion.Autenticacion + ", cifrado " + a.Conexion.Cifrado + ")"));
+                int legibles = a.Perfiles.Count(p => p.Xml is not null);
+                Check(legibles == a.Perfiles.Count, "todos los perfiles se pudieron leer (" + legibles + "/" + a.Perfiles.Count + ")");
+                int interpretados = a.Perfiles.Count(p => p.Xml is not null && ParserDePerfilWifi.Parsear(p.Nombre, p.Xml) is not null);
+                Check(interpretados == legibles, "y todos se interpretan con el parser (ninguno «formato raro»): " + interpretados + "/" + legibles);
+
+                foreach (PerfilCrudo p in a.Perfiles.Where(p => p.Xml is not null))
+                {
+                    PerfilWifi? pw = ParserDePerfilWifi.Parsear(p.Nombre, p.Xml);
+                    if (pw is not null) Console.WriteLine("        - «" + p.Nombre + "»: " + pw.Autenticacion + " / " + pw.Cifrado + ", " + (pw.Automatico == true ? "automatica" : "manual") + (pw.Oculta == true ? ", OCULTA" : ""));
+                }
+            }
+
+            ResultadoDeAnalisis r = AnalizadorDeWifi.Analizar(w);
+            Check(r.Completo, "el analisis de Wi-Fi es completo", string.Join("; ", r.NoEvaluado));
+            Console.WriteLine("      INFO: " + r.Hallazgos.Count + " hallazgo(s) de Wi-Fi:");
+            foreach (HallazgoDeSistema h in r.Hallazgos) Console.WriteLine("        - [" + h.Severidad + "] " + h.Titulo + (h.Sujeto is null ? "" : " (" + h.Sujeto + ")"));
+
+            // La conexion actual solo se ejercita con datos reales si hay una conexion Wi-Fi activa; si no, al menos se comprueba el tamano de la estructura.
+            Type? t = typeof(CuentaLocalNativa).Assembly.GetType("Nexo.Native.Wifi.WlanNativo+ConnectionAttributes");
+            // 4 + 4 + 512 (nombre) + 68 (asociacion: 36 + 4 + 6 + 2 de relleno + 4 + 4 + 4 + 4 + 4) + 16 (seguridad) = 604
+            Check(t is not null && System.Runtime.InteropServices.Marshal.SizeOf(t) == 604, "WLAN_CONNECTION_ATTRIBUTES mide 604 bytes en el codigo, como calculado del encabezado de Windows",
+                  t is null ? "no se encontro el tipo" : System.Runtime.InteropServices.Marshal.SizeOf(t) + " bytes");
+            bool conectado = w.Adaptadores.Any(a => a.Conexion is not null);
+            Console.WriteLine("      INFO: " + (conectado ? "hay una conexion Wi-Fi activa: el camino de «conexion actual» SE ejercito con datos reales" : "no hay conexion Wi-Fi activa: el camino de «conexion actual» NO se ejercito con datos reales"));
+
+            // Estructural: ninguna clave en ningun resultado (ni cifrada ni en claro).
+            string todoXml = string.Join("\n", w.Adaptadores.SelectMany(a => a.Perfiles).Select(p => p.Xml ?? ""));
+            Check(!todoXml.Contains("<protected>false</protected>", StringComparison.OrdinalIgnoreCase),
+                  "ningun perfil trae la clave en texto plano (nunca se pide); solo, como mucho, cifrada");
+            string salida = string.Join("\n", r.Hallazgos.Select(h => h.Titulo + h.Detalle + h.Recomendacion));
+            Check(!System.Text.RegularExpressions.Regex.IsMatch(salida, "<keyMaterial|keyMaterial>", System.Text.RegularExpressions.RegexOptions.IgnoreCase), "ningun hallazgo contiene material de clave");
         }
 
         private static void Check(bool condicion, string descripcion, string? detalle = null)
