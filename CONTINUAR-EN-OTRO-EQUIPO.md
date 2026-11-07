@@ -1038,6 +1038,17 @@ Todo con pruebas en `Nexo.Desktop.Demo` (rotas a propósito para ver que fallan 
   idioma de Windows. Solo admite Aceptar y Sí/No (los únicos usados). **No se vio en pantalla** (solo compila y pasa `Nexo.Tray.Demo`).
 - **Observación cerrada:** el `.json` de la cuarentena guarda la `Clave` junto al `.nxq` a propósito (§2e): el cifrado es para que
   ningún antivirus re-detecte el archivo, no para ocultarlo.
+- **`Nexo.Cleanup.Windows.Demo` como administrador (2026-11-07, HP): todas las verificaciones pasaron.** Escribe en `HKLM` y limpia
+  la subclave temporal de `HKCU`; impacto de arranque real (37 arranques, mediana 98444 ms, 21 retrasos, 0 sin interpretar); 47
+  tareas de inicio en 240 archivos, 0 ilegibles; Papelera y archivo bloqueado (`0x20`) correctos. Quedan 3 archivos sintéticos
+  `nexo-demo-*` en la Papelera (esperado). El SATA ST1000LM035 sigue con el atributo 187 = 90 (evaluación «Alta»). Sin commit aún.
+- **Eventos 5157 reales PROBADOS como administrador (2026-11-07, HP):** `Nexo.Firewall.Windows.Demo` pasa entera (874 eventos en
+  7 días, 36 grupos, 0 sin interpretar; la auditoría se lee como activa). `nexo-firewall bloqueos --horas 1` tras bloquear un
+  `curl.exe` copiado a una carpeta temporal: `3x saliente TCP 1.1.1.1:80 ...\curl-nexo.exe`, ruta ya traducida a `C:\...`, y `3x
+  entrante ICMP 192.168.1.1:0 System` (el router; coincide con el modo sigiloso de la prueba, no se verificó la causa). La
+  auditoría de fallos ya estaba activa en el HP antes de la prueba (`Errores`), así que no se tocó ni se revirtió. Ojo para quien
+  repita la prueba: en Windows en español `auditpol` rechaza el nombre en inglés de la subcategoría (`0x57`); usar el GUID
+  `{0CCE9226-69AE-11D9-BED3-505054503030}`. El código de Nexo no depende del nombre (lee con `AuditQuerySystemPolicy`). Sin commit aún.
 - **No probado contra el servicio real:** el bloque nuevo de la ventana (solo servicio falso y la ventana sin pantalla).
 
 ---
