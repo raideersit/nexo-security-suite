@@ -106,6 +106,44 @@ namespace Nexo.Service.Demo
                 Check(File.Exists(Path.Combine(sucia, "malo.exe")), "detectar NO borra ni mueve nada");
             }
 
+            // --- Un reinicio NO olvida las detecciones (antes solo se guardaba la fecha) ---
+            await using (var m = Nuevo(new[] { limpia, sucia }, estadoDet))
+            {
+                m.CargarEstado();
+                JsonElement d = J(await m.ManejarAsync("escaneo-programado.detecciones", null, CancellationToken.None).ConfigureAwait(false));
+                Check(d.GetProperty("detecciones").GetArrayLength() == 1
+                      && d.GetProperty("detecciones")[0].GetProperty("ruta").GetString()!.EndsWith("malo.exe", StringComparison.Ordinal)
+                      && !string.IsNullOrEmpty(d.GetProperty("detecciones")[0].GetProperty("sha256").GetString()),
+                      "tras reiniciar, la deteccion sigue ahi (ruta, firma y hash)", d.ToString());
+                Check(m.Obtener("programado") is { Incompleto: true, CompletamenteLimpio: false },
+                      "y lo recordado se marca incompleto: nunca se lee como «limpio»");
+                JsonElement e = await EstadoProgramado(m).ConfigureAwait(false);
+                Check(e.GetProperty("detecciones").GetInt32() == 1 && e.GetProperty("ultimo_resultado").GetString() == "desconocido",
+                      "el estado cuenta la deteccion pero no inventa el resultado", e.ToString());
+            }
+            // Un escaneo limpio posterior borra lo recordado (si no, una deteccion ya resuelta saldria para siempre).
+            string estadoLimpiado = Path.Combine(datos, "estado", "limpiado.json");
+            File.Copy(estadoDet, estadoLimpiado, true);
+            await using (var m = Nuevo(new[] { limpia }, estadoLimpiado))
+            {
+                m.CargarEstado();
+                await m.EjecutarUnaVezAsync(CancellationToken.None).ConfigureAwait(false);
+                await using var m2 = Nuevo(new[] { limpia }, estadoLimpiado);
+                m2.CargarEstado();
+                JsonElement d = J(await m2.ManejarAsync("escaneo-programado.detecciones", null, CancellationToken.None).ConfigureAwait(false));
+                Check(d.GetProperty("detecciones").GetArrayLength() == 0, "tras un escaneo limpio, un reinicio ya no recuerda la deteccion vieja", d.ToString());
+            }
+            // Detecciones ilegibles: se avisa y no se inventa nada.
+            string estadoMalas = Path.Combine(datos, "estado", "malas.json");
+            File.WriteAllText(estadoMalas, JsonSerializer.Serialize(new { ultimo_completo = ahora.ToString("o"), detecciones = new[] { new { ruta = "x" } } }));
+            await using (var m = Nuevo(new[] { limpia }, estadoMalas))
+            {
+                m.CargarEstado();
+                JsonElement e = await EstadoProgramado(m).ConfigureAwait(false);
+                Check(e.GetProperty("detecciones").GetInt32() == 0 && e.GetProperty("aviso").ValueKind == JsonValueKind.String,
+                      "detecciones guardadas ilegibles: 0 y un aviso (no se descartan en silencio)", e.ToString());
+            }
+
             // --- Motor caido: fallido, NO cuenta como hecho, se reintenta pronto ---
             string estadoFallo = Path.Combine(datos, "estado", "fallo.json");
             await using (var m = Nuevo(new[] { limpia }, estadoFallo))

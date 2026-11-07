@@ -184,7 +184,7 @@ namespace Nexo.Service
             }
             if (completo)
             {
-                GuardarEstado(inicio);
+                GuardarEstado(inicio, r!.Detecciones);
                 try { EscaneoCompleto?.Invoke(_raices, inicio, r!); }
                 catch (Exception) { /* un suscriptor roto no cambia el resultado del escaneo */ }
             }
@@ -252,8 +252,9 @@ namespace Nexo.Service
                 if (d.RootElement.TryGetProperty("ultimo_completo", out JsonElement v) && v.ValueKind == JsonValueKind.String
                     && DateTimeOffset.TryParse(v.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset t))
                 {
-                    // El detalle del resultado anterior no se guarda: solo se sabe CUANDO termino uno completo.
+                    // Del resultado anterior solo se guardan CUANDO termino y las detecciones (ruta, firma, tamano, hash).
                     lock (_candado) { _ultimoCompleto = t; _ultimoResultado = "desconocido"; }
+                    RestaurarDetecciones(d.RootElement);
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
@@ -263,14 +264,51 @@ namespace Nexo.Service
             }
         }
 
-        private void GuardarEstado(DateTimeOffset completo)
+        /// <summary>Maximo de detecciones que se guardan en el registro (el resto se vuelve a ver en el siguiente escaneo).</summary>
+        internal const int MaximoDeDeteccionesGuardadas = 500;
+
+        private void RestaurarDetecciones(JsonElement raiz)
+        {
+            if (!raiz.TryGetProperty("detecciones", out JsonElement arr)) return;
+            try
+            {
+                if (arr.ValueKind != JsonValueKind.Array) throw new JsonException();
+                var lista = new List<Deteccion>();
+                foreach (JsonElement e in arr.EnumerateArray())
+                {
+                    string ruta = e.GetProperty("ruta").GetString() ?? "";
+                    string firma = e.GetProperty("firma").GetString() ?? "";
+                    if (ruta.Length == 0) throw new JsonException();
+                    string? sha = e.TryGetProperty("sha256", out JsonElement h) && h.ValueKind == JsonValueKind.String ? h.GetString() : null;
+                    DateTimeOffset mod = e.TryGetProperty("modificado", out JsonElement m) && m.ValueKind == JsonValueKind.String
+                        && DateTimeOffset.TryParse(m.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset f) ? f : default;
+                    lista.Add(new Deteccion(ruta, firma, e.GetProperty("bytes").GetInt64(), mod, sha));
+                }
+                if (lista.Count == 0) return;
+                // Marcado INCOMPLETO a proposito: es lo recordado de un escaneo anterior, nadie debe leerlo como «limpio».
+                var r = new ResultadoDeEscaneo("restaurado", "", 0, lista, Array.Empty<string>(), TimeSpan.Zero, true,
+                                               "detecciones recordadas del ultimo escaneo, antes de reiniciar");
+                lock (_candado) _ultimo = r;
+            }
+            catch (Exception ex) when (ex is JsonException || ex is InvalidOperationException || ex is KeyNotFoundException || ex is FormatException)
+            {
+                lock (_candado) _avisoDeEstado = "No se pudieron leer las detecciones guardadas; se veran de nuevo en el siguiente escaneo.";
+            }
+        }
+
+        private void GuardarEstado(DateTimeOffset completo, IReadOnlyList<Deteccion> detecciones)
         {
             try
             {
                 string? dir = Path.GetDirectoryName(_archivoDeEstado);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 string tmp = _archivoDeEstado + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(new { ultimo_completo = completo.ToString("o") }));
+                File.WriteAllText(tmp, JsonSerializer.Serialize(new
+                {
+                    ultimo_completo = completo.ToString("o"),
+                    detecciones = detecciones.Take(MaximoDeDeteccionesGuardadas)
+                        .Select(d => new { ruta = d.Ruta, firma = d.Firma, bytes = d.Bytes, sha256 = d.Sha256, modificado = d.Modificado.ToString("o") }).ToList()
+                }));
                 File.Move(tmp, _archivoDeEstado, overwrite: true);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)

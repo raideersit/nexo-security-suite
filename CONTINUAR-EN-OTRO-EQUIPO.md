@@ -1024,8 +1024,11 @@ Todo con pruebas en `Nexo.Desktop.Demo` (rotas a propósito para ver que fallan 
   limpio). Se lee al abrir, al entrar en la pestaña, con F5 y en cada sondeo mientras se mira la pestaña.
   - Una detección cuyo archivo **ya no existe** deja de listarse; si sigue en su sitio (no se pudo mover, o la aprobación está
     pendiente) se queda: no se da nada por resuelto sin mirarlo.
-  - **Sigue pendiente (servicio, no ventana):** un reinicio del servicio olvida las detecciones hasta el siguiente escaneo (solo se
-    guarda la fecha). Es del servicio, no de la ventana.
+  - ~~**Sigue pendiente (servicio, no ventana):** un reinicio del servicio olvida las detecciones.~~ Hecho: el registro del escaneo
+    programado guarda también las detecciones (ruta, firma, tamaño, hash; máximo 500) y `CargarEstado` las recupera. Lo recordado se
+    marca **incompleto** a propósito (nunca se lee como «limpio») y el resultado sigue «desconocido»; un escaneo posterior las
+    reemplaza (si salió limpio, las borra). Detecciones guardadas ilegibles: 0 y un aviso. Rotas a propósito: 4 fallos (sin
+    restaurar). Solo servicio; sin commit aún.
   - Rotas a propósito: id equivocado (1 fallo) y no filtrar lo inexistente (3 fallos).
 - **La lista de «Escaneo» se refresca tras la cuarentena** (`RetirarLasQueYaNoEstan`, mismo criterio: el archivo ya no está). Rotas a
   propósito: 2 fallos.
