@@ -12,7 +12,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         /// confianza: una revision incompleta nunca se presenta como «sin problemas».
         /// </summary>
         public static NexoEvent RevisionDeCuentas(ResultadoDeAnalisis r)
-            => Construir("Revision de cuentas y contrasenas", "No se encontro nada en las cuentas, la politica de contrasenas ni el inicio automatico.", r);
+            => Construir("Revisión de cuentas y contraseñas", "No se encontró nada en las cuentas, la política de contraseñas ni el inicio automático.", r);
 
         /// <summary>
         /// Un evento por revision de Wi-Fi. Lleva los nombres de las redes guardadas (es lo accionable) y NUNCA claves. Sin
@@ -22,14 +22,14 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         {
             if (estado == EstadoDeLecturaWifi.SinAdaptador)
             {
-                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, "Revision de Wi-Fi: este equipo no tiene adaptador Wi-Fi")
+                return new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, "Revisión de Wi-Fi: este equipo no tiene adaptador Wi-Fi")
                 {
                     Severidad = Severidad.Info,
                     Accion = Accion.Registrada,
-                    Cuerpo = "No hay ningun adaptador Wi-Fi: no hay redes que revisar."
+                    Cuerpo = "No hay ningún adaptador Wi-Fi: no hay redes que revisar."
                 };
             }
-            return Construir("Revision de Wi-Fi", "No se encontro nada en las redes Wi-Fi guardadas ni en la conexion actual.", r);
+            return Construir("Revisión de Wi-Fi", "No se encontró nada en las redes Wi-Fi guardadas ni en la conexión actual.", r);
         }
 
         /// <summary>
@@ -42,15 +42,15 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             var sb = new StringBuilder();
             if (r.Aplicaciones.Count > 0)
             {
-                sb.AppendLine("| Aplicacion | Id | Instalada | Disponible |");
+                sb.AppendLine("| Aplicación | Id | Instalada | Disponible |");
                 sb.AppendLine("|---|---|---|---|");
                 foreach (AplicacionDesactualizada a in r.Aplicaciones.Take(100))
                     sb.AppendLine("| " + Celda(a.Nombre) + " | " + Celda(a.Id) + " | " + Celda(a.VersionInstalada) + " | " + Celda(a.VersionDisponible) + " |");
-                if (r.Aplicaciones.Count > 100) sb.AppendLine("| ... y " + (r.Aplicaciones.Count - 100) + " mas | | | |");
+                if (r.Aplicaciones.Count > 100) sb.AppendLine("| ... y " + (r.Aplicaciones.Count - 100) + " más | | | |");
                 sb.AppendLine();
             }
-            sb.AppendLine("*Alcance:* winget solo comprueba las aplicaciones que sabe identificar; no es una revision de todo el software instalado. Una version mas nueva no significa que la instalada sea vulnerable.");
-            return Construir("Revision de aplicaciones desactualizadas", "winget no encontro aplicaciones con una version mas nueva.", r.Analisis, sb.ToString());
+            sb.AppendLine("*Alcance:* winget solo comprueba las aplicaciones que sabe identificar; no es una revisión de todo el software instalado. Una versión más nueva no significa que la instalada sea vulnerable.");
+            return Construir("Revisión de aplicaciones desactualizadas", "winget no encontró aplicaciones con una versión más nueva.", r.Analisis, sb.ToString());
         }
 
         private static NexoEvent Construir(string area, string textoLimpio, ResultadoDeAnalisis r, string? extra = null)
@@ -64,7 +64,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             var sb = new StringBuilder();
             if (r.Hallazgos.Count > 0)
             {
-                sb.AppendLine("| Gravedad | Hallazgo | Que hacer |");
+                sb.AppendLine("| Gravedad | Hallazgo | Qué hacer |");
                 sb.AppendLine("|---|---|---|");
                 foreach (HallazgoDeSistema h in r.Hallazgos)
                     sb.AppendLine("| " + h.Severidad + " | " + Celda(h.Titulo + (h.Sujeto is null ? "" : " (" + h.Sujeto + ")")) + " | " + Celda(h.Recomendacion) + " |");
@@ -72,7 +72,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             }
             if (!r.Completo)
             {
-                sb.AppendLine("**No se pudo revisar todo** (esto NO significa que este bien):");
+                sb.AppendLine("**No se pudo revisar todo** (esto NO significa que esté bien):");
                 foreach (string n in r.NoEvaluado) sb.AppendLine("- " + n);
             }
             else if (r.Hallazgos.Count == 0)

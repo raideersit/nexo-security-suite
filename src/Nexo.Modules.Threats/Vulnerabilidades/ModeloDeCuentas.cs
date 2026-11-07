@@ -53,13 +53,13 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             var hallazgos = new List<HallazgoDeSistema>();
             var noEvaluado = new List<string>();
 
-            if (s.Autologon is null) noEvaluado.Add("No se pudo leer el inicio de sesion automatico: no se sabe si hay una contrasena guardada en el registro.");
+            if (s.Autologon is null) noEvaluado.Add("No se pudo leer el inicio de sesión automático: no se sabe si hay una contraseña guardada en el registro.");
             else AnalizarAutologon(s.Autologon, hallazgos);
 
-            if (s.Cuentas is null) noEvaluado.Add("No se pudieron enumerar las cuentas locales: no se revisaron banderas de contrasena ni la cuenta Invitado.");
+            if (s.Cuentas is null) noEvaluado.Add("No se pudieron enumerar las cuentas locales: no se revisaron banderas de contraseña ni la cuenta Invitado.");
             else AnalizarCuentas(s.Cuentas, hallazgos);
 
-            if (s.Politica is null) noEvaluado.Add("No se pudo leer la politica local de contrasenas: no se sabe su longitud minima ni si hay bloqueo por intentos.");
+            if (s.Politica is null) noEvaluado.Add("No se pudo leer la política local de contraseñas: no se sabe su longitud mínima ni si hay bloqueo por intentos.");
             else AnalizarPolitica(s.Politica, hallazgos);
 
             return new ResultadoDeAnalisis(hallazgos.OrderByDescending(h => h.Severidad).ThenBy(h => h.Id, StringComparer.Ordinal).ToList(), noEvaluado);
@@ -71,14 +71,14 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             string quien = string.IsNullOrWhiteSpace(a.Usuario) ? "una cuenta" : "la cuenta «" + a.Usuario + "»";
             if (a.ContrasenaEnTextoPlano)
                 h.Add(new HallazgoDeSistema("AUTOLOGON-CONTRASENA-EN-REGISTRO", Severidad.Alta,
-                    "La contrasena del inicio automatico esta guardada en texto plano",
-                    "Windows inicia sesion solo con " + quien + " y su contrasena esta escrita en el registro (DefaultPassword), donde la puede leer cualquier programa con permisos de lectura sobre esa clave. Nexo no leyo su valor.",
-                    "Desactiva el inicio de sesion automatico (netplwiz) y cambia esa contrasena, porque ya no es secreta.", a.Usuario));
+                    "La contraseña del inicio automático está guardada en texto plano",
+                    "Windows inicia sesión solo con " + quien + " y su contraseña está escrita en el registro (DefaultPassword), donde la puede leer cualquier programa con permisos de lectura sobre esa clave. Nexo no leyó su valor.",
+                    "Desactiva el inicio de sesión automático (netplwiz) y cambia esa contraseña, porque ya no es secreta.", a.Usuario));
             else
                 h.Add(new HallazgoDeSistema("AUTOLOGON-ACTIVO", Severidad.Media,
-                    "El inicio de sesion automatico esta activo",
-                    "Windows entra solo con " + quien + ": cualquiera con acceso fisico al equipo encendido o reiniciado tiene su sesion. No se encontro la contrasena en texto plano en el registro (puede estar guardada de otra forma que Nexo no ve).",
-                    "Si no lo necesitas, desactivalo (netplwiz).", a.Usuario));
+                    "El inicio de sesión automático está activo",
+                    "Windows entra solo con " + quien + ": cualquiera con acceso físico al equipo encendido o reiniciado tiene su sesión. No se encontró la contraseña en texto plano en el registro (puede estar guardada de otra forma que Nexo no ve).",
+                    "Si no lo necesitas, desactívalo (netplwiz).", a.Usuario));
         }
 
         private static void AnalizarCuentas(IReadOnlyList<CuentaLocal> cuentas, List<HallazgoDeSistema> h)
@@ -89,36 +89,36 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
 
                 if (c.Rid == CuentaLocal.RidInvitado)
                     h.Add(new HallazgoDeSistema("CUENTA-INVITADO-ACTIVA", Severidad.Media,
-                        "La cuenta Invitado esta habilitada",
+                        "La cuenta Invitado está habilitada",
                         "La cuenta Invitado («" + c.Nombre + "») permite entrar sin una cuenta propia.",
-                        "Deshabilitala si no la usas (Administracion de equipos > Usuarios locales).", c.Nombre));
+                        "Deshabilítala si no la usas (Administración de equipos > Usuarios locales).", c.Nombre));
 
                 if (c.ContrasenaNoRequerida)
                 {
                     bool admin = c.Rid == CuentaLocal.RidAdministrador;
                     h.Add(new HallazgoDeSistema("CUENTA-SIN-CONTRASENA-REQUERIDA", admin ? Severidad.Alta : Severidad.Media,
-                        admin ? "El Administrador integrado no exige contrasena" : "Una cuenta no exige contrasena",
-                        "La cuenta «" + c.Nombre + "» tiene la bandera «contrasena no requerida»: Windows permitiria iniciarla sin contrasena. Eso no significa que no tenga una; Nexo no puede saberlo.",
-                        "Ponle una contrasena y quita esa bandera, o deshabilita la cuenta.", c.Nombre));
+                        admin ? "El Administrador integrado no exige contraseña" : "Una cuenta no exige contraseña",
+                        "La cuenta «" + c.Nombre + "» tiene la bandera «contraseña no requerida»: Windows permitiría iniciarla sin contraseña. Eso no significa que no tenga una; Nexo no puede saberlo.",
+                        "Ponle una contraseña y quita esa bandera, o deshabilita la cuenta.", c.Nombre));
                 }
 
                 if (c.Rid == CuentaLocal.RidAdministrador)
                     h.Add(new HallazgoDeSistema("CUENTA-ADMIN-INTEGRADA-ACTIVA", Severidad.Baja,
-                        "El Administrador integrado esta habilitado",
+                        "El Administrador integrado está habilitado",
                         "La cuenta «" + c.Nombre + "» es el Administrador integrado de Windows, con un nombre y un RID conocidos por cualquier atacante.",
-                        "Si no la necesitas, deshabilitala y usa una cuenta de administrador propia.", c.Nombre));
+                        "Si no la necesitas, deshabilítala y usa una cuenta de administrador propia.", c.Nombre));
 
                 if (c.ContrasenaNoExpira)
                     h.Add(new HallazgoDeSistema("CUENTA-CONTRASENA-NO-EXPIRA", Severidad.Info,
-                        "La contrasena de una cuenta no caduca",
-                        "La contrasena de «" + c.Nombre + "» esta marcada como que nunca expira. Hoy no se recomienda forzar la caducidad periodica; esto solo importa si esa contrasena es debil o se filtro.",
-                        "Nada que hacer por esto solo; usa una contrasena larga y unica.", c.Nombre));
+                        "La contraseña de una cuenta no caduca",
+                        "La contraseña de «" + c.Nombre + "» está marcada como que nunca expira. Hoy no se recomienda forzar la caducidad periódica; esto solo importa si esa contraseña es débil o se filtró.",
+                        "Nada que hacer por esto solo; usa una contraseña larga y única.", c.Nombre));
 
                 if (c.Bloqueada)
                     h.Add(new HallazgoDeSistema("CUENTA-BLOQUEADA", Severidad.Baja,
-                        "Una cuenta esta bloqueada ahora mismo",
-                        "La cuenta «" + c.Nombre + "» esta bloqueada, lo que suele pasar tras varios intentos fallidos de iniciar sesion.",
-                        "Si no fuiste tu, alguien podria estar probando contrasenas: revisa los inicios de sesion fallidos.", c.Nombre));
+                        "Una cuenta está bloqueada ahora mismo",
+                        "La cuenta «" + c.Nombre + "» está bloqueada, lo que suele pasar tras varios intentos fallidos de iniciar sesión.",
+                        "Si no fuiste tú, alguien podría estar probando contraseñas: revisa los inicios de sesión fallidos.", c.Nombre));
             }
         }
 
@@ -126,19 +126,19 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         {
             if (p.LongitudMinima <= 0)
                 h.Add(new HallazgoDeSistema("POLITICA-SIN-LONGITUD-MINIMA", Severidad.Media,
-                    "La politica local no exige una longitud minima de contrasena",
-                    "La longitud minima es 0: Windows acepta contrasenas de cualquier tamano, incluso vacias, en las cuentas locales.",
-                    "Fija una longitud minima de al menos 8 (mejor 12) en la directiva de seguridad local."));
+                    "La política local no exige una longitud mínima de contraseña",
+                    "La longitud mínima es 0: Windows acepta contraseñas de cualquier tamaño, incluso vacías, en las cuentas locales.",
+                    "Fija una longitud mínima de al menos 8 (mejor 12) en la directiva de seguridad local."));
             else if (p.LongitudMinima < 8)
                 h.Add(new HallazgoDeSistema("POLITICA-LONGITUD-CORTA", Severidad.Baja,
-                    "La longitud minima de contrasena es corta",
-                    "La politica local exige solo " + p.LongitudMinima + " caracteres.",
-                    "Subela a 8 o mas (mejor 12) en la directiva de seguridad local."));
+                    "La longitud mínima de contraseña es corta",
+                    "La política local exige solo " + p.LongitudMinima + " caracteres.",
+                    "Súbela a 8 o más (mejor 12) en la directiva de seguridad local."));
 
             if (p.UmbralDeBloqueo <= 0)
                 h.Add(new HallazgoDeSistema("POLITICA-SIN-BLOQUEO-POR-INTENTOS", Severidad.Baja,
                     "No hay bloqueo de cuenta tras intentos fallidos",
-                    "El umbral de bloqueo es 0: se pueden probar contrasenas sin limite de intentos contra las cuentas locales.",
+                    "El umbral de bloqueo es 0: se pueden probar contraseñas sin límite de intentos contra las cuentas locales.",
                     "Fija un umbral (por ejemplo 10 intentos) en la directiva de seguridad local."));
         }
     }

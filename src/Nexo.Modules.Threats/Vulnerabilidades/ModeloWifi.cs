@@ -106,7 +106,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                 case EstadoDeLecturaWifi.SinAdaptador:
                     return new ResultadoDeAnalisis(hallazgos, noEvaluado); // nada que revisar, y se sabe por que
                 case EstadoDeLecturaWifi.ServicioNoActivo:
-                    noEvaluado.Add("El servicio de configuracion de WLAN no esta activo y el equipo tiene un adaptador Wi-Fi: no se pudieron revisar las redes guardadas ni la conexion actual.");
+                    noEvaluado.Add("El servicio de configuración de WLAN no está activo y el equipo tiene un adaptador Wi-Fi: no se pudieron revisar las redes guardadas ni la conexión actual.");
                     return new ResultadoDeAnalisis(hallazgos, noEvaluado);
                 case EstadoDeLecturaWifi.Error:
                     noEvaluado.Add("No se pudo leer el Wi-Fi (error de la API de Windows): no se sabe si hay redes inseguras guardadas.");
@@ -128,15 +128,15 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                         case Clase.Abierta:
                             hallazgos.Add(auto
                                 ? new HallazgoDeSistema("WIFI-RED-ABIERTA-AUTOMATICA", Severidad.Alta, "Una red Wi-Fi abierta se conecta sola",
-                                    "La red «" + perfil.Nombre + "» no tiene cifrado y el equipo se conecta a ella automaticamente: cualquiera cerca puede ver el trafico que no vaya cifrado por su cuenta, y una red falsa con el mismo nombre atraeria al equipo.",
-                                    "Olvida la red (Configuracion > Red > Wi-Fi > Administrar redes conocidas) o desactiva la conexion automatica.", perfil.Nombre)
+                                    "La red «" + perfil.Nombre + "» no tiene cifrado y el equipo se conecta a ella automáticamente: cualquiera cerca puede ver el tráfico que no vaya cifrado por su cuenta, y una red falsa con el mismo nombre atraería al equipo.",
+                                    "Olvida la red (Configuración > Red > Wi-Fi > Administrar redes conocidas) o desactiva la conexión automática.", perfil.Nombre)
                                 : new HallazgoDeSistema("WIFI-RED-ABIERTA", Severidad.Media, "Hay una red Wi-Fi abierta guardada",
-                                    "La red «" + perfil.Nombre + "» no tiene cifrado. No se conecta sola, pero esta guardada.",
-                                    "Olvidala si ya no la usas.", perfil.Nombre));
+                                    "La red «" + perfil.Nombre + "» no tiene cifrado. No se conecta sola, pero está guardada.",
+                                    "Olvídala si ya no la usas.", perfil.Nombre));
                             break;
                         case Clase.Wep:
                             hallazgos.Add(new HallazgoDeSistema("WIFI-WEP", Severidad.Alta, "Una red Wi-Fi guardada usa WEP",
-                                "La red «" + perfil.Nombre + "» usa WEP, un cifrado roto desde hace anos: su clave se obtiene en minutos con herramientas publicas.",
+                                "La red «" + perfil.Nombre + "» usa WEP, un cifrado roto desde hace años: su clave se obtiene en minutos con herramientas públicas.",
                                 "Cambia el router a WPA2 o WPA3, y olvida esta red mientras tanto.", perfil.Nombre));
                             break;
                         case Clase.Tkip:
@@ -145,27 +145,27 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                                 "Configura el router con WPA2-AES (o WPA3).", perfil.Nombre));
                             break;
                         case Clase.Desconocida:
-                            noEvaluado.Add("La red «" + perfil.Nombre + "» usa una combinacion que Nexo no reconoce (" + perfil.Autenticacion + " / " + perfil.Cifrado + "): no se evaluo.");
+                            noEvaluado.Add("La red «" + perfil.Nombre + "» usa una combinación que Nexo no reconoce (" + perfil.Autenticacion + " / " + perfil.Cifrado + "): no se evaluó.");
                             break;
                     }
 
                     if (perfil.Oculta == true)
                         hallazgos.Add(new HallazgoDeSistema("WIFI-RED-OCULTA", Severidad.Baja, "Una red Wi-Fi guardada es oculta",
-                            "La red «" + perfil.Nombre + "» no anuncia su nombre, asi que el equipo la busca por su nombre en cualquier lugar donde este: eso delata la red y, con ella, tu casa o tu trabajo. Ocultar el nombre no mejora la seguridad.",
+                            "La red «" + perfil.Nombre + "» no anuncia su nombre, así que el equipo la busca por su nombre en cualquier lugar donde esté: eso delata la red y, con ella, tu casa o tu trabajo. Ocultar el nombre no mejora la seguridad.",
                             "Haz visible el nombre en el router y quita la marca de red oculta.", perfil.Nombre));
                 }
 
                 if (a.Conexion is { } k)
                 {
                     if (!k.SeguridadActiva)
-                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-SIN-CIFRADO", Severidad.Alta, "Estas conectado a una red Wi-Fi sin cifrado",
-                            "La conexion actual («" + k.Perfil + "») no esta cifrada.", "Desconectate o usa una VPN; no escribas contrasenas en sitios sin HTTPS.", k.Perfil));
+                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-SIN-CIFRADO", Severidad.Alta, "Estás conectado a una red Wi-Fi sin cifrado",
+                            "La conexión actual («" + k.Perfil + "») no está cifrada.", "Desconéctate o usa una VPN; no escribas contraseñas en sitios sin HTTPS.", k.Perfil));
                     else if (EsWep(k.Autenticacion, k.Cifrado))
-                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-WEP", Severidad.Alta, "Estas conectado con WEP",
-                            "La conexion actual («" + k.Perfil + "») usa WEP, un cifrado roto.", "Conectate a otra red o cambia el router a WPA2/WPA3.", k.Perfil));
+                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-WEP", Severidad.Alta, "Estás conectado con WEP",
+                            "La conexión actual («" + k.Perfil + "») usa WEP, un cifrado roto.", "Conéctate a otra red o cambia el router a WPA2/WPA3.", k.Perfil));
                     else if (k.Cifrado == CifradoTkip)
-                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-TKIP", Severidad.Media, "Estas conectado con cifrado TKIP",
-                            "La conexion actual («" + k.Perfil + "») usa TKIP, obsoleto.", "Configura el router con WPA2-AES (o WPA3).", k.Perfil));
+                        hallazgos.Add(new HallazgoDeSistema("WIFI-CONEXION-TKIP", Severidad.Media, "Estás conectado con cifrado TKIP",
+                            "La conexión actual («" + k.Perfil + "») usa TKIP, obsoleto.", "Configura el router con WPA2-AES (o WPA3).", k.Perfil));
                 }
             }
 

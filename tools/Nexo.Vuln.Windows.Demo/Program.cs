@@ -95,7 +95,7 @@ namespace Nexo.Vuln.Windows.Demo
             Check(modelo.Secciones[0].Resumen.Contains("5 cuentas locales"), "Cuentas: leyo las 5 cuentas locales del HP", modelo.Secciones[0].Resumen);
             Check(modelo.Secciones[1].Resumen.Contains("16 redes guardadas"), "Wi-Fi: leyo las 16 redes guardadas del HP", modelo.Secciones[1].Resumen);
             Check(modelo.Secciones[2].Resumen.Contains("aplicaciones con versión nueva"), "Aplicaciones: leyo la lista de winget", modelo.Secciones[2].Resumen);
-            Check(modelo.Secciones[0].Hallazgos.Any(h => h.Titulo.Contains("longitud minima")), "Cuentas: aparece el hallazgo real de la politica sin longitud minima");
+            Check(modelo.Secciones[0].Hallazgos.Any(h => h.Titulo.Contains("longitud mínima")), "Cuentas: aparece el hallazgo real de la politica sin longitud minima");
             Check(modelo.Secciones[2].Hallazgos.Any(h => h.Gravedad == "Media" && h.TieneSujeto), "Aplicaciones: al menos un programa muy atacado marcado Media (Java/WinRAR)");
             Check(modelo.Indicador != Nexo.Ui.Desktop.Nucleo.Indicador.Correcto, "con esos hallazgos el general NO es verde");
             Check(!modelo.Secciones.Any(f => f.Revisando) && modelo.PuedeRevisarTodo, "al terminar, nada queda «Revisando...» y se puede volver a pulsar");

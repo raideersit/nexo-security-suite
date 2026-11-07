@@ -154,11 +154,11 @@ namespace Nexo.Vuln.Demo
 
             ResultadoDeAnalisis serv = AnalizadorDeWifi.Analizar(new InstantaneaDeWifi(EstadoDeLecturaWifi.ServicioNoActivo, Array.Empty<AdaptadorWifi>()));
             NexoEvent inc = EventosDeVulnerabilidades.RevisionDeWifi(serv, EstadoDeLecturaWifi.ServicioNoActivo);
-            Check(inc.Severidad == Severidad.Media && inc.Titulo.Contains("incompleta") && inc.Cuerpo!.Contains("NO significa que este bien"), "servicio parado: Media, «incompleta» y aclara que no significa que este bien");
+            Check(inc.Severidad == Severidad.Media && inc.Titulo.Contains("incompleta") && inc.Cuerpo!.Contains("NO significa que esté bien"), "servicio parado: Media, «incompleta» y aclara que no significa que este bien");
 
             ResultadoDeAnalisis limpia = Perfil("WPA2PSK", "AES");
             NexoEvent ok = EventosDeVulnerabilidades.RevisionDeWifi(limpia, EstadoDeLecturaWifi.Correcta);
-            Check(ok.Severidad == Severidad.Info && ok.Titulo == "Revision de Wi-Fi: sin hallazgos", "leida entera y sin problemas: Info, «sin hallazgos»");
+            Check(ok.Severidad == Severidad.Info && ok.Titulo == "Revisión de Wi-Fi: sin hallazgos", "leida entera y sin problemas: Info, «sin hallazgos»");
 
             // Con una clave en texto plano en el XML, nada del evento la contiene.
             InstantaneaDeWifi conClave = Wifi(new[] { new PerfilCrudo("Red|rara", Xml("Red|rara", "shared", "WEP", clave: ClaveSentinela, protegida: false)) });

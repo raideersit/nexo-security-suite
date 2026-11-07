@@ -40,6 +40,7 @@ namespace Nexo.Vuln.Demo
             ProbarWingetReal();
             ProbarVariantesDeWinget();
             ProbarReglasDeAplicaciones();
+            ProbarTextosConTildes();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
@@ -120,7 +121,7 @@ namespace Nexo.Vuln.Demo
             ResultadoDeAnalisis plano = AnalizadorDeCuentas.Analizar(Sana() with { Autologon = new EstadoDeAutologon(true, "ana", true) });
             HallazgoDeSistema h = plano.Hallazgos.Single();
             Check(h.Id == "AUTOLOGON-CONTRASENA-EN-REGISTRO" && h.Severidad == Severidad.Alta && h.Sujeto == "ana", "autologon con la contrasena en el registro -> Alta");
-            Check(h.Detalle.Contains("no leyo su valor"), "y el texto dice que Nexo no leyo su valor");
+            Check(h.Detalle.Contains("no leyó su valor"), "y el texto dice que Nexo no leyo su valor");
 
             ResultadoDeAnalisis activo = AnalizadorDeCuentas.Analizar(Sana() with { Autologon = new EstadoDeAutologon(true, "ana", false) });
             Check(activo.Hallazgos.Single().Id == "AUTOLOGON-ACTIVO" && activo.Hallazgos.Single().Severidad == Severidad.Media, "autologon activo sin la contrasena a la vista -> Media");
@@ -140,11 +141,11 @@ namespace Nexo.Vuln.Demo
             Check(nada.Hallazgos.Count == 0 && nada.NoEvaluado.Count == 3 && !nada.Completo, "sin leer nada: 0 hallazgos pero 3 «no evaluado» y Completo = false");
 
             ResultadoDeAnalisis soloPolitica = AnalizadorDeCuentas.Analizar(Sana() with { Politica = null });
-            Check(!soloPolitica.Completo && soloPolitica.NoEvaluado.Single().Contains("politica"), "si falta solo la politica, lo dice y no es completo");
+            Check(!soloPolitica.Completo && soloPolitica.NoEvaluado.Single().Contains("política"), "si falta solo la politica, lo dice y no es completo");
             ResultadoDeAnalisis soloCuentas = AnalizadorDeCuentas.Analizar(Sana() with { Cuentas = null });
             Check(!soloCuentas.Completo && soloCuentas.NoEvaluado.Single().Contains("cuentas"), "si faltan las cuentas, lo dice");
             ResultadoDeAnalisis soloAuto = AnalizadorDeCuentas.Analizar(Sana() with { Autologon = null });
-            Check(!soloAuto.Completo && soloAuto.NoEvaluado.Single().Contains("inicio de sesion automatico"), "si falta el autologon, lo dice");
+            Check(!soloAuto.Completo && soloAuto.NoEvaluado.Single().Contains("inicio de sesión automático"), "si falta el autologon, lo dice");
 
             // Lo leido se sigue analizando aunque algo falte.
             ResultadoDeAnalisis parcial = AnalizadorDeCuentas.Analizar(new InstantaneaDeCuentas(null, new PoliticaDeContrasenas(0, null, 0, 0), new EstadoDeAutologon(true, "a", true)));
@@ -165,7 +166,7 @@ namespace Nexo.Vuln.Demo
             NexoEvent incompleta = EventosDeVulnerabilidades.RevisionDeCuentas(AnalizadorDeCuentas.Analizar(new InstantaneaDeCuentas(null, PoliticaBuena, SinAutologon)));
             Check(incompleta.Severidad == Severidad.Media, "incompleta y sin hallazgos: severidad MEDIA (lo desconocido no es «bien»)", incompleta.Severidad.ToString());
             Check(incompleta.Titulo.Contains("incompleta") && !incompleta.Titulo.Contains("sin hallazgos"), "el titulo dice «incompleta», no «sin hallazgos»");
-            Check(incompleta.Cuerpo!.Contains("NO significa que este bien"), "el cuerpo aclara que no significa que este bien");
+            Check(incompleta.Cuerpo!.Contains("NO significa que esté bien"), "el cuerpo aclara que no significa que este bien");
             Check(!incompleta.Cuerpo.Contains("No se encontro nada"), "y NO dice «no se encontro nada»");
 
             NexoEvent grave = EventosDeVulnerabilidades.RevisionDeCuentas(AnalizadorDeCuentas.Analizar(Sana() with { Autologon = new EstadoDeAutologon(true, "ana", true) }));

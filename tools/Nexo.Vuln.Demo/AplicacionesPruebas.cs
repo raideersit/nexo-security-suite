@@ -74,7 +74,7 @@ WizTree v4.28                                                AntibodySoftware.Wi
             // Solo español: el mismo contenido con el encabezado en ingles NO se interpreta.
             string ingles = WingetReal.Replace("Nombre ", "Name   ").Replace("Versión", "Version").Replace("Disponible", "Available ").Replace("Origen", "Source").Replace("actualizaciones disponibles", "upgrades available");
             ResultadoDeParseo en = ParserDeActualizacionesWinget.Parsear(ingles);
-            Check(!en.Reconocido && en.Aplicaciones.Count == 0 && en.Avisos.Single().Contains("espanol"), "con el encabezado en ingles: NO reconocido, 0 aplicaciones y el aviso dice que es solo espanol");
+            Check(!en.Reconocido && en.Aplicaciones.Count == 0 && en.Avisos.Single().Contains("español"), "con el encabezado en ingles: NO reconocido, 0 aplicaciones y el aviso dice que es solo espanol");
             ResultadoDeAplicaciones enA = AnalizadorDeAplicaciones.Analizar(Winget(ingles));
             Check(!enA.Analisis.Completo && enA.Analisis.Hallazgos.Count == 0, "y el analisis queda «no evaluado», nunca «sin actualizaciones»");
 
@@ -107,7 +107,7 @@ WizTree v4.28                                                AntibodySoftware.Wi
             ResultadoDeParseo sinRecuento = ParserDeActualizacionesWinget.Parsear(WingetReal.Replace("21 actualizaciones disponibles.", ""));
             Check(sinRecuento.Avisos.Single().Contains("recuento"), "si falta el recuento final (salida cortada), avisa: no se puede comprobar que este completa");
             ResultadoDeParseo extra = ParserDeActualizacionesWinget.Parsear(WingetReal + "\nLas siguientes actualizaciones no se pudieron comparar:\nNombre   Id   Versión\n");
-            Check(extra.Avisos.Count == 1 && extra.Avisos[0].Contains("mas informacion"), "texto adicional despues del recuento (otra tabla, avisos) no se ignora en silencio: se avisa");
+            Check(extra.Avisos.Count == 1 && extra.Avisos[0].Contains("más información"), "texto adicional despues del recuento (otra tabla, avisos) no se ignora en silencio: se avisa");
             Check(!AnalizadorDeAplicaciones.Analizar(Winget(WingetReal + "\nalgo mas")).Analisis.Completo, "y hace la revision incompleta");
 
             int lanzo = 0;
@@ -139,13 +139,13 @@ WizTree v4.28                                                AntibodySoftware.Wi
             ResultadoDeAplicaciones real = AnalizadorDeAplicaciones.Analizar(Winget(WingetReal));
             NexoEvent ev = EventosDeVulnerabilidades.RevisionDeAplicaciones(real);
             Check(ev.Severidad == Severidad.Media && ev.Modulo == ModuloOrigen.Amenazas && ev.Tipo == TipoEvento.VulnerabilidadDetectada, "con Java y WinRAR atrasados: evento Media, modulo Amenazas");
-            Check(ev.Titulo == "Revision de aplicaciones desactualizadas: 3 hallazgo(s)", "el titulo cuenta los hallazgos", ev.Titulo);
+            Check(ev.Titulo == "Revisión de aplicaciones desactualizadas: 3 hallazgo(s)", "el titulo cuenta los hallazgos", ev.Titulo);
             Check(ev.Cuerpo!.Contains("| Epic Games Launcher | EpicGames.EpicGamesLauncher | 1.3.161.0 | 1.3.210.0 |"), "el cuerpo lleva la tabla de aplicaciones");
-            Check(ev.Cuerpo.Contains("no es una revision de todo el software instalado") && ev.Cuerpo.Contains("no significa que la instalada sea vulnerable"), "y declara su alcance: no revisa todo el software ni dice «vulnerable»");
+            Check(ev.Cuerpo.Contains("no es una revisión de todo el software instalado") && ev.Cuerpo.Contains("no significa que la instalada sea vulnerable"), "y declara su alcance: no revisa todo el software ni dice «vulnerable»");
 
             // Incompleta: Media y «incompleta».
             NexoEvent inc = EventosDeVulnerabilidades.RevisionDeAplicaciones(AnalizadorDeAplicaciones.Analizar(new SalidaDeWinget(EstadoDeWinget.NoInstalado, "", -1)));
-            Check(inc.Severidad == Severidad.Media && inc.Titulo.EndsWith("incompleta") && inc.Cuerpo!.Contains("NO significa que este bien"), "winget no instalado: Media, «incompleta», no significa que este bien");
+            Check(inc.Severidad == Severidad.Media && inc.Titulo.EndsWith("incompleta") && inc.Cuerpo!.Contains("NO significa que esté bien"), "winget no instalado: Media, «incompleta», no significa que este bien");
             NexoEvent limpio = EventosDeVulnerabilidades.RevisionDeAplicaciones(AnalizadorDeAplicaciones.Analizar(Winget("No se encontraron actualizaciones disponibles.")));
             Check(limpio.Severidad == Severidad.Info && limpio.Titulo.EndsWith("sin hallazgos"), "leida entera y sin nada que actualizar: Info, «sin hallazgos»");
 
@@ -153,7 +153,7 @@ WizTree v4.28                                                AntibodySoftware.Wi
             var filas = Enumerable.Range(0, 150).Select(i => new AplicacionDesactualizada("App|" + i, "Id." + i, "1.0", "2.0", "winget")).ToList();
             var grande = new ResultadoDeAplicaciones(new ResultadoDeAnalisis(Array.Empty<HallazgoDeSistema>(), Array.Empty<string>()), filas);
             NexoEvent eg = EventosDeVulnerabilidades.RevisionDeAplicaciones(grande);
-            Check(eg.Cuerpo!.Contains("y 50 mas") && eg.Cuerpo.Split('\n').Count(l => l.StartsWith("| App/")) == 100, "150 aplicaciones: la tabla muestra 100 y dice «y 50 mas»");
+            Check(eg.Cuerpo!.Contains("y 50 más") && eg.Cuerpo.Split('\n').Count(l => l.StartsWith("| App/")) == 100, "150 aplicaciones: la tabla muestra 100 y dice «y 50 mas»");
             Check(eg.Cuerpo.Split('\n').Where(l => l.StartsWith("| App/")).All(l => l.Count(c => c == '|') == 5), "un nombre con «|» no rompe la tabla (5 barras por fila)");
         }
     }

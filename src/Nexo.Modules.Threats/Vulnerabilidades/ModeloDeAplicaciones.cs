@@ -42,7 +42,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
 
         public static ResultadoDeParseo Parsear(string? salida)
         {
-            if (string.IsNullOrWhiteSpace(salida)) return NoReconocido("la salida de winget llego vacia");
+            if (string.IsNullOrWhiteSpace(salida)) return NoReconocido("la salida de winget llegó vacía");
             if (salida.Length > MaximoDeCaracteres) return NoReconocido("la salida de winget es demasiado grande");
 
             string[] lineas = salida.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
@@ -51,7 +51,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             {
                 if (lineas.Any(l => SinNovedades.IsMatch(l)))
                     return new ResultadoDeParseo(true, true, Array.Empty<AplicacionDesactualizada>(), Array.Empty<string>());
-                return NoReconocido("winget no devolvio la tabla en espanol (¿otro idioma, o un error de winget como no poder abrir el origen?)");
+                return NoReconocido("winget no devolvió la tabla en español (¿otro idioma, o un error de winget como no poder abrir el origen?)");
             }
 
             Match m = Encabezado.Match(lineas[h].TrimEnd());
@@ -65,7 +65,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                 return NoReconocido("las columnas del encabezado de winget no tienen la forma esperada");
 
             if (h + 1 >= lineas.Length || !EsLineaDeGuiones(lineas[h + 1]))
-                return NoReconocido("a la tabla de winget le falta la linea de guiones bajo el encabezado");
+                return NoReconocido("a la tabla de winget le falta la línea de guiones bajo el encabezado");
 
             var apps = new List<AplicacionDesactualizada>();
             var avisos = new List<string>();
@@ -87,15 +87,15 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                 apps.Add(new AplicacionDesactualizada(nombre, id, ver, disp, ori));
             }
 
-            if (ilegibles > 0) avisos.Add(ilegibles + " fila(s) de la tabla de winget no se pudieron interpretar (campos truncados o vacios).");
+            if (ilegibles > 0) avisos.Add(ilegibles + " fila(s) de la tabla de winget no se pudieron interpretar (campos truncados o vacíos).");
             if (esperadas is null)
-                avisos.Add("La salida de winget no trae el recuento final («N actualizaciones disponibles»): no se puede comprobar que este completa.");
+                avisos.Add("La salida de winget no trae el recuento final («N actualizaciones disponibles»): no se puede comprobar que esté completa.");
             else if (esperadas != apps.Count + ilegibles)
-                avisos.Add("winget dice " + esperadas + " actualizacion(es) pero se leyeron " + (apps.Count + ilegibles) + ": la tabla no cuadra.");
+                avisos.Add("winget dice " + esperadas + " actualización(es) pero se leyeron " + (apps.Count + ilegibles) + ": la tabla no cuadra.");
 
             // Cualquier texto despues del recuento (una segunda tabla de paquetes que winget no pudo comparar, avisos...) no se interpreta.
             if (esperadas is not null && lineas.Skip(indice).Any(l => !string.IsNullOrWhiteSpace(l)))
-                avisos.Add("winget agrego mas informacion despues del recuento (por ejemplo paquetes cuya version no pudo comparar) que Nexo no interpreta.");
+                avisos.Add("winget agregó más información después del recuento (por ejemplo paquetes cuya versión no pudo comparar) que Nexo no interpreta.");
 
             return new ResultadoDeParseo(true, false, apps, avisos);
         }
@@ -132,13 +132,13 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             switch (s.Estado)
             {
                 case EstadoDeWinget.NoInstalado:
-                    noEvaluado.Add("winget no esta instalado o no se pudo ejecutar: no se pudo comprobar si hay aplicaciones desactualizadas.");
+                    noEvaluado.Add("winget no está instalado o no se pudo ejecutar: no se pudo comprobar si hay aplicaciones desactualizadas.");
                     return Resultado(hallazgos, noEvaluado, Array.Empty<AplicacionDesactualizada>());
                 case EstadoDeWinget.TiempoAgotado:
-                    noEvaluado.Add("winget tardo demasiado y se detuvo: no se pudo comprobar si hay aplicaciones desactualizadas.");
+                    noEvaluado.Add("winget tardó demasiado y se detuvo: no se pudo comprobar si hay aplicaciones desactualizadas.");
                     return Resultado(hallazgos, noEvaluado, Array.Empty<AplicacionDesactualizada>());
                 case EstadoDeWinget.Error:
-                    noEvaluado.Add("winget fallo (codigo " + s.CodigoDeSalida + "): no se pudo comprobar si hay aplicaciones desactualizadas.");
+                    noEvaluado.Add("winget falló (código " + s.CodigoDeSalida + "): no se pudo comprobar si hay aplicaciones desactualizadas.");
                     return Resultado(hallazgos, noEvaluado, Array.Empty<AplicacionDesactualizada>());
             }
 
@@ -148,16 +148,16 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
 
             var riesgo = p.Aplicaciones.Where(a => IdsDeRiesgo.Any(i => a.Id.StartsWith(i, StringComparison.OrdinalIgnoreCase))).ToList();
             foreach (AplicacionDesactualizada a in riesgo)
-                hallazgos.Add(new HallazgoDeSistema("APP-RIESGO-DESACTUALIZADA", Severidad.Media, "Un programa muy atacado esta desactualizado",
-                    a.Nombre + " esta en la version " + a.VersionInstalada + " y hay una mas nueva (" + a.VersionDisponible + "). Es de los programas que mas atacan; una version nueva suele incluir correcciones de seguridad. Nexo no sabe si la tuya tiene un fallo concreto.",
-                    "Actualizalo: winget upgrade --id " + a.Id, a.Nombre));
+                hallazgos.Add(new HallazgoDeSistema("APP-RIESGO-DESACTUALIZADA", Severidad.Media, "Un programa muy atacado está desactualizado",
+                    a.Nombre + " está en la versión " + a.VersionInstalada + " y hay una más nueva (" + a.VersionDisponible + "). Es de los programas que más atacan; una versión nueva suele incluir correcciones de seguridad. Nexo no sabe si la tuya tiene un fallo concreto.",
+                    "Actualízalo: winget upgrade --id " + a.Id, a.Nombre));
 
             var resto = p.Aplicaciones.Except(riesgo).ToList();
             if (resto.Count > 0)
-                hallazgos.Add(new HallazgoDeSistema("APPS-DESACTUALIZADAS", Severidad.Baja, resto.Count + " aplicacion(es) tienen una version mas nueva",
-                    string.Join(", ", resto.Take(15).Select(a => a.Nombre)) + (resto.Count > 15 ? " y " + (resto.Count - 15) + " mas" : "") +
-                    ". Una version mas nueva no significa que la tuya sea vulnerable; mantener el software al dia reduce el riesgo.",
-                    "Actualizalas cuando puedas (winget upgrade --all, o desde cada programa)."));
+                hallazgos.Add(new HallazgoDeSistema("APPS-DESACTUALIZADAS", Severidad.Baja, resto.Count + " aplicación(es) tienen una versión más nueva",
+                    string.Join(", ", resto.Take(15).Select(a => a.Nombre)) + (resto.Count > 15 ? " y " + (resto.Count - 15) + " más" : "") +
+                    ". Una versión más nueva no significa que la tuya sea vulnerable; mantener el software al día reduce el riesgo.",
+                    "Actualízalas cuando puedas (winget upgrade --all, o desde cada programa)."));
 
             return Resultado(hallazgos, noEvaluado, p.Aplicaciones);
         }

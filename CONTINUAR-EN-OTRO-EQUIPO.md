@@ -1246,8 +1246,13 @@ Primer paso del cableado de los módulos nuevos a la ventana (`src/Nexo.Ui.Deskt
   lo anterior, quitar la guarda del doble clic (hizo COLGAR la prueba; se reescribió para que falle en vez de colgarse). Una rotura (notas informativas) no hace fallar nada: es
   código redundante (la nota cae en la rama «sin problemas» del `switch`), no una prueba débil. **Contra el HP real, a través del modelo con el adaptador real**
   (`Nexo.Vuln.Windows.Demo`, sección 5): 5 cuentas, 16 redes, 21 aplicaciones; hallazgos reales (política sin longitud mínima, Java 8 y WinRAR Media); general «Hay cosas que revisar».
-- **PENDIENTE DE PULIDO (textos):** los textos de los módulos nuevos (`ModeloDeCuentas`, `ModeloWifi`, `ModeloDeAplicaciones`, `EventosDeVulnerabilidades`) están **sin tildes ni eñes**
-  («contrasena», «politica», «esta desactualizado») por convención heredada; en la ventana se ven mal. Arreglarlo exige tocar también las pruebas que comparan esos textos.
+- **Pulido de textos HECHO (2026-11-07):** los textos de los módulos de vulnerabilidades (`ModeloDeCuentas`, `ModeloWifi`, `ModeloDeAplicaciones`, `EventosDeVulnerabilidades`; 82 cadenas)
+  ahora llevan tildes y eñes («contraseña», «política», «está desactualizado»). Se hizo con un script que **solo toca el interior de las cadenas normales de C#** (no comentarios, no
+  expresiones regulares, no la salida real de winget copiada en las pruebas) y con reglas de frase para los ambiguos: «este equipo» y «olvida esta red» (demostrativos) NO llevan tilde;
+  «donde esté», «que esté completa» (subjuntivo), «Estás conectado», «fuiste tú» y «winget falló» SÍ. Solo 12 comprobaciones dependían de frases; se actualizaron. **Prueba nueva**
+  (`Nexo.Vuln.Demo` §15, `TextosPruebas.cs`): recorre los 331 textos que producen las tres revisiones en todos sus casos y falla si aparece una forma siempre incorrecta sin tilde
+  (lista de ~55 palabras); con dientes (una palabra sin tilde a propósito la detecta). El vault de reportes conserva tildes y eñes por diseño (`NoteNaming.Sanear`).
+  **Aún sin tildes:** los módulos de Identidad (bóveda, Pwned Passwords): se pulen al construir su pestaña. Y los mensajes de los arneses de prueba (no son interfaz).
 - **SIN PROBAR:** la ventana real con pantalla (solo sin pantalla y con captura); el botón «Revisar» dentro de la plantilla (el manejador de eventos en una `DataTemplate` se
   resuelve en la ventana: compila y carga, pero no se simuló un clic real).
 
