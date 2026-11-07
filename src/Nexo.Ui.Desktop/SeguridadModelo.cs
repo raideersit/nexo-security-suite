@@ -42,8 +42,8 @@ namespace Nexo.Ui.Desktop
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
         /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
-        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones };
-        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos };
+        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
@@ -67,6 +67,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Cuentas => "seguridad.cuentas",
             SeccionDeSeguridad.Wifi => "seguridad.wifi",
             SeccionDeSeguridad.Aplicaciones => "seguridad.aplicaciones",
+            SeccionDeSeguridad.Dispositivos => "seguridad.dispositivos",
             _ => "seguridad.fallos_conocidos"
         };
 
@@ -86,7 +87,7 @@ namespace Nexo.Ui.Desktop
         public bool PuedeRevisarTodo { get; private set; }
         public Indicador Indicador { get; private set; } = Indicador.SinDatos;
 
-        /// <summary>Revisa las tres, una tras otra (la de aplicaciones tarda mas y consulta Internet).</summary>
+        /// <summary>Revisa las locales (cuentas, Wi-Fi, aplicaciones, cámara y micrófono), una tras otra (la de aplicaciones tarda mas y consulta Internet).</summary>
         public async Task RevisarTodoAsync(CancellationToken ct = default)
         {
             foreach (SeccionDeSeguridad s in Orden)
@@ -184,6 +185,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Cuentas => "Cuentas y contraseñas del sistema",
             SeccionDeSeguridad.Wifi => "Redes Wi-Fi",
             SeccionDeSeguridad.Aplicaciones => "Aplicaciones desactualizadas",
+            SeccionDeSeguridad.Dispositivos => "Cámara y micrófono",
             _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
 
@@ -258,7 +260,7 @@ namespace Nexo.Ui.Desktop
             var hechas = secciones.Where(x => !x.Revisando && x.Consulta is not null).ToList();
             if (hechas.Count == 0)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Sin revisar todavía",
-                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi y las aplicaciones. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
+                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones y qué programas usaron la cámara y el micrófono. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
 
             Indicador peor = hechas.Select(x => x.Consulta!.Valor is RevisionDeSeccion v ? IndicadorSeccion(v) : Indicador.SinDatos).Aggregate(Mas);
             bool todas = hechas.Count == secciones.Count;
@@ -268,7 +270,7 @@ namespace Nexo.Ui.Desktop
             if (peor == Indicador.Atencion) return (Indicador.Atencion, "Hay cosas que revisar", "Mira las secciones marcadas en amarillo.");
             if (!todas || peor == Indicador.SinDatos)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Revisión parcial", "Faltan secciones por revisar o alguna no se pudo revisar: esto no significa que esté bien.");
-            return (Indicador.Correcto, "Sin problemas en lo que se pudo revisar", "Las tres revisiones salieron sin hallazgos que pidan acción. Solo se miran las cosas descritas abajo: no es una garantía de seguridad.");
+            return (Indicador.Correcto, "Sin problemas en lo que se pudo revisar", "Las revisiones salieron sin hallazgos que pidan acción. Solo se miran las cosas descritas abajo: no es una garantía de seguridad.");
         }
 
         private static Indicador IndicadorSeccion(RevisionDeSeccion v)
@@ -288,6 +290,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Cuentas => n + (n == 1 ? " cuenta local" : " cuentas locales"),
             SeccionDeSeguridad.Wifi => n + (n == 1 ? " red guardada" : " redes guardadas"),
             SeccionDeSeguridad.FallosConocidos => n + (n == 1 ? " programa consultado" : " programas consultados"),
+            SeccionDeSeguridad.Dispositivos => n + (n == 1 ? " programa en el registro" : " programas en el registro"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };
     }

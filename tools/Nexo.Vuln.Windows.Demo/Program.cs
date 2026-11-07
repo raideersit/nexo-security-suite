@@ -68,6 +68,7 @@ namespace Nexo.Vuln.Windows.Demo
             ProbarPestanaDeSeguridad();
             ProbarPestanaDeContrasenas();
             ProbarVigilanteDeSesion();
+            ProbarDispositivosReales();
             // Sale a Internet (NVD): solo si se pide.
             if (Environment.GetCommandLineArgs().Contains("--nvd")) ProbarNvdReal();
             else Console.WriteLine("7. NVD real: OMITIDA (sale a Internet; se ejecuta con --nvd)");

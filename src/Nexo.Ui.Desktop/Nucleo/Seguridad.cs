@@ -16,7 +16,9 @@ namespace Nexo.Ui.Desktop.Nucleo
         Wifi,
         Aplicaciones,
         /// <summary>Cruce de las aplicaciones con los fallos conocidos de NVD. Envia nombre y version a Internet: solo con su propio boton.</summary>
-        FallosConocidos
+        FallosConocidos,
+        /// <summary>Que programas usaron la camara y el microfono (registro de Windows del usuario). Solo lectura, local, sin red.</summary>
+        Dispositivos
     }
 
     /// <summary>
@@ -80,6 +82,13 @@ namespace Nexo.Ui.Desktop.Nucleo
                         string? nota = s.Estado == EstadoDeLecturaWifi.SinAdaptador ? "Este equipo no tiene adaptador Wi-Fi: no hay redes que revisar." : null;
                         return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, AnalizadorDeWifi.Analizar(s), _reloj(), nota,
                             s.Adaptadores.Sum(a => a.Perfiles.Count)));
+                    }
+                    case SeccionDeSeguridad.Dispositivos:
+                    {
+                        InstantaneaDeDispositivos s = await Task.Run(() => LectorDeDispositivosWindows.Leer(), ct).ConfigureAwait(false);
+                        DateTimeOffset ahora = _reloj();
+                        return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, AnalizadorDeDispositivos.Analizar(s, ahora), ahora,
+                            Elementos: s.Estado == EstadoDeLecturaDispositivos.Correcta ? s.Registros.Count : null));
                     }
                     default:
                     {

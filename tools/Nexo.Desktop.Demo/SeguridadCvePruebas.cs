@@ -55,7 +55,7 @@ namespace Nexo.Desktop.Demo
                 "la cuarta seccion se llama «Consultar NVD»; las otras tres siguen con «Revisar»");
             Check(m.Secciones[3].Resumen.Contains("Opcional") && m.Secciones[3].Resumen.Contains("nombre y la versión") && m.Secciones[3].Resumen.Contains("antes te lo pregunta"), "antes de pulsar, la seccion explica que es opcional y que solo se envian nombre y version");
             Esperar(m.RevisarTodoAsync());
-            Check(f.ConsultasNvd.Count == 0 && f.Llamadas.SequenceEqual(new[] { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones }),
+            Check(f.ConsultasNvd.Count == 0 && f.Llamadas.SequenceEqual(new[] { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos }),
                 "«Revisar todo» NO consulta NVD (no envia nada a Internet a espaldas del usuario)", f.ConsultasNvd.Count.ToString());
             Check(m.Secciones[3].Estado == "Sin revisar" && m.Indicador == Indicador.Correcto && m.Titulo == "Sin problemas en lo que se pudo revisar",
                 "y el resultado general de las tres locales no cambia por el cruce que no se hizo", m.Titulo);

@@ -68,7 +68,7 @@ namespace Nexo.Desktop.Demo
             var rt = new RastroFalso();
             var mt = new SeguridadModelo(new SeguridadConNvdFalsa()) { Rastro = rt };
             Esperar(mt.RevisarTodoAsync());
-            Check(rt.Avisos.Select(a => a.Tipo).SequenceEqual(new[] { "seguridad.cuentas", "seguridad.wifi", "seguridad.aplicaciones" }), "«Revisar todo» avisa de las 3 locales, nunca de NVD", Todo(rt));
+            Check(rt.Avisos.Select(a => a.Tipo).SequenceEqual(new[] { "seguridad.cuentas", "seguridad.wifi", "seguridad.aplicaciones", "seguridad.dispositivos" }), "«Revisar todo» avisa de las 4 locales, nunca de NVD", Todo(rt));
             var rx = new RastroFalso { Lanzar = true };
             var mx = new SeguridadModelo(new SeguridadFalsa()) { Rastro = rx };
             Esperar(mx.RevisarAsync(SeccionDeSeguridad.Cuentas));
