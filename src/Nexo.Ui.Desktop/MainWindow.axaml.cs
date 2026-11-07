@@ -29,6 +29,13 @@ namespace Nexo.Ui.Desktop
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
         private readonly DispatcherTimer _temporizadorDeBoveda;
+#if WINDOWS
+        private readonly Nexo.Ui.Desktop.Nucleo.VigilanteDeSesionWindows? _vigilante;
+#endif
+        internal const string MotivoAlMinimizar = "La bóveda se bloqueó porque minimizaste la ventana.";
+
+        /// <summary>Bloquea la boveda por una razon de seguridad del equipo (solo si esta abierta). Lo usan el minimizar y el vigilante de sesion.</summary>
+        internal bool BloquearBovedaPorSeguridad(string motivo) => Contrasenas.BloquearPorSeguridad(motivo);
         private bool _cerrandoLaBoveda;
 
         /// <summary>Solo para el previsualizador de Avalonia: sin servicio, y lo dice.</summary>
@@ -113,6 +120,16 @@ namespace Nexo.Ui.Desktop
             AddHandler(PointerPressedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(PointerMovedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
 
+            // La boveda tambien se bloquea al minimizar la ventana y cuando el equipo deja de estar a la vista (sesion bloqueada, suspension).
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == WindowStateProperty && WindowState == Avalonia.Controls.WindowState.Minimized) BloquearBovedaPorSeguridad(MotivoAlMinimizar);
+            };
+#if WINDOWS
+            _vigilante = new Nexo.Ui.Desktop.Nucleo.VigilanteDeSesionWindows();
+            _vigilante.SesionAmenazada += motivo => Dispatcher.UIThread.Post(() => BloquearBovedaPorSeguridad(motivo));
+#endif
+
             Opened += async (_, _) =>
             {
                 await Modelo.ActualizarAsync();
@@ -138,6 +155,9 @@ namespace Nexo.Ui.Desktop
             };
             Closed += (_, _) =>
             {
+#if WINDOWS
+                _vigilante?.Dispose();
+#endif
                 _temporizador.Stop();
                 _temporizadorDeEscaneo.Stop();
                 _temporizadorDeBoveda.Stop();

@@ -1368,6 +1368,17 @@ Convierte «una versión más nueva» en «tu versión tiene estos fallos». Gra
 - **SIN PROBAR / límites:** la ventana real con el botón (solo modelo y pantalla simulada); Java 11/17 y el JDK de Oracle no se cruzan todavía; un CPE de NVD puede cambiar y devolver 0 (los controles `--nvd` lo detectan: repetirlos de vez en cuando); sin clave de NVD el límite es estricto.
   El usuario tiene WinRAR 7.01 con fallos explotados: debe actualizar con `winget upgrade --id RARLab.WinRAR` (Nexo no lo actualiza).
 
+## 2aa. La bóveda se bloquea al minimizar y al bloquear Windows (2026-11-07, en el HP)
+
+Antes la bóveda solo se bloqueaba a mano, al cerrar o tras 5 min sin usar la ventana. Ahora también cuando el equipo deja de estar a la vista.
+
+- **Disparadores:** minimizar la ventana (`MainWindow`, cambio de `WindowState`) y, en Windows, `VigilanteDeSesionWindows` (`Nucleo/VigilanteDeSesion.cs`, escucha `SystemEvents`): sesión bloqueada, cierre de sesión, desconexión (consola o escritorio remoto) y suspensión.
+  Desbloquear la sesión, reanudar, conectar o cambiar batería/corriente NO bloquean. Restaurar la ventana NO desbloquea la bóveda.
+- **Modelo:** `ContrasenasModelo.BloquearPorSeguridad(motivo)`: solo actúa con la bóveda abierta. Si hay una operación en curso (guardar, copia…) NO la interrumpe: queda pendiente y bloquea al terminar. Bloquear borra el portapapeles si sigue siendo lo que puso Nexo (como siempre).
+- **Dependencia nueva (gratuita, oficial de Microsoft, solo `net8.0-windows`):** `Microsoft.Win32.SystemEvents` 8.0.0. Sin P/Invoke propio.
+- **Pruebas:** `Nexo.Desktop.Demo` (modelo con operación en curso, ventana minimizada con contraseña copiada, restaurar no desbloquea, motivo de sesión) y `Nexo.Vuln.Windows.Demo` §8 (mapeo de eventos y suscripción REAL a `SystemEvents`); todas las reglas rotas a propósito (8). Se quitó una línea redundante que la rotura demostró sin efecto.
+- **SIN PROBAR:** un bloqueo REAL de la sesión de Windows o una suspensión real (lo haría el usuario: Win+L con la bóveda abierta debería mostrarla bloqueada al volver); minimizar con clic real en la ventana. Un minimizado por «Mostrar escritorio» (Win+D) debería contar igual; sin comprobar.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

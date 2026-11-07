@@ -61,6 +61,7 @@ namespace Nexo.Ui.Desktop
         private FaseDeBoveda _fase;
         private string _mensaje = "";
         private bool _ocupado;
+        private string? _bloqueoPendiente; // un bloqueo pedido mientras habia una operacion en curso: se aplica al terminar, nunca la interrumpe
         private string _filtro = "";
         private bool _mostrar;
         private bool _edicion;
@@ -98,7 +99,18 @@ namespace Nexo.Ui.Desktop
         public bool EsAbierta => _fase == FaseDeBoveda.Abierta;
         public string Archivo => "Archivo: " + _ruta;
         public string Mensaje { get => _mensaje; private set { if (_mensaje == value) return; _mensaje = value; Avisar(); } }
-        public bool Ocupado { get => _ocupado; private set { if (_ocupado == value) return; _ocupado = value; RecalcularEstado(); } }
+        public bool Ocupado
+        {
+            get => _ocupado;
+            private set
+            {
+                if (_ocupado == value) return;
+                _ocupado = value;
+                RecalcularEstado();
+                if (!value && _bloqueoPendiente is string motivo && _fase == FaseDeBoveda.Abierta) Bloquear(motivo);
+                if (!value) _bloqueoPendiente = null;
+            }
+        }
         public bool NoOcupado => !_ocupado;
 
         public string Titulo { get; private set; } = "";
@@ -255,6 +267,18 @@ namespace Nexo.Ui.Desktop
             _fase = File.Exists(_ruta) ? FaseDeBoveda.Bloqueada : FaseDeBoveda.SinBoveda;
             Mensaje = aviso ?? "Bóveda bloqueada.";
             Recalcular();
+        }
+
+        /// <summary>
+        /// Bloqueo pedido por la seguridad del equipo (ventana minimizada, sesion de Windows bloqueada, suspension). Solo actua con la
+        /// boveda abierta. Si hay una operacion en curso (guardar...) no la interrumpe: bloquea en cuanto termina. true = bloqueo ahora.
+        /// </summary>
+        public bool BloquearPorSeguridad(string aviso)
+        {
+            if (_fase != FaseDeBoveda.Abierta) return false;
+            if (_ocupado) { _bloqueoPendiente = aviso; return false; }
+            Bloquear(aviso);
+            return true;
         }
 
         // ---------------------------------------------------------------- inactividad

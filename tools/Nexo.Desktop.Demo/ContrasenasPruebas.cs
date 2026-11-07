@@ -449,6 +449,44 @@ namespace Nexo.Desktop.Demo
 
         private static void Clic(Button b) { b.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs(); }
 
+        public static void ProbarBloqueoDeSeguridadDelModelo()
+        {
+            Console.WriteLine("Contraseñas: bloqueo por seguridad (modelo)");
+            string dir = Path.Combine(Path.GetTempPath(), "nexo-bloqueo-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var c = new Controles();
+                var m = Modelo(Ruta(dir, "b"), c, new PortapapelesFalso());
+                Check(!m.BloquearPorSeguridad("x") && m.Fase == FaseDeBoveda.SinBoveda, "sin bóveda no hace nada");
+                Esperar(m.CrearAsync(Maestra, Maestra));
+                Check(m.EsAbierta, "(preparacion) bóveda creada y abierta");
+                var ocupado = typeof(ContrasenasModelo).GetProperty("Ocupado")!;
+
+                // Una operacion en curso no se interrumpe: el bloqueo espera a que termine.
+                ocupado.SetValue(m, true);
+                Check(!m.BloquearPorSeguridad("motivo en espera") && m.Fase == FaseDeBoveda.Abierta, "con una operación en curso NO la interrumpe: la bóveda sigue abierta");
+                ocupado.SetValue(m, false);
+                Check(m.Fase == FaseDeBoveda.Bloqueada && m.Mensaje == "motivo en espera", "en cuanto la operación termina, se bloquea con el motivo pedido", m.Fase + " / " + m.Mensaje);
+
+                // Un bloqueo pendiente no sobrevive a un bloqueo a mano ni se aplica a una sesion nueva.
+                Esperar(m.DesbloquearAsync(Maestra));
+                ocupado.SetValue(m, true);
+                m.BloquearPorSeguridad("pendiente viejo");
+                m.Bloquear();
+                ocupado.SetValue(m, false);
+                Esperar(m.DesbloquearAsync(Maestra));
+                ocupado.SetValue(m, true);
+                ocupado.SetValue(m, false);
+                Check(m.Fase == FaseDeBoveda.Abierta, "un bloqueo pendiente se olvida si ya se bloqueó a mano: no cierra la sesión siguiente");
+
+                // Abierta y libre: bloquea al instante.
+                Check(m.BloquearPorSeguridad("ahora") && m.Fase == FaseDeBoveda.Bloqueada && m.Mensaje == "ahora", "abierta y libre: bloquea al instante");
+                Check(!m.BloquearPorSeguridad("de nuevo") && m.Mensaje == "ahora", "bloqueada: no cambia nada");
+            }
+            finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
+        }
+
         private static void ProbarVentanaDeContrasenas(MainWindow w, ContrasenasModelo m, PortapapelesFalso clip, string? captura)
         {
             Console.WriteLine("Pestaña Contraseñas: la ventana");
@@ -516,6 +554,29 @@ namespace Nexo.Desktop.Demo
             Check(!w.PanelDeAuditoria.IsVisible, "antes de pulsar, no hay resultado de filtraciones a la vista");
             Clic(w.BotonAuditar);
             Check(EsperarA(() => m.HayAuditoria && !m.Ocupado) && w.PanelDeAuditoria.IsVisible && w.ResumenDeAuditoria.Text!.Contains("no significa que sean fuertes"), "«Comprobar filtraciones»: aparece el resultado y su aviso");
+
+            // bloqueo por seguridad: minimizar la ventana y sesion/suspension (la ventana lo llama con el motivo)
+            m.Seleccionada = m.Entradas[0];
+            Clic(w.BotonCopiarContrasena);
+            EsperarA(() => clip.Texto is not null);
+            Check(m.EsAbierta && clip.Texto is not null, "control: abierta y con una contraseña copiada antes de minimizar");
+            w.WindowState = Avalonia.Controls.WindowState.Minimized;
+            Dispatcher.UIThread.RunJobs();
+            Check(EsperarA(() => m.Fase == FaseDeBoveda.Bloqueada) && m.Mensaje == MainWindow.MotivoAlMinimizar, "al MINIMIZAR la ventana, la bóveda se bloquea y dice por qué", m.Mensaje);
+            Check(EsperarA(() => clip.Texto is null), "y la contraseña copiada se borra del portapapeles");
+            Check(w.PanelBloqueada.IsVisible && !w.PanelAbierta.IsVisible, "y la ventana muestra el panel de desbloquear");
+            w.WindowState = Avalonia.Controls.WindowState.Normal;
+            Dispatcher.UIThread.RunJobs();
+            Check(m.Fase == FaseDeBoveda.Bloqueada, "al restaurar la ventana NO se desbloquea sola");
+            w.CajaMaestra.Text = "una-maestra-bien-larga-1";
+            Clic(w.BotonDesbloquear);
+            Check(EsperarA(() => m.EsAbierta), "(preparacion) se desbloquea con la maestra");
+            Check(w.BloquearBovedaPorSeguridad("La bóveda se bloqueó porque se bloqueó la sesión de Windows.") && m.Fase == FaseDeBoveda.Bloqueada && m.Mensaje == "La bóveda se bloqueó porque se bloqueó la sesión de Windows.",
+                "la sesión de Windows bloqueada (o suspensión) bloquea la bóveda con su propio motivo");
+            Check(!w.BloquearBovedaPorSeguridad("otra vez") && m.Mensaje == "La bóveda se bloqueó porque se bloqueó la sesión de Windows.", "ya bloqueada, un segundo aviso no cambia nada ni pisa el mensaje");
+            w.CajaMaestra.Text = "una-maestra-bien-larga-1";
+            Clic(w.BotonDesbloquear);
+            Check(EsperarA(() => m.EsAbierta), "(preparacion) se vuelve a desbloquear");
 
             // cerrar la ventana con una contraseña copiada: se espera a borrarla
             m.Seleccionada = m.Entradas[0];
