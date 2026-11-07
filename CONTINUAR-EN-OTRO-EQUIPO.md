@@ -1146,6 +1146,32 @@ Segundo paso de M3, en `Nexo.Modules.Identity/Filtraciones`. **Gratuito: la API 
 - **No cubierto:** nada conectado al servicio ni a la ventana; no comprueba al teclear una contraseña nueva; no hay comprobación de correos (HIBP de pago, omitido
   por la restricción de costo cero); un servicio caído no tiene reintentos; sin caché (cada auditoría vuelve a consultar).
 
+## 2s. Vulnerabilidades del sistema, 5b: cuentas y contraseñas (2026-11-07, en el HP)
+
+Primer paso del bloque de vulnerabilidades (funciones 5a/5b/5c del plan; aquí solo **5b**). Código en `Nexo.Modules.Threats/Vulnerabilidades` (portable),
+`Nexo.Modules.Threats.Windows/LectorDeCuentasWindows` y `Nexo.Native/Accounts/CuentasLocales`. Sin commit.
+
+- **Qué lee (sin administrador, sin red, solo metadatos):** cuentas locales con `NetUserEnum` nivel 20 (nombre, banderas `UF_*`, RID), política local con
+  `NetUserModalsGet` niveles 0 y 3 (longitud mínima, caducidad, historial, umbral de bloqueo) e inicio automático por el registro (Winlogon).
+- **Líneas rojas respetadas:** no toca la SAM, no lee contraseñas ni hashes. Del autologon solo mira si EXISTE el valor `DefaultPassword`, **nunca su contenido**;
+  el modelo (`EstadoDeAutologon`) ni siquiera tiene dónde guardarlo (comprobado por reflexión en las pruebas). Límite: el autologon que guarda la clave como
+  secreto de LSA (Sysinternals Autologon) no es visible desde aquí.
+- **Reglas (`AnalizadorDeCuentas`):** autologon con contraseña en texto plano (Alta); autologon activo (Media); Invitado habilitada (Media, **detectada por
+  RID 501, no por nombre**: el nombre cambia con el idioma); «contraseña no requerida» (Media; **Alta** si es el Administrador integrado; el texto aclara que NO
+  significa que no tenga contraseña); Administrador integrado habilitado (Baja); contraseña que no caduca (solo Info: hoy no se recomienda forzar la caducidad);
+  cuenta bloqueada (Baja); política con longitud mínima 0 (Media) o < 8 (Baja); sin bloqueo por intentos (Baja). Las cuentas deshabilitadas no dan hallazgos.
+- **Honestidad:** cada parte que no se pudo leer es «no evaluado» y `Completo` pasa a false; una revisión incompleta sin hallazgos se publica con severidad
+  **Media** y dice «incompleta», nunca «sin hallazgos». `EventosDeVulnerabilidades.RevisionDeCuentas` publica una tabla; los nombres con `|` o saltos de línea no
+  rompen la tabla.
+- **Probado:** `Nexo.Vuln.Demo` (portable, 43 comprobaciones; con dientes: 5 roturas, deshabilitadas, Invitado por nombre, `Completo` siempre true, incompleta como
+  Info y autologon apagado marcado hacen fallar las pruebas). **Contra el HP real** (`Nexo.Vuln.Windows.Demo`, sin administrador): 5 cuentas (Administrador 500,
+  alvar 1032, DefaultAccount 503, Invitado 501, WDAGUtilityAccount 504), cruzadas con `Get-LocalUser` y `net accounts`: mismas cuentas y RID, política idéntica
+  (longitud mínima 0, caducidad 42 días, sin historial, bloqueo a los 10 intentos).
+- **Hallazgos reales en el HP:** (1) **la política local no exige longitud mínima (0)** — Media; (2) la contraseña de `alvar` no caduca — Info. Autologon inactivo.
+  Ninguna cuenta con «contraseña no requerida» habilitada.
+- **No cubierto:** sin cableado a servicio/ventana/bandeja; no mira pertenencia a grupos (quién es administrador además del RID 500); no revisa complejidad de
+  contraseñas (requiere `secedit` como administrador); no cubre cuentas de dominio ni Microsoft Account en línea; faltan 5a (aplicaciones desactualizadas) y 5c (Wi-Fi).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

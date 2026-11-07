@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de la lectura REAL de cuentas, politica de contrasenas e inicio automatico. Solo lee metadatos, sin administrador
+         y sin red. NO imprime contrasenas ni hashes (no se leen). -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Vuln.Windows.Demo</RootNamespace>
+    <AssemblyName>nexo-vuln-windows-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+  </ItemGroup>
+
+</Project>
