@@ -631,6 +631,84 @@
                     </HeaderedContentControl>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="Seguridad">
+                <ScrollViewer x:Name="PanelDeSeguridad" x:DataType="local:SeguridadModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Revisión de seguridad del equipo">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                        Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                <Button x:Name="BotonRevisarTodo" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                        Content="Revisar todo" IsEnabled="{Binding PuedeRevisarTodo}" Click="RevisarTodo" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock x:Name="TituloDeSeguridad" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DockPanel>
+                        </HeaderedContentControl>
+
+                        <ItemsControl x:Name="ListaDeSecciones" ItemsSource="{Binding Secciones}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:FilaDeSeccion">
+                                    <HeaderedContentControl Header="{Binding Nombre}" Margin="0,0,0,10">
+                                        <StackPanel Spacing="4">
+                                            <DockPanel>
+                                                <Border DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Top"
+                                                        Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0" Content="Revisar"
+                                                        Tag="{Binding Seccion}" IsEnabled="{Binding PuedeRevisar}" Click="RevisarSeccion" />
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding Estado}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Resumen}" TextWrapping="Wrap" Foreground="#404040" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <Border Background="White" BorderBrush="#808080" BorderThickness="1" Margin="24,2,0,0"
+                                                    IsVisible="{Binding HayHallazgos}">
+                                                <ItemsControl ItemsSource="{Binding Hallazgos}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="local:FilaDeHallazgoVista">
+                                                            <StackPanel Margin="6,4,6,6" Spacing="2">
+                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                    <Border Width="10" Height="10" VerticalAlignment="Center"
+                                                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                                    <TextBlock Text="{Binding Gravedad}" FontWeight="Bold" />
+                                                                    <TextBlock Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                                <TextBlock Margin="16,0,0,0" Text="{Binding Sujeto}" Foreground="#404040" TextWrapping="Wrap"
+                                                                           IsVisible="{Binding TieneSujeto}" />
+                                                                <TextBlock Margin="16,0,0,0" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                                <TextBlock Margin="16,0,0,0" Text="{Binding Recomendacion, StringFormat='Qué hacer: {0}'}" TextWrapping="Wrap" Foreground="#404040" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Border>
+
+                                            <StackPanel Margin="24,2,0,0" Spacing="2" IsVisible="{Binding HayNoEvaluado}">
+                                                <TextBlock Text="No se pudo revisar todo (esto NO significa que esté bien):" Foreground="#800000" FontWeight="Bold" TextWrapping="Wrap" />
+                                                <ItemsControl ItemsSource="{Binding NoEvaluado}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Foreground="#800000" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </HeaderedContentControl>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <HeaderedContentControl Header="Qué se revisa">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="Solo se lee: ninguna revisión cambia nada en el equipo. Cuentas: las cuentas locales, su política de contraseñas y el inicio de sesión automático; nunca se leen contraseñas ni hashes, y de la contraseña del inicio automático solo se mira si existe, no su valor. Wi-Fi: el tipo de seguridad de cada red guardada (abierta, WEP, TKIP) y de la conexión actual; nunca se pide la clave. Aplicaciones: usa winget, que consulta Internet, por eso solo se ejecuta cuando pulsas el botón; solo entiende winget en español, y solo conoce las aplicaciones que sabe identificar, así que no revisa todo el software instalado. Una versión más nueva no significa que la tuya sea vulnerable. Si algo no se puede revisar, se dice: nunca se muestra como «sin problemas»." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </classic:ClassicWindow>

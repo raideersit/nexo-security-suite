@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+    <!-- El adaptador real de la pestaña Seguridad de la ventana (ServicioDeSeguridadLocal) y su modelo. -->
+    <ProjectReference Include="..\..\src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj" />
   </ItemGroup>
 
 </Project>

@@ -65,10 +65,45 @@ namespace Nexo.Vuln.Windows.Demo
 
             ProbarWifi();
             ProbarWinget();
+            ProbarPestanaDeSeguridad();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
+        }
+
+        private static void ProbarPestanaDeSeguridad()
+        {
+            Console.WriteLine("5. La pestaña «Seguridad» de la ventana, con el adaptador REAL (ServicioDeSeguridadLocal)");
+            var servicio = new Nexo.Ui.Desktop.Nucleo.ServicioDeSeguridadLocal();
+            var modelo = new Nexo.Ui.Desktop.SeguridadModelo(servicio);
+            Check(modelo.Titulo == "Sin revisar todavía", "al crearse no revisa nada");
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            modelo.RevisarTodoAsync().GetAwaiter().GetResult();
+            Console.WriteLine("      INFO: «Revisar todo» tardo " + sw.ElapsedMilliseconds + " ms");
+
+            foreach (var f in modelo.Secciones)
+            {
+                Console.WriteLine("      INFO: [" + f.Nombre + "] " + f.Estado + " — " + f.Resumen);
+                foreach (var h in f.Hallazgos) Console.WriteLine("          · " + h.Gravedad + ": " + h.Titulo + (h.TieneSujeto ? " (" + h.Sujeto + ")" : ""));
+                foreach (string n in f.NoEvaluado) Console.WriteLine("          ! " + n);
+            }
+            Console.WriteLine("      INFO: general: " + modelo.Titulo + " (" + modelo.Indicador + ")");
+
+            Check(modelo.Secciones.All(f => f.Estado != "No se pudo revisar" && f.Estado != "Sin revisar"), "las 3 secciones se revisaron de verdad (ninguna «No se pudo revisar»)");
+            Check(modelo.Secciones[0].Resumen.Contains("5 cuentas locales"), "Cuentas: leyo las 5 cuentas locales del HP", modelo.Secciones[0].Resumen);
+            Check(modelo.Secciones[1].Resumen.Contains("16 redes guardadas"), "Wi-Fi: leyo las 16 redes guardadas del HP", modelo.Secciones[1].Resumen);
+            Check(modelo.Secciones[2].Resumen.Contains("aplicaciones con versión nueva"), "Aplicaciones: leyo la lista de winget", modelo.Secciones[2].Resumen);
+            Check(modelo.Secciones[0].Hallazgos.Any(h => h.Titulo.Contains("longitud minima")), "Cuentas: aparece el hallazgo real de la politica sin longitud minima");
+            Check(modelo.Secciones[2].Hallazgos.Any(h => h.Gravedad == "Media" && h.TieneSujeto), "Aplicaciones: al menos un programa muy atacado marcado Media (Java/WinRAR)");
+            Check(modelo.Indicador != Nexo.Ui.Desktop.Nucleo.Indicador.Correcto, "con esos hallazgos el general NO es verde");
+            Check(!modelo.Secciones.Any(f => f.Revisando) && modelo.PuedeRevisarTodo, "al terminar, nada queda «Revisando...» y se puede volver a pulsar");
+
+            // Una segunda revision de una sola seccion reemplaza el resultado (no lo duplica).
+            int antes = modelo.Secciones[0].Hallazgos.Count;
+            modelo.RevisarAsync(Nexo.Ui.Desktop.Nucleo.SeccionDeSeguridad.Cuentas).GetAwaiter().GetResult();
+            Check(modelo.Secciones[0].Hallazgos.Count == antes, "revisar otra vez las cuentas da lo mismo, no duplica los hallazgos", antes + " -> " + modelo.Secciones[0].Hallazgos.Count);
         }
 
         private static void ProbarWinget()

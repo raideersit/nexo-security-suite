@@ -13,7 +13,7 @@ using Nexo.Ui.Tray.Nucleo;
 
 namespace Nexo.Desktop.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
         private static readonly DateTimeOffset Ayer = new DateTimeOffset(2026, 11, 4, 21, 5, 0, TimeSpan.Zero);
@@ -43,6 +43,7 @@ namespace Nexo.Desktop.Demo
             ProbarLimpieza();
             ProbarTiempoReal();
             ProbarDisco();
+            ProbarSeguridad();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -1252,17 +1253,19 @@ namespace Nexo.Desktop.Demo
             Esperar(vd.LeerAsync());
             var disco = new DiscoFalso { Valor = DiscoPorPipe(vd) };
             var dm = new DiscoModelo(disco);
+            var seguridadFalsa = new SeguridadFalsa();
+            var sm = new SeguridadModelo(seguridadFalsa);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm, dm);
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
                 Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
-                Check(w.Pestanas.ItemCount == 7 && w.Pestanas.SelectedIndex == 0, "7 pestañas y se abre en «Estado»");
+                Check(w.Pestanas.ItemCount == 8 && w.Pestanas.SelectedIndex == 0, "8 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),
                     "los 5 botones de la barra tienen icono grande (24) y pequeño (16)");
@@ -1372,6 +1375,8 @@ namespace Nexo.Desktop.Demo
                     w.CaptureRenderedFrame()?.Save(septima);
                     Console.WriteLine("           captura: " + septima);
                 }
+
+                ProbarVentanaDeSeguridad(w, sm, seguridadFalsa, captura);
 
                 w.Pestanas.SelectedIndex = 6;
                 Dispatcher.UIThread.RunJobs();

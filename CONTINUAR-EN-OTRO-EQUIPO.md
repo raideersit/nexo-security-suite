@@ -1225,6 +1225,32 @@ Tercer y último paso del bloque de vulnerabilidades. Código: `Nexo.Modules.Thr
 - **No cubierto:** sin cruce con CVE (OSV.dev, gratuito: posible siguiente paso); sin inventario del registro (aplicaciones que winget no reconoce quedan fuera y no se dice
   cuántas son); ejecución desde el servicio; sin cableado a ventana/bandeja.
 
+## 2v. Ventana: pestaña «Seguridad» (2026-11-07, en el HP)
+
+Primer paso del cableado de los módulos nuevos a la ventana (`src/Nexo.Ui.Desktop`). **Hecho: la pestaña «Seguridad» (8.ª pestaña).** Falta la pestaña «Contraseñas»
+(bóveda). Sin commit.
+
+- **Decisión de arquitectura: corre en el proceso de la ventana, con el usuario, NO por el servicio.** `winget` necesita sesión de usuario; la bóveda (siguiente paso) no debe
+  pasar nunca por un proceso SYSTEM; y nada de esto necesita privilegios. Por eso no hay métodos nuevos en el pipe. Consecuencia: **nada se publica al vault de reportes
+  desde la ventana** (el `ReportWriter` es del servicio); los eventos `RevisionDeCuentas/Wifi/Aplicaciones` existen pero la ventana aún no los escribe.
+- **Mismo patrón que las demás pestañas:** `Nucleo/Seguridad.cs` (`IServicioDeSeguridad`, `ServicioDeSeguridadNoDisponible`, y `ServicioDeSeguridadLocal` solo con `#if WINDOWS`),
+  `SeguridadModelo.cs` (modelo + `ResumirSeguridad`), XAML en `MainWindow.axaml` (estilo clásico: grupos con encabezado, cuadrado de color + texto, tablas gris/blanco) y
+  `Fuentes.SeguridadPorDefecto()`. `Nexo.Ui.Desktop` referencia ahora `Nexo.Modules.Threats` (todos los destinos) y `Nexo.Modules.Threats.Windows` (solo Windows).
+- **Solo lectura y a petición:** «Revisar todo» y un «Revisar» por sección. **Entrar en la pestaña NO revisa nada** (la de aplicaciones consulta Internet con winget).
+- **Reglas de la pestaña (probadas):** nunca se muestra un resultado anterior como el actual (al revisar de nuevo se borra y, si falla, se dice por qué y NO reaparece el viejo);
+  nunca verde si no se sabe (revisión incompleta, fallida, parcial o sin revisar); el peor manda (alerta > atención > no se sabe > correcto); el general solo es verde si las
+  **tres** se revisaron y salieron bien («Sin problemas en lo que se pudo revisar», y aclara que no es una garantía); solo notas informativas = «sin problemas» con la nota visible
+  y sin color de alarma; «sin adaptador Wi-Fi» = «No aplica» (un hecho); un segundo clic durante una revisión vuelve al instante y no lanza otra.
+- **Probado:** `Nexo.Desktop.Demo` (portable, ventana de verdad sin pantalla con Avalonia.Headless): modelo (≈35 comprobaciones), pestaña cargada, 8 pestañas, y captura
+  (`--captura f.png` → `f-seguridad.png`). **Con dientes** (8 roturas): verde con revisión parcial, orden de gravedad, revisar sola al entrar, incompleta como completa, no borrar
+  lo anterior, quitar la guarda del doble clic (hizo COLGAR la prueba; se reescribió para que falle en vez de colgarse). Una rotura (notas informativas) no hace fallar nada: es
+  código redundante (la nota cae en la rama «sin problemas» del `switch`), no una prueba débil. **Contra el HP real, a través del modelo con el adaptador real**
+  (`Nexo.Vuln.Windows.Demo`, sección 5): 5 cuentas, 16 redes, 21 aplicaciones; hallazgos reales (política sin longitud mínima, Java 8 y WinRAR Media); general «Hay cosas que revisar».
+- **PENDIENTE DE PULIDO (textos):** los textos de los módulos nuevos (`ModeloDeCuentas`, `ModeloWifi`, `ModeloDeAplicaciones`, `EventosDeVulnerabilidades`) están **sin tildes ni eñes**
+  («contrasena», «politica», «esta desactualizado») por convención heredada; en la ventana se ven mal. Arreglarlo exige tocar también las pruebas que comparan esos textos.
+- **SIN PROBAR:** la ventana real con pantalla (solo sin pantalla y con captura); el botón «Revisar» dentro de la plantilla (el manejador de eventos en una `DataTemplate` se
+  resuelve en la ventana: compila y carga, pero no se simuló un clic real).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

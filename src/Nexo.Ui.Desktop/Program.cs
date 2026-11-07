@@ -17,6 +17,7 @@ namespace Nexo.Ui.Desktop
             App.Limpieza = Fuentes.LimpiezaPorDefecto(pipe);
             App.TiempoReal = Fuentes.TiempoRealPorDefecto(pipe);
             App.Disco = Fuentes.DiscoPorDefecto(pipe);
+            App.Seguridad = Fuentes.SeguridadPorDefecto();
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
 

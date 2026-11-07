@@ -23,6 +23,7 @@ namespace Nexo.Ui.Desktop
         private const int PestanaLimpieza = 4;
         private const int PestanaDisco = 5;
         private const int PestanaCuarentena = 6;
+        private const int PestanaSeguridad = 7;
 
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
@@ -35,11 +36,12 @@ namespace Nexo.Ui.Desktop
                                    new LimpiezaModelo(new ServicioDeLimpiezaNoDisponible("vista de diseño")),
                                    new TiempoRealModelo(new ServicioDeTiempoRealNoDisponible("vista de diseño"),
                                                         new ServicioDeEscaneoNoDisponible("vista de diseño")),
-                                   new DiscoModelo(new ServicioDeDiscoNoDisponible("vista de diseño"))) { }
+                                   new DiscoModelo(new ServicioDeDiscoNoDisponible("vista de diseño")),
+                                   new SeguridadModelo(new ServicioDeSeguridadNoDisponible("vista de diseño"))) { }
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
-                          DiscoModelo disco)
+                          DiscoModelo disco, SeguridadModelo seguridad)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -54,6 +56,7 @@ namespace Nexo.Ui.Desktop
             Limpieza = limpieza;
             TiempoReal = tiempoReal;
             Disco = disco;
+            Seguridad = seguridad;
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
@@ -61,6 +64,8 @@ namespace Nexo.Ui.Desktop
             PanelDeLimpieza.DataContext = limpieza;
             PanelDeTiempoReal.DataContext = tiempoReal;
             PanelDeDisco.DataContext = disco;
+            // «Seguridad» NO revisa sola al entrar en la pestaña: la de aplicaciones consulta Internet (winget), asi que solo corre cuando el usuario lo pide.
+            PanelDeSeguridad.DataContext = seguridad;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, _) =>
             {
@@ -68,8 +73,7 @@ namespace Nexo.Ui.Desktop
                 else if (Pestanas.SelectedIndex == PestanaEscaneo) await Escaneo.ActualizarProgramadasAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
-                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
-                // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
+                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();                // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
 
@@ -113,6 +117,14 @@ namespace Nexo.Ui.Desktop
         public LimpiezaModelo Limpieza { get; }
         public TiempoRealModelo TiempoReal { get; }
         public DiscoModelo Disco { get; }
+        public SeguridadModelo Seguridad { get; }
+
+        private async void RevisarTodo(object? sender, RoutedEventArgs e) => await Seguridad.RevisarTodoAsync();
+
+        private async void RevisarSeccion(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Avalonia.Controls.Control { Tag: SeccionDeSeguridad seccion }) await Seguridad.RevisarAsync(seccion);
+        }
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {

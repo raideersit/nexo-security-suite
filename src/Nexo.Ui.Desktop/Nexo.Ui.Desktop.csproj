@@ -36,7 +36,14 @@
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\RevisionDeLoNoVisto.cs" Link="Compartido\RevisionDeLoNoVisto.cs" />
   </ItemGroup>
 
+  <!-- Las reglas de las revisiones de seguridad (cuentas, Wi-Fi, aplicaciones) son portables y corren en el propio proceso de la ventana,
+       con el usuario: no pasan por el servicio (winget necesita sesion de usuario y nada de esto necesita privilegios). -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <ProjectReference Include="..\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
     <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\Instantanea.cs" Link="Compartido\Instantanea.cs" />
     <!-- Las acciones que cambian algo van por el mismo codigo que la bandeja: vista previa, token y aprobacion (UAC). -->

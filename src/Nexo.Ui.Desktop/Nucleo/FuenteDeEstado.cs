@@ -144,6 +144,16 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        /// <summary>Las revisiones de seguridad corren en el propio proceso de la ventana (no hay pipe): solo existen en Windows.</summary>
+        public static IServicioDeSeguridad SeguridadPorDefecto()
+        {
+#if WINDOWS
+            return new ServicioDeSeguridadLocal();
+#else
+            return new ServicioDeSeguridadNoDisponible("las revisiones de seguridad leen APIs de Windows y no existen para Linux");
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

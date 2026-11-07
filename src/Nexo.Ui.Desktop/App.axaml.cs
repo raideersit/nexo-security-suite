@@ -22,6 +22,8 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeDisco? Disco { get; set; }
 
+        internal static IServicioDeSeguridad? Seguridad { get; set; }
+
         public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
@@ -36,7 +38,8 @@ namespace Nexo.Ui.Desktop
                     new LimpiezaModelo(Limpieza ?? new ServicioDeLimpiezaNoDisponible(sinFuente)),
                     new TiempoRealModelo(TiempoReal ?? new ServicioDeTiempoRealNoDisponible(sinFuente),
                                          Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)),
-                    new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)));
+                    new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)),
+                    new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)));
             base.OnFrameworkInitializationCompleted();
         }
     }
