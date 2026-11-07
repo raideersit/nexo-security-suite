@@ -268,6 +268,14 @@ namespace Nexo.Vuln.Demo
             Check(c429.Resultados[0].Estado == EstadoDeCruce.SinFallosConocidos && c429.Resultados.Skip(1).All(r => r.Estado == EstadoDeCruce.NoSePudoComprobar), "la primera salio bien; la del 429 y las que quedaron sin preguntar: «no se pudo comprobar»");
             Check(c429.Resultados.Count == 4, "ninguna aplicacion desaparece del resultado");
 
+            // Pagina llena donde NINGUN fallo afecta de verdad: lo que quedo sin leer podria tenerlos -> no se dice «sin fallos».
+            string llenaSinAfectados = Respuesta(5000, 1, CveJson("CVE-2020-0001", Config(Coincide(WrCriterio, vulnerable: false))));
+            ResultadoDeCruce pp = Cruzar(new[] { App("WinRAR", "RARLab.WinRAR", "7.01.0") }, new NvdFalso(_ => new RespuestaHttp(200, llenaSinAfectados))).Resultados.Single();
+            Check(pp.Estado == EstadoDeCruce.NoSePudoComprobar && pp.Motivo!.Contains("demasiadas coincidencias"), "pagina llena sin ningun fallo que afecte: «no se pudo comprobar», nunca «sin fallos»", pp.Estado + " / " + pp.Motivo);
+            string llenaConAfectado = Respuesta(5000, 1, CveJson("CVE-2020-0001", Config(Coincide(WrCriterio))));
+            ResultadoDeCruce pa = Cruzar(new[] { App("WinRAR", "RARLab.WinRAR", "7.01.0") }, new NvdFalso(_ => new RespuestaHttp(200, llenaConAfectado))).Resultados.Single();
+            Check(pa.Estado == EstadoDeCruce.ConFallos && pa.Parcial, "pagina llena con un fallo que si afecta: con fallos y marcado como parcial");
+
             // Version no traducible: ni se consulta.
             var nvdV = new NvdFalso(_ => new RespuestaHttp(200, NvdVacio));
             ResumenDeCruce cv = Cruzar(new[] { App("Firefox", "Mozilla.Firefox", "< 130.0"), App("Git", "Git.Git", "Unknown") }, nvdV);

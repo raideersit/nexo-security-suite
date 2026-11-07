@@ -190,7 +190,8 @@ namespace Nexo.Vuln.Windows.Demo
             }
             Console.WriteLine("      INFO: general: " + modelo.Titulo + " (" + modelo.Indicador + ")");
 
-            Check(modelo.Secciones.All(f => f.Estado != "No se pudo revisar" && f.Estado != "Sin revisar"), "las 3 secciones se revisaron de verdad (ninguna «No se pudo revisar»)");
+            Check(modelo.Secciones.Take(3).All(f => f.Estado != "No se pudo revisar" && f.Estado != "Sin revisar"), "las 3 secciones locales se revisaron de verdad (ninguna «No se pudo revisar»)");
+            Check(modelo.Secciones[3].Estado == "Sin revisar", "la de NVD NO se ejecuto con «Revisar todo» (no sale nada a Internet sin pedirlo)");
             Check(modelo.Secciones[0].Resumen.Contains("5 cuentas locales"), "Cuentas: leyo las 5 cuentas locales del HP", modelo.Secciones[0].Resumen);
             Check(modelo.Secciones[1].Resumen.Contains("16 redes guardadas"), "Wi-Fi: leyo las 16 redes guardadas del HP", modelo.Secciones[1].Resumen);
             Check(modelo.Secciones[2].Resumen.Contains("aplicaciones con versión nueva"), "Aplicaciones: leyo la lista de winget", modelo.Secciones[2].Resumen);

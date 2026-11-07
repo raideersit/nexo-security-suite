@@ -1343,6 +1343,29 @@ Lo que faltaba de la pestaña Contraseñas: probarla en la ventana de verdad, co
 - **SIN PROBAR todavía:** otros escalados de pantalla (125 %/150 %); que mover el mouse cuente como actividad para el bloqueo (solo se probó la inactividad total y la lógica con reloj falso); Windows 11 (bordes redondeados);
   el resto de pestañas en la ventana real (solo se vio «Contraseñas» y un vistazo a «Estado»).
 
+## 2z. Cruce de aplicaciones con fallos conocidos (CVE) sobre NVD (2026-11-07, en el HP)
+
+Convierte «una versión más nueva» en «tu versión tiene estos fallos». Gratuito y sin cuenta. Subido en `d58359b`; los ajustes finales de pruebas, SIN commit al escribir esto.
+
+- **Por qué NVD y no OSV.dev:** OSV devuelve `{}` tanto para «versión limpia» como para «paquete desconocido»: no distingue, así que es inservible para programas de escritorio. NVD sí (CPE + CVE por versión).
+- **Piezas:** `Nexo.Modules.Threats/Vulnerabilidades/CruceConCve.cs` (mapa curado winget→CPE `MapaDeProductos`, `ParserDeNvd`, `CruceConCve.CruzarAsync/Analizar`) y `ConsultaNvdHttp.cs`.
+  En la ventana: cuarta sección «Fallos de seguridad conocidos (NVD)», botón «Consultar NVD», con aviso previo (por omisión «No»).
+- **Reglas de honestidad:** «Sin fallos conocidos» SOLO si el producto está en el mapa curado, la versión se tradujo con certeza, el servidor dio 200 y la respuesta se leyó entera. Todo lo demás es «no se pudo comprobar» con su motivo
+  (sin red, 403/429, otro código HTTP, JSON ilegible, página llena sin ningún fallo que afecte, versión rara). El código HTTP manda sobre el cuerpo. Ante 403/429 se PARA. Lo que no está en el mapa no se consulta y se declara.
+  El texto dice «no lista fallos», nunca «seguro».
+- **Privacidad:** solo sale el CPE (`proveedor:producto:versión`); User-Agent genérico; servidor fijo, HTTPS, sin redirecciones ni cookies; CPE validado antes de armar la URL. Solo con su botón; **«Revisar todo» NO lo ejecuta** (probado).
+  7 s entre consultas (sin clave ≈ 5 por 30 s). Releer las aplicaciones borra el cruce anterior.
+- **Mapa curado (8):** WinRAR (quita ceros finales: `7.01.0`→`7.01`), 7-Zip, Chrome, Firefox, Edge (`edge_chromium`), VLC, Git, Node.js. Cada CPE se comprobó contra NVD con una versión vieja conocida (debe devolver fallos).
+  Java NO está (winget `8.0.4010.10` vs NVD `1.8.0:update_401`: la traducción no es fiable). Solo versiones puramente numéricas de 2 a 4 partes.
+- **Hallazgo real (importante):** NVD devuelve también CVE que solo nombran al producto como PLATAFORMA (`vulnerable:false`). Node.js 24.15.0 daba 8, pero 2 eran de Next.js (CVE-2021-43803, CVE-2022-36046): falsa alarma de «crítico explotado».
+  Ahora un CVE cuenta solo si un `cpeMatch` con `vulnerable:true` es de ESTE producto y su rango de versiones incluye la instalada (límites incluidos/excluidos probados). Quedan 6 reales (el de Brotli CVE-2026-111497 está en la lista CISA).
+  También: puntaje CVSS primario preferido sobre el secundario; CVE «Rejected» no cuentan; un explotado sube a Alta como mínimo.
+- **Páginas parciales:** Chrome 100 tiene 4776 coincidencias; se piden 2000. Una página llena legítima (primera, `resultsPerPage` = recibidos) se acepta como PARCIAL («Al menos N…»); cualquier otro desajuste es respuesta cortada. Página llena sin ningún afectado → «no se pudo comprobar».
+- **Pruebas:** `Nexo.Vuln.Demo` §16–21 con respuestas REALES de NVD embebidas (`Datos/nvd-winrar-7.01.json`, `nvd-nodejs-24.15.0.json`); `Nexo.Desktop.Demo` (`SeguridadCvePruebas.cs`); todas las reglas con dientes (rotas a propósito: 27). Se descubrió con la rotura que `\d` de .NET acepta dígitos Unicode y `$` acepta un `\n` final: ahora `[0-9]` y `\z`.
+- **Prueba REAL (HP):** `dotnet run --project tools/Nexo.Vuln.Windows.Demo -- --nvd` (sale a Internet, ~2,5 min). 8 controles con versión vieja → todos con fallos; este equipo: WinRAR 7.01 → CVE-2025-8088 y CVE-2025-6218 (explotados) y CVE-2025-31334; Node.js 24.15.0 → 6; Git 2.54.0 → ninguno. 18 de 21 aplicaciones no están en el mapa.
+- **SIN PROBAR / límites:** la ventana real con el botón (solo modelo y pantalla simulada); el Java del usuario (Java 8 con fallos conocidos) sigue sin cruzarse; un CPE de NVD puede cambiar y devolver 0 (los controles `--nvd` lo detectan: repetirlos de vez en cuando); sin clave de NVD el límite es estricto.
+  El usuario tiene WinRAR 7.01 con fallos explotados: debe actualizar con `winget upgrade --id RARLab.WinRAR` (Nexo no lo actualiza).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
