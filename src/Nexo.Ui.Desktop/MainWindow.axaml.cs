@@ -193,10 +193,10 @@ namespace Nexo.Ui.Desktop
         {
             FilaDeEntrada? fila = Contrasenas.Seleccionada;
             if (fila is null) return;
-            MessageBoxResult r = await MessageBox.ShowDialog(this,
+            bool si = await DialogoEnEspanol.PreguntarAsync(this,
                 "¿Eliminar la entrada «" + fila.Sitio + "»?\n\nSe borra del archivo cifrado y no queda ninguna copia. No se puede deshacer.",
-                "Eliminar entrada", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (r == MessageBoxResult.Yes) await Contrasenas.EliminarSeleccionadaAsync();
+                "Eliminar entrada");
+            if (si) await Contrasenas.EliminarSeleccionadaAsync();
         }
 
         private async void GuardarCopia(object? sender, RoutedEventArgs e)
@@ -235,10 +235,10 @@ namespace Nexo.Ui.Desktop
 
             if (Contrasenas.ExisteBoveda)
             {
-                MessageBoxResult r = await MessageBox.ShowDialog(this,
+                bool si = await DialogoEnEspanol.PreguntarAsync(this,
                     "Ya tienes una bóveda en este equipo.\n\nSi sigues, se guardará aparte (con la fecha y la hora en el nombre) y no se borra. La copia ocupará su lugar.\n\n¿Restaurar la copia?",
-                    "Restaurar copia", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (r != MessageBoxResult.Yes) return;
+                    "Restaurar copia");
+                if (!si) return;
             }
             if (await Contrasenas.RestaurarAsync(ruta, pass)) CajaMaestraDeCopia.Text = "";
         }
@@ -278,9 +278,9 @@ namespace Nexo.Ui.Desktop
         private void IrACuarentena(object? sender, RoutedEventArgs e) => Pestanas.SelectedIndex = PestanaCuarentena;
 
         private async void AcercaDe(object? sender, RoutedEventArgs e)
-            => await MessageBox.ShowDialog(this,
+            => await DialogoEnEspanol.InformarAsync(this,
                 "Nexo Security Suite\n\nSuite de higiene y monitoreo de seguridad. Complementa a Microsoft Defender; no lo reemplaza.\n\nLicencia MIT. Sin garantía de ningún tipo.",
-                "Acerca de Nexo", MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                "Acerca de Nexo");
 
         // ------------------------------------------------------------ Escaneo
         private async void IniciarEscaneo(object? sender, RoutedEventArgs e) => await Escaneo.IniciarAsync();
@@ -343,11 +343,10 @@ namespace Nexo.Ui.Desktop
                            + string.Join("\n", rutas.Select(x => "• " + x))
                            + (total > rutas.Count ? "\n\n(Hay más; se revisarán en otra pasada.)" : "")
                            + "\n\n¿Escanearlas ahora? Solo se leen los archivos: no se mueve ni borra nada. Puede tardar varios minutos.";
-            if (await MessageBox.ShowDialog(this, texto, "Revisar lo que no se vio", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-                != MessageBoxResult.Yes) return;
+            if (!await DialogoEnEspanol.PreguntarAsync(this, texto, "Revisar lo que no se vio", IconoDeDialogo.Pregunta)) return;
 
             if (await Escaneo.IniciarRevisionAsync(rutas)) Pestanas.SelectedIndex = PestanaEscaneo;
-            else await MessageBox.ShowDialog(this, Escaneo.Mensaje, "Revisar lo que no se vio", MessageBoxButtons.Ok, MessageBoxIcon.Warning);
+            else await DialogoEnEspanol.InformarAsync(this, Escaneo.Mensaje, "Revisar lo que no se vio", IconoDeDialogo.Advertencia);
         }
 
         // ------------------------------------------------------------ Disco
@@ -428,23 +427,23 @@ namespace Nexo.Ui.Desktop
         {
             if (plan.Valor is not PlanDelServicio p)
             {
-                await MessageBox.ShowDialog(this, "No se pudo preparar: " + plan.Error + ".", titulo, MessageBoxButtons.Ok, MessageBoxIcon.Warning);
+                await DialogoEnEspanol.InformarAsync(this, "No se pudo preparar: " + plan.Error + ".", titulo, IconoDeDialogo.Advertencia);
                 return null;
             }
             if (!p.HayCambios || p.Token is null)
             {
-                await MessageBox.ShowDialog(this, "No hay nada que hacer.\n\n" + p.Descripcion, titulo, MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                await DialogoEnEspanol.InformarAsync(this, "No hay nada que hacer.\n\n" + p.Descripcion, titulo);
                 return null;
             }
 
             string texto = p.Descripcion
                            + (p.Avisos.Count > 0 ? "\n\n" + string.Join("\n", p.Avisos.Select(a => "• " + a)) : "")
                            + "\n\n" + pregunta;
-            MessageBoxResult r = await MessageBox.ShowDialog(this, texto, titulo, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            return r == MessageBoxResult.Yes ? p.Token : null;
+            bool acepta = await DialogoEnEspanol.PreguntarAsync(this, texto, titulo);
+            return acepta ? p.Token : null;
         }
 
         private async System.Threading.Tasks.Task MostrarResultadoAsync(string titulo, ResultadoDeAccion r)
-            => await MessageBox.ShowDialog(this, r.Mensaje, titulo, MessageBoxButtons.Ok, r.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            => await DialogoEnEspanol.InformarAsync(this, r.Mensaje, titulo, r.Exito ? IconoDeDialogo.Informacion : IconoDeDialogo.Advertencia);
     }
 }

@@ -1320,6 +1320,29 @@ Cierra la mayor debilidad práctica de la bóveda: es UN archivo, y si se pierde
 - **SIN PROBAR:** los selectores de archivos de verdad (`SaveFilePickerAsync`/`OpenFilePickerAsync`: solo compilan; los manejadores hacen el selector y llaman al modelo, que sí está probado); la ventana
   con pantalla real. **No cubierto:** copia automática programada (a propósito: ver el principio); copia a un destino remoto; cifrar la copia con otra contraseña distinta de la maestra.
 
+## 2y. Prueba con pantalla REAL de la ventana y diálogos en español (2026-11-07, en el HP)
+
+Lo que faltaba de la pestaña Contraseñas: probarla en la ventana de verdad, con clics y teclado reales. Sin commit.
+
+- **Método (seguro):** `nexo-desktop.exe` (`net8.0-windows`) lanzado con `--pipe` inexistente (sin servicio) y `--boveda` apuntando a una carpeta temporal propia (jamás la bóveda del usuario). Un
+  ayudante de PowerShell (scratchpad, no está en el repo) hace clics y teclea **solo si la ventana al frente es de Nexo** (comprueba el PID, así también valen sus diálogos de archivo); si es otra
+  cosa (un juego, AnyDesk…) no envía nada. Solo se capturó el rectángulo de la ventana de Nexo. Se guardó y devolvió el portapapeles de texto del usuario, y se borró la carpeta temporal. Pantalla a
+  100 % (900×620); con otro escalado habría que recalcular las coordenadas. Antes se pidió permiso al usuario.
+- **Verificado en la ventana REAL:** crear la bóveda tecleando la maestra (archivo de 93 bytes); alta de una entrada (322 bytes, sin sitio ni clave en claro; contraseña oculta con 8 puntos aunque tiene 22 caracteres);
+  **portapapeles real de Windows**: copiar la pone y **se borra sola a los 29,2 s**; **bloquear la borra al instante**; **cerrar la ventana (Alt+F4) con una contraseña copiada** la borra y el proceso termina;
+  contraseña equivocada → mensaje honesto, la correcta abre; **la bóveda persiste al cerrar y reabrir el proceso**; elegir una fila con el mouse ya no cuelga (el bucle de `SelectionChanged` está corregido de verdad);
+  **«Guardar copia...» con el diálogo NATIVO de Windows** (copia de 322 bytes, mensaje y recordatorio «Última copia de esta sesión»); **«Restaurar desde una copia» con el diálogo nativo de abrir** (la bóveda se
+  reemplaza y la anterior queda como `boveda.nxv.anterior-AAAAMMDD-HHMMSS`, sin borrarse); **bloqueo por inactividad con el temporizador real**: a los 5 min quieta, «La bóveda se bloqueó por inactividad».
+- **Defecto encontrado y corregido: los cuadros de confirmación tenían los botones en INGLÉS («Yes» / «No» / «Ok»).** Venían de `MessageBox` de `Classic.CommonControls`, que no permite cambiar los textos.
+  Afectaba a TODA la ventana (cuarentena, restaurar, purga, firewall, limpieza, eliminar entrada, copia). Ahora todo pasa por `DialogoEnEspanol` (`PreguntarAsync` / `InformarAsync`): «Sí» / «No» / «Aceptar».
+  **Decisión de seguridad:** en las preguntas el botón por omisión es **«No»**; Enter no confirma una acción destructiva; Esc y la «X» equivalen a «No». Probado en la ventana real: Enter y Esc conservan la entrada;
+  «Sí» la elimina y el archivo baja de 322 a 93 bytes (borrado real). `Nexo.Desktop.Demo` (`DialogosPruebas.cs`): textos exactos de los botones, botón por omisión, Esc, «X», un texto larguísimo no ensancha el cuadro, y una
+  **guarda que falla si `MainWindow.axaml.cs` vuelve a contener «MessageBox»**; con dientes (botón en inglés, «Sí» por omisión, Esc sin efecto).
+- **Observaciones:** tras reabrir el proceso, mi primer clic solo dio foco a la ventana y la maestra no llegó a teclearse (fallo de mi guion, no de Nexo; la bóveda seguía bloqueada y con sus datos). La ventana no recuerda
+  su posición entre sesiones. Los diálogos nativos de archivo abren en `Documentos` del usuario (muestran sus carpetas: no se debe publicar una captura de ellos).
+- **SIN PROBAR todavía:** otros escalados de pantalla (125 %/150 %); que mover el mouse cuente como actividad para el bloqueo (solo se probó la inactividad total y la lógica con reloj falso); Windows 11 (bordes redondeados);
+  el resto de pestañas en la ventana real (solo se vio «Contraseñas» y un vistazo a «Estado»).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
