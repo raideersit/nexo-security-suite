@@ -1408,6 +1408,25 @@ Cada entrada puede guardar la clave 2FA del sitio y la ventana copia el código 
 - **SIN PROBAR:** contra un sitio real (comparar con el código de una app como Google Authenticator con la misma clave: es la prueba definitiva y la haría el usuario); el botón con clic real; relojes del equipo desajustados (el código usa la hora del equipo: si está atrasada, los sitios lo rechazan).
   No hay lectura de códigos QR (el usuario pega la clave o el enlace); no hay formato de Steam ni HOTP.
 
+## 2ad. Cámara y micrófono: qué programas los usaron (2026-11-07, en el HP)
+
+Quinta sección de la pestaña «Seguridad» («Cámara y micrófono»). Solo LECTURA del registro de uso que Windows lleva (`HKCU\...\CapabilityAccessManager\ConsentStore\webcam|microphone`), local, sin red; entra en «Revisar todo». Del módulo de privacidad (Prompt 2, punto 5).
+**Nexo no bloquea nada**: cambiar el permiso de un dispositivo se hace en Configuración de Windows > Privacidad (el Prompt pide «consultar y restringir», pero restringir exige tocar permisos del sistema y no se hace sin vista previa; queda como hueco).
+
+- **Piezas:** `Nexo.Modules.Threats/Vulnerabilidades/ModeloDeDispositivos.cs` (`AnalizadorDeDispositivos`, portable) y `Nexo.Modules.Threats.Windows/LectorDeDispositivosWindows.cs` (registro; por usuario: corre en la ventana, NO por el servicio SYSTEM, que vería su propio perfil).
+  Rastro: `seguridad.dispositivos` (módulo Privacidad, `TipoEvento.AccesoDispositivo`).
+- **Formato real observado:** programas normales en `...\NonPackaged\<ruta con «#» en vez de «\»>`; aplicaciones de la Tienda por nombre de familia del paquete; valores `Value` (Allow/Deny/Prompt) y `LastUsedTimeStart/Stop` (QWORD FILETIME). Permiso global: HKCU y HKLM (si cualquiera está en Deny, está apagado).
+- **Hallazgos:** `DISP-RECIENTE` (Info: cuántos programas usaron el dispositivo en 7 días, con nombres, sin repetir), `DISP-CARPETA-RARA` (Media: lo usó en los últimos 30 días y vive en Temp/Descargas/Papelera/carpeta pública; dice que NO prueba que sea malicioso),
+  `DISP-EN-USO` (Info) y `DISP-BLOQUEADO` (Info: apagado en Windows).
+- **Hallazgo real que cambió el diseño:** `fin = 0` NO basta para «en uso ahora». En este equipo había 4 filas con fin = 0 de versiones viejas de Discord (junio a octubre) con Discord abierto: Windows nunca cerró esas filas.
+  Ahora «en uso» exige fin = 0 Y inicio en las últimas 24 h, y un aviso por programa (no por ruta). Hoy: 0 en uso, 8 programas con el micrófono esta semana, ninguno con la cámara.
+- **Honestidad:** nunca «nadie la usó» (Windows apunta lo que ve; un programa que no pase por ahí puede no figurar); almacén ausente o error = «no evaluado»; entradas ilegibles = revisión incompleta; un FILETIME imposible o en el futuro se ignora;
+  gramática por dispositivo («la cámara», «el micrófono»; las pruebas cazaron «la micrófono»).
+- **Pruebas:** `Nexo.Vuln.Demo` §22 (FILETIME REALES, el caso Discord, límites de 7 días / 24 h / 30 días, rutas raras y normales, fechas imposibles, tildes) con 11 reglas rotas a propósito;
+  `Nexo.Vuln.Windows.Demo` §9 contra el registro real y cruzado con PowerShell (cámara 9, micrófono 69 = 13 de la Tienda + 56 normales, 9 filas recientes, 4 sin fin: coincide).
+- **SIN PROBAR / huecos:** con la cámara realmente en uso (la tendría que activar el usuario: abrir la app Cámara y ver si sale «en uso ahora»); que un programa que accede por otro camino (controlador propio) figure; restringir permisos por programa (no hecho);
+  las aplicaciones de la Tienda no tienen ruta y no se evalúan por carpeta.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
