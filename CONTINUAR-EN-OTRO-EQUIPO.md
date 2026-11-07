@@ -1095,6 +1095,34 @@ PROBADO en el HP (ver abajo); el servicio con AMSI real sigue sin probar.** Sin 
 - **Por probar:** el camino «AMSI no operativo al arrancar» contra un Windows real (exigiría apagar Defender, que Nexo no hace) y la detección de AMSI de punta a punta por el servicio (exigiría escribir la cadena de prueba a disco, que Defender bloquea). No se sabe aún si Defender vía AMSI detecta ejecutables arbitrarios o EICAR (AMSI mira contenido de scripts sobre todo):
   no asumir que AMSI cubre archivos binarios.
 
+## 2q. Módulo de identidad: la bóveda de contraseñas (2026-11-07, en el HP)
+
+Primer paso del módulo M3 (`Nexo.Modules.Identity`, portable `net8.0`). **Hecho: el núcleo de la bóveda; falta todo lo demás de M3.** Sin commit.
+
+- **Cifrado:** AES-256-GCM, clave derivada con **Argon2id** (`Konscious.Security.Cryptography.Argon2` 1.3.1, MIT; el id del paquete lleva `.Argon2`). Parámetros
+  por omisión 64 MiB / 3 iteraciones / 2 hilos (~170 ms en el HP); mínimos para crear (OWASP: 19 MiB, t=2); techos al LEER (1 GiB, 12 iteraciones, 8 hilos)
+  para que un archivo hostil no agote memoria ni tiempo. La contraseña se normaliza NFKC antes de derivar (la misma contraseña en NFC/NFD abre igual).
+  Contraseña maestra: mínimo 10 caracteres. **No hay recuperación de la contraseña maestra, a propósito.**
+- **Formato `.nxv`:** `NXV1 | versión | kdf | memoria | iteraciones | paralelismo | sal[16] | nonce[12] | largo | cifrado | etiqueta[16]`. Toda la cabecera va como
+  datos autenticados. La longitud declarada debe coincidir EXACTA con el archivo; valores que darían negativo al pasar a `int` se rechazan antes de convertir.
+- **Guardado:** nonce nuevo en cada guardado, temporal + `File.Replace` + **verificación de lo escrito** (si no descifra, restaura); **no queda copia vieja**: lo
+  eliminado desaparece del disco. Un guardado a la vez (semáforo). Cada cambio (alta, edición, baja) se guarda en el acto y se revierte en memoria si falla.
+- **Apertura:** estados claros (`NoExiste`, `ArchivoIlegible`, `VersionNoSoportada`, `ParametrosFueraDeRango`, `ErrorDeLectura`) y uno honesto,
+  `ContrasenaIncorrectaOArchivoAlterado`: AES-GCM no distingue las dos cosas y Nexo no finge saberlo.
+- **Bloquear** sobrescribe con ceros el arreglo de la clave. **Límite no resoluble:** las cadenas de .NET (sitio, usuario, contraseña) no se pueden borrar de la
+  memoria a voluntad; no se promete.
+- **Cambiar la contraseña maestra:** exige la actual (comparada en tiempo constante), sal nueva, archivo reescrito; no queda copia con la clave vieja.
+- **Generador** (`GeneradorDeContrasenas`): `RandomNumberGenerator`, sin sesgo, una de cada clase pedida en posiciones aleatorias, filtro de caracteres ambiguos.
+- **Eventos sin secretos** (`EventosDeBoveda`): creada, desbloqueada (con conteo), intento fallido (severidad media). **Nunca** sitio, usuario, contraseña, notas,
+  maestra ni ruta: las notas del vault de reportes son texto plano. Constantes nuevas en `TipoEvento`. Si el reporte falla, la bóveda abre igual.
+- **Probado (portable, `tools/Nexo.Identity.Demo`, 61 comprobaciones):** vector oficial RFC 9106 de Argon2id; ningún secreto en claro en el archivo (con control);
+  **612 variantes de un bit cambiado** y **todos los truncados**: ninguna abre ni lanza; parámetros hostiles (4 GiB, 2 mil millones de iteraciones, paralelismo
+  0/10 000, longitud de 4 GiB) rechazados en milisegundos; 20 nonces distintos; 20 altas simultáneas; borrado real. **Con dientes** (5 roturas a propósito, 7 fallos):
+  nonce fijo, copia vieja sin borrar, clave sin poner a ceros, sin garantizar clases, sin normalizar Unicode.
+- **No cubierto:** ningún cableado al servicio, ventana ni bandeja; sin Windows Hello; sin portapapeles con auto-borrado (30 s); sin bloqueo automático por
+  inactividad; sin permisos NTFS del archivo (hereda los de la carpeta); sin importar/exportar; sin comprobación de contraseñas filtradas (Pwned Passwords, el
+  siguiente paso); sin prueba de que sobreviva a un corte de luz real en medio del guardado (solo el diseño: temporal + reemplazo + verificación).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

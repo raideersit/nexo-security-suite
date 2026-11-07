@@ -28,6 +28,9 @@ namespace Nexo.Reports.Model
         // --- Modulo de identidad (Prompt 3) ---
         public const string AlertaIdentidad = "alerta-identidad";
         public const string BrechaDetectada = "brecha-detectada";
+        public const string BovedaCreada = "boveda-creada";
+        public const string BovedaDesbloqueada = "boveda-desbloqueada";
+        public const string BovedaFalloDeDesbloqueo = "boveda-fallo-de-desbloqueo";
 
         // --- Modulo de limpieza (Prompt 4) ---
         public const string SesionLimpieza = "sesion-limpieza";
