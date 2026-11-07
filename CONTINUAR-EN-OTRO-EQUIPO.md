@@ -1069,8 +1069,7 @@ PROBADO en el HP (ver abajo); el servicio con AMSI real sigue sin probar.** Sin 
   devuelve el motivo. Nexo es solo consumidor: no registra proveedores.
 - **`MotorAmsi`** (`Nexo.Modules.Threats/Escaner`, portable, `IMotorDeFirmas`). **Regla clave:** AMSI responde «no detectado» (1) tanto si el contenido
   está limpio como si NO HAY proveedor activo; por eso, antes de dar «limpio», comprueba que el proveedor responde escaneando la cadena de prueba
-  oficial de AMSI (debe devolver ≥ 32768). Si no la marca → `Error` (no concluyente), nunca `Limpio`. La comprobación caduca a los 5 min (si el
-  proveedor se apaga a mitad de camino se nota) y una comprobación fallida no se cachea. Códigos: 0 y 1 → Limpio (con proveedor verificado); ≥ 32768 →
+  oficial de AMSI (debe devolver ≥ 32768). Si no la marca → `Error` (no concluyente), nunca `Limpio`. La comprobación caduca a la hora (`Nexo:Amsi:ValidezMinutos`, ver abajo) y se repite en el acto tras cualquier escaneo fallido y una comprobación fallida no se cachea. Códigos: 0 y 1 → Limpio (con proveedor verificado); ≥ 32768 →
   `Infectado` (`AMSI.Detectado`); 16384–20479 (bloqueado por el administrador) → Error; cualquier otro → Error. Tope de 25 MB (más → Error).
 - **`MotorCombinado`**: Infectado si ALGUNO marca; Limpio solo si TODOS dan limpio; si alguno no pudo y ninguno marca → Error (dice cuál).
 - **Servicio:** `Nexo:Amsi:Activo` (apagado por omisión). AMSI se SUMA al motor de firmas, no lo sustituye, y solo si la autocomprobación pasa al
@@ -1086,8 +1085,14 @@ PROBADO en el HP (ver abajo); el servicio con AMSI real sigue sin probar.** Sin 
   dio **Limpio**: AMSI/Defender la reconoce cuando es todo el buffer, no dentro de contenido mayor. Por tanto el «Limpio» de `MotorAmsi` solo
   significa «el proveedor responde y no marcó este buffer», NO «no hay nada»: sirve como opinión adicional junto a YARA/clamd, nunca sola. Un
   buffer vacío hace fallar `AmsiScanBuffer` (por eso Nexo no lo envía).
-- **Por probar:** el servicio con
-  `Nexo:Amsi:Activo=true`. No se sabe aún si Defender vía AMSI detecta ejecutables arbitrarios o EICAR (AMSI mira contenido de scripts sobre todo):
+- **Cada autocomprobación deja una detección en Defender (2026-11-07):** la cadena de prueba hace que Seguridad de Windows registre
+  `Virus:Win32/MpTest!amsi` (la detección de prueba de Microsoft, inofensiva, con severidad máxima por convención). Visto en el HP tras las pruebas:
+  una entrada por cada arranque del servicio y de la demo (y por los archivos temporales de la mutación). Con la validez de 5 min el servicio habría
+  generado una «amenaza» nueva cada 5 min; por eso la validez por omisión pasó a **60 min** (`MotorAmsi.ValidezPorDefecto`, configurable con
+  `Nexo:Amsi:ValidezMinutos`, mínimo 1) y, si un escaneo falla, se vuelve a comprobar **sin esperar**. Con dientes: sin esa invalidación falla 1
+  comprobación. Aun así, **cada arranque del servicio con AMSI activo dejará una entrada de prueba en Defender**: avisar al usuario. Servicio real con
+  `YARA+AMSI` + fuente USN probado (motor `YARA+AMSI`, 304 vistos / 303 analizados / 0 sin analizar, YARA sigue detectando, sin avisos de arranque).
+- **Por probar:** el camino «AMSI no operativo al arrancar» contra un Windows real (exigiría apagar Defender, que Nexo no hace) y la detección de AMSI de punta a punta por el servicio (exigiría escribir la cadena de prueba a disco, que Defender bloquea). No se sabe aún si Defender vía AMSI detecta ejecutables arbitrarios o EICAR (AMSI mira contenido de scripts sobre todo):
   no asumir que AMSI cubre archivos binarios.
 
 ## 3. Lo que necesita el otro equipo

@@ -20,6 +20,8 @@ namespace Nexo.Amsi.Demo
             public Modo Comportamiento = Modo.ConProveedor;
             public uint CodigoParaMarcador = MotorAmsi.CodigoDetectado;
             public int Llamadas, LlamadasDeAutocomprobacion;
+            /// <summary>true = la autocomprobacion responde bien, pero escanear un archivo falla (el proveedor «se cae» entre medias).</summary>
+            public bool FallarArchivos;
             public static readonly byte[] Marcador = Encoding.ASCII.GetBytes("MARCADOR-MALO");
 
             public RespuestaDeAmsi Escanear(byte[] datos, int longitud, string nombreDelContenido)
@@ -27,6 +29,7 @@ namespace Nexo.Amsi.Demo
                 Llamadas++;
                 if (nombreDelContenido == "nexo-autocomprobacion") LlamadasDeAutocomprobacion++;
                 if (Comportamiento == Modo.Roto) return RespuestaDeAmsi.Fallo("AmsiScanBuffer fallo (HRESULT 0x80070057).");
+                if (FallarArchivos && nombreDelContenido != "nexo-autocomprobacion") return RespuestaDeAmsi.Fallo("AmsiScanBuffer fallo (HRESULT 0x8007001F).");
 
                 if (Comportamiento == Modo.ConProveedor)
                 {
@@ -133,7 +136,7 @@ namespace Nexo.Amsi.Demo
 
             f.Comportamiento = AmsiFalso.Modo.SinProveedor;
             ResultadoDeMotor aun = await m2.AnalizarAsync(Flujo("tres")).ConfigureAwait(false);
-            Check(aun.Veredicto == VeredictoDeArchivo.Limpio, "dentro de la validez se confia en la ultima comprobacion (documentado: ventana de 5 min)");
+            Check(aun.Veredicto == VeredictoDeArchivo.Limpio, "dentro de la validez se confia en la ultima comprobacion (la ventana es el precio de no alarmar a Defender)");
 
             ahora += TimeSpan.FromMinutes(6);
             ResultadoDeMotor caducado = await m2.AnalizarAsync(Flujo("cuatro")).ConfigureAwait(false);
@@ -143,6 +146,33 @@ namespace Nexo.Amsi.Demo
             f.Comportamiento = AmsiFalso.Modo.ConProveedor;
             ResultadoDeMotor vuelve = await m2.AnalizarAsync(Flujo("cinco")).ConfigureAwait(false);
             Check(vuelve.Veredicto == VeredictoDeArchivo.Limpio, "una comprobacion fallida no se recuerda: al volver el proveedor se recupera");
+
+            // La validez por omision es larga a proposito: cada autocomprobacion deja una deteccion de prueba en el historial de Defender.
+            Check(MotorAmsi.ValidezPorDefecto == TimeSpan.FromHours(1), "la validez por omision es de una hora (no alarmar a Defender cada pocos minutos)");
+            var h = new AmsiFalso();
+            var ahora2 = ahora;
+            var m3 = new MotorAmsi(h, reloj: () => ahora2);
+            await m3.AnalizarAsync(Flujo("a")).ConfigureAwait(false);
+            ahora2 += TimeSpan.FromMinutes(59);
+            await m3.AnalizarAsync(Flujo("b")).ConfigureAwait(false);
+            Check(h.LlamadasDeAutocomprobacion == 1, "a los 59 minutos todavia no se repite (una sola autocomprobacion)", "autocomprobaciones: " + h.LlamadasDeAutocomprobacion);
+            ahora2 += TimeSpan.FromMinutes(2);
+            await m3.AnalizarAsync(Flujo("c")).ConfigureAwait(false);
+            Check(h.LlamadasDeAutocomprobacion == 2, "a los 61 minutos si se repite", "autocomprobaciones: " + h.LlamadasDeAutocomprobacion);
+
+            // Si un escaneo falla, no se espera a que caduque: la siguiente llamada vuelve a comprobar en el acto.
+            var g = new AmsiFalso();
+            var m4 = new MotorAmsi(g, reloj: () => ahora2);
+            await m4.AnalizarAsync(Flujo("a")).ConfigureAwait(false);
+            g.FallarArchivos = true;
+            ResultadoDeMotor fallo = await m4.AnalizarAsync(Flujo("b")).ConfigureAwait(false);
+            Check(fallo.Veredicto == VeredictoDeArchivo.Error, "un escaneo que falla es Error");
+            g.FallarArchivos = false;
+            g.Comportamiento = AmsiFalso.Modo.SinProveedor;
+            ResultadoDeMotor traas = await m4.AnalizarAsync(Flujo("c")).ConfigureAwait(false);
+            Check(traas.Veredicto == VeredictoDeArchivo.Error && g.LlamadasDeAutocomprobacion == 2,
+                  "tras un fallo se vuelve a comprobar enseguida (sin esperar la hora) y un proveedor apagado se detecta",
+                  traas.Veredicto + " / autocomprobaciones " + g.LlamadasDeAutocomprobacion);
         }
 
         private static async Task ProbarCodigos()

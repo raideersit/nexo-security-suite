@@ -46,6 +46,14 @@ namespace Nexo.Modules.Threats.Escaner
             "AMSI Test ", "Sample: ", "7e72c3ce", "-861b-", "4339-", "8740-", "0ac1484c", "1386"
         });
 
+        /// <summary>
+        /// Cuanto dura una autocomprobacion buena. NO conviene que sea corta: la cadena de prueba hace que Defender
+        /// registre una deteccion (<c>Virus:Win32/MpTest!amsi</c>, inofensiva) cada vez que se escanea, y el usuario
+        /// veria una «amenaza» nueva en Seguridad de Windows en cada repeticion. Una hora; y si un escaneo falla, se
+        /// vuelve a comprobar en el acto sin esperar (ver <see cref="AnalizarAsync"/>).
+        /// </summary>
+        public static readonly TimeSpan ValidezPorDefecto = TimeSpan.FromHours(1);
+
         private readonly IBackendAmsi _backend;
         private readonly long _maximoDeBytes;
         private readonly TimeSpan _validez;
@@ -58,7 +66,7 @@ namespace Nexo.Modules.Threats.Escaner
             _backend = backend ?? throw new ArgumentNullException(nameof(backend));
             if (maximoDeBytes < 1 || maximoDeBytes > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(maximoDeBytes));
             _maximoDeBytes = maximoDeBytes;
-            _validez = validez ?? TimeSpan.FromMinutes(5);
+            _validez = validez ?? ValidezPorDefecto;
             if (_validez <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(validez));
             _reloj = reloj ?? (() => DateTimeOffset.UtcNow);
         }
@@ -106,7 +114,13 @@ namespace Nexo.Modules.Threats.Escaner
             if (problema is not null) return ResultadoDeMotor.Fallo(problema);
 
             // 3) Preguntar.
-            return Interpretar(_backend.Escanear(datos, n, "nexo-archivo"));
+            RespuestaDeAmsi respuesta = _backend.Escanear(datos, n, "nexo-archivo");
+
+            // Si AMSI fallo, lo comprobado hace un rato ya no vale: la proxima vez se vuelve a comprobar en el acto,
+            // para no esconder un proveedor que se apago entre dos autocomprobaciones.
+            if (!respuesta.Exito) lock (_cerrojo) { _verificadoHasta = DateTimeOffset.MinValue; }
+
+            return Interpretar(respuesta);
         }
 
         /// <summary>Que significa cada codigo de AMSI. Todo lo que no se entiende es Error, nunca Limpio.</summary>

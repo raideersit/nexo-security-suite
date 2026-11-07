@@ -184,7 +184,13 @@ namespace Nexo.Service
             // cadena de prueba oficial. Si no responde (Defender apagado o ausente) no se suma y se dice en la nota de
             // arranque, para que nadie crea que esta cubierto. Si falla mas tarde, esos archivos salen como «no analizados».
             var backend = new BackendAmsiWindows();
-            var motorAmsi = new MotorAmsi(backend);
+            // Nexo:Amsi:ValidezMinutos (por omision 60): cada autocomprobacion deja una deteccion de prueba inofensiva
+            // en el historial de Defender, asi que no conviene repetirla a menudo.
+            TimeSpan validez = double.TryParse(_config["Nexo:Amsi:ValidezMinutos"], System.Globalization.NumberStyles.Float,
+                                               System.Globalization.CultureInfo.InvariantCulture, out double min) && min >= 1
+                ? TimeSpan.FromMinutes(min)
+                : MotorAmsi.ValidezPorDefecto;
+            var motorAmsi = new MotorAmsi(backend, validez: validez);
             try
             {
                 motorAmsi.VersionAsync().GetAwaiter().GetResult();
