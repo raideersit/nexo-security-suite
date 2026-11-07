@@ -24,7 +24,8 @@ namespace Nexo.Ui.Desktop
         IReadOnlyList<string> NoEvaluado,
         bool HayNoEvaluado,
         bool Revisando,
-        bool PuedeRevisar)
+        bool PuedeRevisar,
+        string Boton = "Revisar")
     {
         /// <summary>Para el XAML: Avalonia no convierte un entero en booleano al enlazar IsVisible.</summary>
         public bool HayHallazgos => Hallazgos.Count > 0;
@@ -40,16 +41,19 @@ namespace Nexo.Ui.Desktop
     /// </summary>
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
+        /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
         private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
         private readonly HashSet<SeccionDeSeguridad> _revisando = new();
+        private string? _progreso;
 
         public SeguridadModelo(IServicioDeSeguridad servicio)
         {
             _servicio = servicio;
-            foreach (SeccionDeSeguridad s in Orden) _ultimas[s] = null;
+            foreach (SeccionDeSeguridad s in Todas) _ultimas[s] = null;
             Calcular();
         }
 
@@ -75,13 +79,32 @@ namespace Nexo.Ui.Desktop
         public async Task RevisarAsync(SeccionDeSeguridad seccion, CancellationToken ct = default)
         {
             if (_revisando.Contains(seccion)) return;
+            // Mientras se cruza con NVD no se vuelve a leer la lista de aplicaciones: el cruce acabaria mostrandose sobre otra lista.
+            if (seccion == SeccionDeSeguridad.Aplicaciones && _revisando.Contains(SeccionDeSeguridad.FallosConocidos)) return;
             _revisando.Add(seccion);
+            // Los fallos conocidos se calcularon con la lista de aplicaciones de ANTES: si esa lista se vuelve a leer, ese cruce ya no vale.
+            IReadOnlyList<AplicacionDesactualizada>? apps = _ultimas[SeccionDeSeguridad.Aplicaciones]?.Valor?.Aplicaciones;
             _ultimas[seccion] = null; // jamas queda a la vista el resultado anterior mientras se vuelve a mirar
+            if (seccion == SeccionDeSeguridad.Aplicaciones) _ultimas[SeccionDeSeguridad.FallosConocidos] = null;
+            _progreso = null;
             Calcular();
             try
             {
                 Consulta<RevisionDeSeccion> r;
-                try { r = await _servicio.RevisarAsync(seccion, ct); }
+                try
+                {
+                    if (seccion == SeccionDeSeguridad.FallosConocidos)
+                    {
+                        r = apps is null
+                            ? Consulta<RevisionDeSeccion>.Mal("primero revisa las aplicaciones desactualizadas: de ahí salen los programas y versiones que se consultan")
+                            : await _servicio.RevisarFallosConocidosAsync(apps, new Progress<string>(t =>
+                              {
+                                  _progreso = t; // solo se muestra mientras la seccion esta revisando; un aviso tardio no cambia un resultado ya mostrado
+                                  Calcular();
+                              }), ct);
+                    }
+                    else r = await _servicio.RevisarAsync(seccion, ct);
+                }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     r = Consulta<RevisionDeSeccion>.Mal("error inesperado al revisar (" + ex.GetType().Name + ")");
@@ -91,6 +114,7 @@ namespace Nexo.Ui.Desktop
             finally
             {
                 _revisando.Remove(seccion);
+                _progreso = null;
                 Calcular();
             }
         }
@@ -99,11 +123,11 @@ namespace Nexo.Ui.Desktop
         private void Calcular()
         {
             var filas = new List<FilaDeSeccion>();
-            foreach (SeccionDeSeguridad s in Orden)
+            foreach (SeccionDeSeguridad s in Todas)
             {
                 bool rev = _revisando.Contains(s);
                 Consulta<RevisionDeSeccion>? c = _ultimas[s];
-                (Indicador ind, string estado, string resumen) = ResumirSeguridad.Seccion(s, c, rev);
+                (Indicador ind, string estado, string resumen) = ResumirSeguridad.Seccion(s, c, rev, s == SeccionDeSeguridad.FallosConocidos ? _progreso : null);
                 RevisionDeSeccion? v = c?.Valor;
                 IReadOnlyList<HallazgoDeSistema> hs = v?.Analisis.Hallazgos ?? Array.Empty<HallazgoDeSistema>();
                 IReadOnlyList<string> no = v?.Analisis.NoEvaluado ?? Array.Empty<string>();
@@ -112,11 +136,14 @@ namespace Nexo.Ui.Desktop
                     hs.Select(h => new FilaDeHallazgoVista(
                         ResumirSeguridad.Gravedad(h.Severidad), Colores.De(ResumirSeguridad.IndicadorDe(h.Severidad)), h.Titulo,
                         h.Sujeto ?? "", h.Sujeto is not null, h.Detalle, h.Recomendacion)).ToList(),
-                    no, no.Count > 0, rev, !rev));
+                    no, no.Count > 0, rev, !rev, ResumirSeguridad.Boton(s)));
             }
             Secciones = filas;
 
-            (Indicador general, string titulo, string explicacion) = ResumirSeguridad.General(Orden.Select(s => (_ultimas[s], _revisando.Contains(s))).ToList());
+            // El cruce con NVD cuenta para el resultado general solo si ya se hizo (o esta en marcha): nunca se hace sin que el usuario lo pida.
+            var paraGeneral = Orden.ToList();
+            if (_ultimas[SeccionDeSeguridad.FallosConocidos] is not null || _revisando.Contains(SeccionDeSeguridad.FallosConocidos)) paraGeneral.Add(SeccionDeSeguridad.FallosConocidos);
+            (Indicador general, string titulo, string explicacion) = ResumirSeguridad.General(paraGeneral.Select(s => (_ultimas[s], _revisando.Contains(s))).ToList());
             Indicador = general;
             Titulo = titulo;
             Explicacion = explicacion;
@@ -135,8 +162,11 @@ namespace Nexo.Ui.Desktop
         {
             SeccionDeSeguridad.Cuentas => "Cuentas y contraseñas del sistema",
             SeccionDeSeguridad.Wifi => "Redes Wi-Fi",
-            _ => "Aplicaciones desactualizadas"
+            SeccionDeSeguridad.Aplicaciones => "Aplicaciones desactualizadas",
+            _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
+
+        public static string Boton(SeccionDeSeguridad s) => s == SeccionDeSeguridad.FallosConocidos ? "Consultar NVD" : "Revisar";
 
         public static string Gravedad(Severidad s) => s switch
         {
@@ -155,10 +185,19 @@ namespace Nexo.Ui.Desktop
             _ => Indicador.SinDatos
         };
 
-        public static (Indicador, string, string) Seccion(SeccionDeSeguridad s, Consulta<RevisionDeSeccion>? c, bool revisando)
+        public static (Indicador, string, string) Seccion(SeccionDeSeguridad s, Consulta<RevisionDeSeccion>? c, bool revisando, string? progreso = null)
         {
-            if (revisando) return (Indicador.SinDatos, "Revisando...", s == SeccionDeSeguridad.Aplicaciones ? "Consultando winget (usa Internet); puede tardar unos segundos." : "");
-            if (c is null) return (Indicador.SinDatos, "Sin revisar", "Pulsa «Revisar» para comprobarlo.");
+            if (revisando)
+                return (Indicador.SinDatos, "Revisando...", s switch
+                {
+                    SeccionDeSeguridad.Aplicaciones => "Consultando winget (usa Internet); puede tardar unos segundos.",
+                    SeccionDeSeguridad.FallosConocidos => (progreso ?? "Preparando la consulta a NVD") + " (usa Internet; unos 7 segundos por programa).",
+                    _ => ""
+                });
+            if (c is null)
+                return (Indicador.SinDatos, "Sin revisar", s == SeccionDeSeguridad.FallosConocidos
+                    ? "Opcional. Primero revisa las aplicaciones; después pulsa «Consultar NVD». Solo se envía a Internet el nombre y la versión de cada programa, y antes te lo pregunta."
+                    : "Pulsa «Revisar» para comprobarlo.");
             if (c.Valor is not RevisionDeSeccion v) return (Indicador.SinDatos, "No se pudo revisar", (c.Error ?? "motivo desconocido") + ".");
 
             ResultadoDeAnalisis a = v.Analisis;
@@ -227,6 +266,7 @@ namespace Nexo.Ui.Desktop
         {
             SeccionDeSeguridad.Cuentas => n + (n == 1 ? " cuenta local" : " cuentas locales"),
             SeccionDeSeguridad.Wifi => n + (n == 1 ? " red guardada" : " redes guardadas"),
+            SeccionDeSeguridad.FallosConocidos => n + (n == 1 ? " programa consultado" : " programas consultados"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };
     }

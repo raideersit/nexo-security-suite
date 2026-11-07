@@ -45,17 +45,17 @@ namespace Nexo.Desktop.Demo
             var m = new SeguridadModelo(f);
 
             Check(f.Llamadas.Count == 0, "al crearse NO revisa nada (la de aplicaciones usa Internet: solo cuando el usuario lo pide)");
-            Check(m.Secciones.Count == 3 && m.Secciones.All(s => s.Estado == "Sin revisar") && m.Indicador == Indicador.SinDatos, "al principio: 3 secciones «Sin revisar» y el indicador sin datos");
+            Check(m.Secciones.Count == 4 && m.Secciones.All(s => s.Estado == "Sin revisar") && m.Indicador == Indicador.SinDatos, "al principio: 4 secciones «Sin revisar» (3 locales y la de NVD) y el indicador sin datos");
             Check(m.Titulo == "Sin revisar todavía" && m.Explicacion.Contains("Solo se lee") && m.Explicacion.Contains("Internet"), "el titulo dice «Sin revisar todavía» y la explicacion avisa que solo lee y que una usa Internet");
             Check(m.PuedeRevisarTodo, "se puede pulsar «Revisar todo»");
-            Check(m.Secciones.Select(s => s.Nombre).SequenceEqual(new[] { "Cuentas y contraseñas del sistema", "Redes Wi-Fi", "Aplicaciones desactualizadas" }), "los nombres de las 3 secciones, en español y en orden");
+            Check(m.Secciones.Select(s => s.Nombre).SequenceEqual(new[] { "Cuentas y contraseñas del sistema", "Redes Wi-Fi", "Aplicaciones desactualizadas", "Fallos de seguridad conocidos en tus aplicaciones (NVD)" }), "los nombres de las 4 secciones, en español y en orden");
 
             // Todo limpio y completo.
             Esperar(m.RevisarTodoAsync());
             Check(f.Llamadas.SequenceEqual(new[] { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones }), "«Revisar todo» pide las 3, en orden", string.Join(",", f.Llamadas));
             Check(m.Indicador == Indicador.Correcto && m.Titulo == "Sin problemas en lo que se pudo revisar", "las 3 limpias y completas: verde, «Sin problemas en lo que se pudo revisar»", m.Titulo);
             Check(m.Explicacion.Contains("no es una garantía"), "y aun asi dice que no es una garantia");
-            Check(m.Secciones.All(s => s.Estado == "Sin hallazgos") && m.Secciones[0].Resumen.Contains("3 cuentas locales") && m.Secciones[1].Resumen.Contains("3 redes guardadas"),
+            Check(m.Secciones.Take(3).All(s => s.Estado == "Sin hallazgos") && m.Secciones[3].Estado == "Sin revisar" && m.Secciones[0].Resumen.Contains("3 cuentas locales") && m.Secciones[1].Resumen.Contains("3 redes guardadas"),
                   "cada seccion dice «Sin hallazgos» y cuantos elementos miro", m.Secciones[0].Resumen + " | " + m.Secciones[1].Resumen);
             Check(m.Secciones[0].Resumen.Contains("revisado a las"), "y a que hora se reviso");
 
@@ -168,8 +168,8 @@ namespace Nexo.Desktop.Demo
             w.Pestanas.SelectedIndex = 7;
             Dispatcher.UIThread.RunJobs();
             Check(f.Llamadas.Count == 0, "pestaña Seguridad: entrar en la pestaña NO lanza ninguna revision");
-            Check(w.TituloDeSeguridad.Text == "Sin revisar todavía" && w.ListaDeSecciones.ItemCount == 3 && w.BotonRevisarTodo.IsEnabled,
-                "pestaña Seguridad: titulo «Sin revisar todavía», 3 secciones y «Revisar todo» habilitado", w.TituloDeSeguridad.Text);
+            Check(w.TituloDeSeguridad.Text == "Sin revisar todavía" && w.ListaDeSecciones.ItemCount == 4 && w.BotonRevisarTodo.IsEnabled,
+                "pestaña Seguridad: titulo «Sin revisar todavía», 4 secciones y «Revisar todo» habilitado", w.TituloDeSeguridad.Text);
 
             f.Responde = s => s switch
             {
@@ -181,7 +181,7 @@ namespace Nexo.Desktop.Demo
             Esperar(sm.RevisarTodoAsync());
             Dispatcher.UIThread.RunJobs();
             Check(f.Llamadas.Count == 3 && w.TituloDeSeguridad.Text == "Hay cosas que revisar", "tras «Revisar todo»: 3 revisiones y el titulo enlazado", w.TituloDeSeguridad.Text);
-            Check(w.ListaDeSecciones.ItemCount == 3, "las 3 secciones siguen en la lista");
+            Check(w.ListaDeSecciones.ItemCount == 4, "las 4 secciones siguen en la lista");
 
             if (captura is not null)
             {

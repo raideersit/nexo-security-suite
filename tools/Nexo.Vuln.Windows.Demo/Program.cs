@@ -7,7 +7,7 @@ using Nexo.Native.Accounts;
 
 namespace Nexo.Vuln.Windows.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
 
@@ -67,6 +67,9 @@ namespace Nexo.Vuln.Windows.Demo
             ProbarWinget();
             ProbarPestanaDeSeguridad();
             ProbarPestanaDeContrasenas();
+            // Sale a Internet (NVD): solo si se pide.
+            if (Environment.GetCommandLineArgs().Contains("--nvd")) ProbarNvdReal();
+            else Console.WriteLine("7. NVD real: OMITIDA (sale a Internet; se ejecuta con --nvd)");
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

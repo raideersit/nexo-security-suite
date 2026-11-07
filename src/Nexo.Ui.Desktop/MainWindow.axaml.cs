@@ -257,8 +257,16 @@ namespace Nexo.Ui.Desktop
 
         private async void RevisarSeccion(object? sender, RoutedEventArgs e)
         {
-            if (sender is Avalonia.Controls.Control { Tag: SeccionDeSeguridad seccion }) await Seguridad.RevisarAsync(seccion);
+            if (sender is not Avalonia.Controls.Control { Tag: SeccionDeSeguridad seccion }) return;
+            // Esta es la unica revision que ENVIA algo a Internet: se avisa que sale y se pide confirmar (por omision, «No»).
+            if (seccion == SeccionDeSeguridad.FallosConocidos && !await DialogoEnEspanol.PreguntarAsync(this, TextoDeAvisoNvd, "Consultar fallos conocidos", IconoDeDialogo.Pregunta)) return;
+            await Seguridad.RevisarAsync(seccion);
         }
+
+        internal const string TextoDeAvisoNvd =
+            "Nexo va a consultar la base pública de fallos de seguridad NVD (del gobierno de EE. UU., gratuita y sin cuenta).\n\n" +
+            "Se envía a Internet solo el nombre del programa y su versión (por ejemplo «winrar 7.01»). No se envía tu nombre, tu equipo, tus archivos ni la lista completa de lo que tienes instalado.\n\n" +
+            "Tarda alrededor de 7 segundos por programa, porque NVD limita las consultas. Nexo no instala ni cambia nada.\n\n¿Continuar?";
 
         private async void Actualizar(object? sender, RoutedEventArgs e)
         {

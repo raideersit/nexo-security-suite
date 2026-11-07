@@ -656,7 +656,7 @@
                                             <DockPanel>
                                                 <Border DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Top"
                                                         Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
-                                                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0" Content="Revisar"
+                                                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0" Content="{Binding Boton}"
                                                         Tag="{Binding Seccion}" IsEnabled="{Binding PuedeRevisar}" Click="RevisarSeccion" />
                                                 <StackPanel Spacing="2">
                                                     <TextBlock Text="{Binding Estado}" FontWeight="Bold" TextWrapping="Wrap" />

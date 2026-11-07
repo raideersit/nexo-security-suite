@@ -41,6 +41,13 @@ namespace Nexo.Vuln.Demo
             ProbarVariantesDeWinget();
             ProbarReglasDeAplicaciones();
             ProbarTextosConTildes();
+            ProbarCveParser();
+            ProbarCveFiltroPorProducto();
+            ProbarCveMapaYVersiones();
+            ProbarCveCruce();
+            ProbarCveAnalisis();
+            ProbarCveHttp();
+            ProbarCveTextos();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

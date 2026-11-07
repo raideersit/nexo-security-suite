@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,14 +14,17 @@ namespace Nexo.Ui.Desktop.Nucleo
     {
         Cuentas,
         Wifi,
-        Aplicaciones
+        Aplicaciones,
+        /// <summary>Cruce de las aplicaciones con los fallos conocidos de NVD. Envia nombre y version a Internet: solo con su propio boton.</summary>
+        FallosConocidos
     }
 
     /// <summary>
     /// Una revision ya hecha. <see cref="Nota"/> es un hecho que no es un hallazgo ni un fallo (por ejemplo «este equipo no tiene
     /// adaptador Wi-Fi»). Un analisis incompleto (<c>Analisis.Completo == false</c>) NUNCA se presenta como «sin problemas».
     /// </summary>
-    public sealed record RevisionDeSeccion(SeccionDeSeguridad Seccion, ResultadoDeAnalisis Analisis, DateTimeOffset Fecha, string? Nota = null, int? Elementos = null);
+    public sealed record RevisionDeSeccion(SeccionDeSeguridad Seccion, ResultadoDeAnalisis Analisis, DateTimeOffset Fecha, string? Nota = null, int? Elementos = null,
+        IReadOnlyList<AplicacionDesactualizada>? Aplicaciones = null);
 
     /// <summary>
     /// De donde salen las revisiones de seguridad. Todo es SOLO LECTURA: ningun metodo cambia nada en el equipo. Corre en el proceso
@@ -29,6 +33,13 @@ namespace Nexo.Ui.Desktop.Nucleo
     public interface IServicioDeSeguridad
     {
         Task<Consulta<RevisionDeSeccion>> RevisarAsync(SeccionDeSeguridad seccion, CancellationToken ct);
+
+        /// <summary>
+        /// Cruza las aplicaciones con los fallos conocidos de NVD. ENVIA a Internet el nombre del producto y la version de cada una
+        /// (nada mas). Por omision no esta disponible.
+        /// </summary>
+        Task<Consulta<RevisionDeSeccion>> RevisarFallosConocidosAsync(IReadOnlyList<AplicacionDesactualizada> aplicaciones, IProgress<string>? progreso, CancellationToken ct)
+            => Task.FromResult(Consulta<RevisionDeSeccion>.Mal("esta comprobación no está disponible aquí"));
     }
 
     public sealed class ServicioDeSeguridadNoDisponible : IServicioDeSeguridad
@@ -74,7 +85,7 @@ namespace Nexo.Ui.Desktop.Nucleo
                     {
                         SalidaDeWinget w = await LectorDeWingetWindows.LeerAsync(ct: ct).ConfigureAwait(false);
                         ResultadoDeAplicaciones r = AnalizadorDeAplicaciones.Analizar(w);
-                        return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, r.Analisis, _reloj(), Elementos: r.Aplicaciones.Count));
+                        return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, r.Analisis, _reloj(), Elementos: r.Aplicaciones.Count, Aplicaciones: r.Aplicaciones));
                     }
                 }
             }
@@ -82,6 +93,20 @@ namespace Nexo.Ui.Desktop.Nucleo
             {
                 // Lo que no se pudo revisar se dice; nunca se devuelve un resultado a medias.
                 return Consulta<RevisionDeSeccion>.Mal("error inesperado al revisar (" + ex.GetType().Name + ")");
+            }
+        }
+
+        public async Task<Consulta<RevisionDeSeccion>> RevisarFallosConocidosAsync(IReadOnlyList<AplicacionDesactualizada> aplicaciones, IProgress<string>? progreso, CancellationToken ct)
+        {
+            try
+            {
+                using var nvd = new ConsultaNvdHttp();
+                ResumenDeCruce c = await CruceConCve.CruzarAsync(aplicaciones, nvd, (t, token) => Task.Delay(t, token), _reloj, progreso, ct: ct).ConfigureAwait(false);
+                return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(SeccionDeSeguridad.FallosConocidos, CruceConCve.Analizar(c), _reloj(), Elementos: c.Resultados.Count));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return Consulta<RevisionDeSeccion>.Mal("error inesperado al consultar (" + ex.GetType().Name + ")");
             }
         }
     }
