@@ -995,6 +995,13 @@ administrador) con el vault, la cuarentena y el historial en una carpeta tempora
     el único rastro de ese archivo es el «Último aviso», que otro aviso sobrescribe.
   - Sin copias sobrantes en `yara-tmp`. **Sin probar:** carpetas por revisar tras perder eventos reales (desborde), motor caído en
     pleno vuelo, y la fuente USN.
+- **Fuente USN de punta a punta, probada (2026-11-07, HP, administrador).** `nexo-service` real con `Nexo:TiempoReal:Fuente=usn`,
+  YARA real, tubería y vault propios en `%TEMP%`, consultado con `nexo-rpc`. `sospechoso.ps1` → `YARA.Prueba_Cadena`; `limpio.bat`
+  analizado y limpio; `nota.txt` descartado por extensión (3 vistos, 2 analizados, 1 descartado). Ráfaga de 300 `.exe` + 1 con
+  marcador: 304 vistos, 303 analizados, `final-malo.exe` detectado, 0 perdidos, 0 desbordes, 0 sin analizar, `cobertura_completa`
+  true. Un archivo con marcador **fuera** de la raíz no aparece. **No cubre** el error 1181 (el diario sobrescribe lo pendiente):
+  300 archivos no bastan para provocarlo; ni Defender y Nexo leyendo a la vez, ni carpetas como Descargas o Temp con tráfico real.
+  Sin commit aún.
 - **Escaneo programado, probado (2026-11-05, 23:27).** Servicio como usuario normal, `Nexo:EscaneoProgramado:Activo=true`,
   `IntervaloHoras=0.02` (el servicio lo sube al mínimo de 1 min), `Raices` = la carpeta de prueba, `Registro` en el scratchpad (sin
   `ProgramData`), YARA real; se mira la fila «Escaneo programado» de la pestaña Estado.
