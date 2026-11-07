@@ -10,8 +10,11 @@ using Nexo.Reports.Model;
 
 namespace Nexo.Modules.Threats.Vulnerabilidades
 {
-    /// <summary>Un producto tal como lo nombra la base de CPE de NVD. <see cref="QuitarCerosFinales"/>: winget da «7.01.0» y NVD «7.01».</summary>
-    public sealed record ProductoCpe(string Proveedor, string Producto, bool QuitarCerosFinales = false);
+    /// <summary>
+    /// Un producto tal como lo nombra la base de CPE de NVD. <see cref="QuitarCerosFinales"/>: winget da «7.01.0» y NVD «7.01».
+    /// <see cref="Java8"/>: Java 8 se lista por actualizacion exacta («1.8.0» + «update401»); winget da «8.0.4010.10» (tercer numero = actualizacion x 10).
+    /// </summary>
+    public sealed record ProductoCpe(string Proveedor, string Producto, bool QuitarCerosFinales = false, bool Java8 = false);
 
     /// <summary>
     /// Mapa CURADO de ids de winget a productos CPE. Solo entran programas cuyo CPE se comprobo contra NVD con una version vieja
@@ -29,6 +32,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             ("Microsoft.Edge", new ProductoCpe("microsoft", "edge_chromium")),
             ("VideoLAN.VLC", new ProductoCpe("videolan", "vlc_media_player")),
             ("Git.Git", new ProductoCpe("git-scm", "git")),
+            ("Oracle.JavaRuntimeEnvironment", new ProductoCpe("oracle", "jre", Java8: true)),
             ("OpenJS.NodeJS", new ProductoCpe("nodejs", "node.js"))
         };
 
@@ -55,6 +59,12 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         public static string? NormalizarVersion(ProductoCpe p, string? versionWinget)
         {
             string v = (versionWinget ?? "").Trim();
+            if (p.Java8)
+            {
+                // Solo la forma exacta «8.0.<actualizacion>0.<compilacion>»: «8.0.4010.10» = 8u401. Cualquier otra no se adivina.
+                Match j = Regex.Match(v, @"^8\.0\.([1-9][0-9]{0,2})0\.[0-9]{1,3}\z", RegexOptions.CultureInvariant);
+                return j.Success ? "1.8.0:update" + j.Groups[1].Value : null;
+            }
             if (!Regex.IsMatch(v, @"^[0-9]{1,6}(\.[0-9]{1,6}){1,3}\z", RegexOptions.CultureInvariant)) return null;
             if (p.QuitarCerosFinales)
             {
@@ -66,7 +76,8 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
         }
 
         public static string Cpe(ProductoCpe p, string version)
-            => "cpe:2.3:a:" + p.Proveedor + ":" + p.Producto + ":" + version + ":*:*:*:*:*:*:*";
+            // «version» puede traer la actualizacion («1.8.0:update401»): ocupa el campo siguiente, y quedan 6 comodines en vez de 7.
+            => "cpe:2.3:a:" + p.Proveedor + ":" + p.Producto + ":" + version + (version.Contains(':') ? ":*:*:*:*:*:*" : ":*:*:*:*:*:*:*");
     }
 
     /// <summary>Un fallo conocido (CVE). <see cref="Puntaje"/> null = NVD no lo ha puntuado todavia.</summary>
@@ -171,8 +182,11 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
                         string criterio = (cr.GetString() ?? "").ToLowerInvariant();
                         if (!criterio.StartsWith(prefijo, StringComparison.Ordinal)) continue;
                         string[] partes = criterio.Split(':');
-                        if (partes.Length < 6) continue;
-                        if (VersionEnRango(m, partes[5], version)) return true;
+                        if (partes.Length < 7) continue;
+                        string[] nuestra = version.Split(':');
+                        // La actualizacion (campo 6): si el criterio nombra una, debe ser la nuestra; sin actualizacion nuestra, un criterio con una concreta no cuenta.
+                        if (partes[6] != "*" && partes[6] != "-" && (nuestra.Length < 2 || partes[6] != nuestra[1])) continue;
+                        if (VersionEnRango(m, partes[5], nuestra[0])) return true;
                     }
                 }
             }

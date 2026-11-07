@@ -1355,15 +1355,17 @@ Convierte «una versión más nueva» en «tu versión tiene estos fallos». Gra
   El texto dice «no lista fallos», nunca «seguro».
 - **Privacidad:** solo sale el CPE (`proveedor:producto:versión`); User-Agent genérico; servidor fijo, HTTPS, sin redirecciones ni cookies; CPE validado antes de armar la URL. Solo con su botón; **«Revisar todo» NO lo ejecuta** (probado).
   7 s entre consultas (sin clave ≈ 5 por 30 s). Releer las aplicaciones borra el cruce anterior.
-- **Mapa curado (8):** WinRAR (quita ceros finales: `7.01.0`→`7.01`), 7-Zip, Chrome, Firefox, Edge (`edge_chromium`), VLC, Git, Node.js. Cada CPE se comprobó contra NVD con una versión vieja conocida (debe devolver fallos).
-  Java NO está (winget `8.0.4010.10` vs NVD `1.8.0:update_401`: la traducción no es fiable). Solo versiones puramente numéricas de 2 a 4 partes.
+- **Mapa curado (9):** WinRAR (quita ceros finales: `7.01.0`→`7.01`), 7-Zip, Chrome, Firefox, Edge (`edge_chromium`), VLC, Git, Node.js y **Java 8** (`oracle:jre`). Cada CPE se comprobó contra NVD con una versión vieja conocida (debe devolver fallos).
+  **Java 8:** NVD lo lista por actualización exacta (`1.8.0` + `update401`; con guion bajo `update_401` da 0, trampa evitada). winget da `8.0.4010.10` = 8u401 (tercer número = actualización × 10); solo se traduce la forma exacta `8.0.<N>0.<compilación>`,
+  el resto (Java 11/17, formas raras) no se adivina. El criterio de NVD debe nombrar la MISMA actualización (402 no hereda los fallos de 401; no por prefijo). Java 8u401 del equipo: 9 fallos reales (CVE-2023-41993 explotado, y ocho de Oracle 2024).
+  Solo versiones puramente numéricas de 2 a 4 partes (Java 8 aparte).
 - **Hallazgo real (importante):** NVD devuelve también CVE que solo nombran al producto como PLATAFORMA (`vulnerable:false`). Node.js 24.15.0 daba 8, pero 2 eran de Next.js (CVE-2021-43803, CVE-2022-36046): falsa alarma de «crítico explotado».
   Ahora un CVE cuenta solo si un `cpeMatch` con `vulnerable:true` es de ESTE producto y su rango de versiones incluye la instalada (límites incluidos/excluidos probados). Quedan 6 reales (el de Brotli CVE-2026-111497 está en la lista CISA).
   También: puntaje CVSS primario preferido sobre el secundario; CVE «Rejected» no cuentan; un explotado sube a Alta como mínimo.
 - **Páginas parciales:** Chrome 100 tiene 4776 coincidencias; se piden 2000. Una página llena legítima (primera, `resultsPerPage` = recibidos) se acepta como PARCIAL («Al menos N…»); cualquier otro desajuste es respuesta cortada. Página llena sin ningún afectado → «no se pudo comprobar».
 - **Pruebas:** `Nexo.Vuln.Demo` §16–21 con respuestas REALES de NVD embebidas (`Datos/nvd-winrar-7.01.json`, `nvd-nodejs-24.15.0.json`); `Nexo.Desktop.Demo` (`SeguridadCvePruebas.cs`); todas las reglas con dientes (rotas a propósito: 27). Se descubrió con la rotura que `\d` de .NET acepta dígitos Unicode y `$` acepta un `\n` final: ahora `[0-9]` y `\z`.
 - **Prueba REAL (HP):** `dotnet run --project tools/Nexo.Vuln.Windows.Demo -- --nvd` (sale a Internet, ~2,5 min). 8 controles con versión vieja → todos con fallos; este equipo: WinRAR 7.01 → CVE-2025-8088 y CVE-2025-6218 (explotados) y CVE-2025-31334; Node.js 24.15.0 → 6; Git 2.54.0 → ninguno. 18 de 21 aplicaciones no están en el mapa.
-- **SIN PROBAR / límites:** la ventana real con el botón (solo modelo y pantalla simulada); el Java del usuario (Java 8 con fallos conocidos) sigue sin cruzarse; un CPE de NVD puede cambiar y devolver 0 (los controles `--nvd` lo detectan: repetirlos de vez en cuando); sin clave de NVD el límite es estricto.
+- **SIN PROBAR / límites:** la ventana real con el botón (solo modelo y pantalla simulada); Java 11/17 y el JDK de Oracle no se cruzan todavía; un CPE de NVD puede cambiar y devolver 0 (los controles `--nvd` lo detectan: repetirlos de vez en cuando); sin clave de NVD el límite es estricto.
   El usuario tiene WinRAR 7.01 con fallos explotados: debe actualizar con `winget upgrade --id RARLab.WinRAR` (Nexo no lo actualiza).
 
 ## 3. Lo que necesita el otro equipo

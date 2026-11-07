@@ -38,7 +38,7 @@ namespace Nexo.Vuln.Windows.Demo
             var viejas = new (string Id, string Version)[]
             {
                 ("RARLab.WinRAR", "6.22.0"), ("7zip.7zip", "21.07"), ("Google.Chrome", "100.0.4896.60"), ("Mozilla.Firefox", "90.0"),
-                ("Microsoft.Edge", "100.0.1185.29"), ("VideoLAN.VLC", "3.0.10"), ("Git.Git", "2.30.0"), ("OpenJS.NodeJS.LTS", "12.0.0")
+                ("Microsoft.Edge", "100.0.1185.29"), ("Oracle.JavaRuntimeEnvironment", "8.0.4010.10"), ("VideoLAN.VLC", "3.0.10"), ("Git.Git", "2.30.0"), ("OpenJS.NodeJS.LTS", "12.0.0")
             };
             var apps = viejas.Select(v => new AplicacionDesactualizada(v.Id, v.Id, v.Version, "99.0", "winget")).ToList();
             using var nvd = new ConsultaNvdHttp();

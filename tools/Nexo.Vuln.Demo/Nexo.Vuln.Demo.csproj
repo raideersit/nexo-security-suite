@@ -14,6 +14,7 @@
     <!-- Respuesta REAL de NVD (consultada el 2026-11-07) para WinRAR 7.01: los datos de prueba no se inventan. -->
     <EmbeddedResource Include="Datos\nvd-winrar-7.01.json" LogicalName="nvd-winrar-7.01.json" />
     <EmbeddedResource Include="Datos\nvd-nodejs-24.15.0.json" LogicalName="nvd-nodejs-24.15.0.json" />
+    <EmbeddedResource Include="Datos\nvd-java-8u401.json" LogicalName="nvd-java-8u401.json" />
   </ItemGroup>
 
   <ItemGroup>

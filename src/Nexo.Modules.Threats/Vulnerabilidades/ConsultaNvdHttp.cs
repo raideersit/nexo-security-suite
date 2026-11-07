@@ -19,7 +19,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
     {
         public static readonly Uri Servidor = new Uri("https://services.nvd.nist.gov/");
 
-        private static readonly Regex FormaDeCpe = new Regex(@"^cpe:2\.3:a:[a-z0-9_.\-]{1,64}:[a-z0-9_.\-]{1,64}:[0-9]{1,6}(\.[0-9]{1,6}){1,3}(:\*){7}\z",
+        private static readonly Regex FormaDeCpe = new Regex(@"^cpe:2\.3:a:[a-z0-9_.\-]{1,64}:[a-z0-9_.\-]{1,64}:[0-9]{1,6}(\.[0-9]{1,6}){1,3}(:update[1-9][0-9]{0,3}(:\*){6}|(:\*){7})\z",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private readonly HttpClient _http;

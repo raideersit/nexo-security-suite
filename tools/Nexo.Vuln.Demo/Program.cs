@@ -44,6 +44,7 @@ namespace Nexo.Vuln.Demo
             ProbarCveParser();
             ProbarCveFiltroPorProducto();
             ProbarCveMapaYVersiones();
+            ProbarCveJava();
             ProbarCveCruce();
             ProbarCveAnalisis();
             ProbarCveHttp();

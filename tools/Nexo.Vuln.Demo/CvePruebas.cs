@@ -24,6 +24,8 @@ namespace Nexo.Vuln.Demo
 
         private static string NvdReal() => Recurso("nvd-winrar-7.01.json");
         private static string NvdNodo() => Recurso("nvd-nodejs-24.15.0.json");
+        private static string NvdJava() => Recurso("nvd-java-8u401.json");
+        private static readonly ProductoCpe PJava = new("oracle", "jre", Java8: true);
 
         private static readonly ProductoCpe PWinRar = new("rarlab", "winrar", true), PNodo = new("nodejs", "node.js");
 
@@ -174,7 +176,7 @@ namespace Nexo.Vuln.Demo
             Check(MapaDeProductos.Buscar("Mozilla.Firefox.es-ES")?.Producto == "firefox", "Mozilla.Firefox.es-ES (con variante de idioma) entra");
             Check(MapaDeProductos.Buscar("OpenJS.NodeJS.LTS")?.Producto == "node.js", "OpenJS.NodeJS.LTS entra");
             Check(MapaDeProductos.Buscar("Git.Git")?.Producto == "git", "Git.Git entra");
-            foreach (string no in new[] { "Git.GitHubDesktop", "GitHub.cli", "Oracle.JavaRuntimeEnvironment", "Python.PythonInstallManager", "Obsidian.Obsidian", "", "   ", "7zip.7zipExtra", "Google.ChromeRemoteDesktopHost" })
+            foreach (string no in new[] { "Git.GitHubDesktop", "GitHub.cli", "Oracle.JDK.17", "Oracle.JavaRuntimeEnvironmentX", "Python.PythonInstallManager", "Obsidian.Obsidian", "", "   ", "7zip.7zipExtra", "Google.ChromeRemoteDesktopHost" })
                 Check(MapaDeProductos.Buscar(no) is null, "no se cruza (no esta en el mapa curado): «" + no + "»");
 
             ProductoCpe wr = MapaDeProductos.Buscar("RARLab.WinRAR")!, git = MapaDeProductos.Buscar("Git.Git")!;
@@ -185,11 +187,36 @@ namespace Nexo.Vuln.Demo
             foreach (string mala in new[] { "< 175.1.0.13416", "Unknown", "1.0-beta", "", "  ", "7", "7.", ".7.1", "7.01.0.0.0", "abc", "7,01", "7.01 ", "１２.３", "8.0.4010.10x" })
                 if (mala.Trim() != "7.01") Check(MapaDeProductos.NormalizarVersion(git, mala) is null, "version no fiable, no se adivina: «" + mala + "»");
             Check(MapaDeProductos.NormalizarVersion(git, null) is null, "version nula: no se adivina");
+            // Java 8: se lista por actualizacion exacta.
+            Check(MapaDeProductos.Buscar("Oracle.JavaRuntimeEnvironment") == PJava, "Oracle.JavaRuntimeEnvironment -> oracle:jre (Java 8)");
+            Check(MapaDeProductos.NormalizarVersion(PJava, "8.0.4010.10") == "1.8.0:update401", "Java «8.0.4010.10» (la del equipo) -> «1.8.0:update401» (8u401)");
+            Check(MapaDeProductos.NormalizarVersion(PJava, "8.0.5110.33") == "1.8.0:update511" && MapaDeProductos.NormalizarVersion(PJava, "8.0.510.5") == "1.8.0:update51", "«8.0.5110.33» -> 8u511 y «8.0.510.5» -> 8u51");
+            foreach (string malaJava in new[] { "8.0.4011.10", "8.0.0.10", "8.0.4010", "8.0.4010.10.1", "11.0.22", "17.0.10.0", "8.0.04010.10", "1.8.0_401", "8.1.4010.10", "9.0.4010.10", "8.0.4010.", "", "８.0.4010.10", "8.0.4010.10 " })
+                if (malaJava.Trim() != "8.0.4010.10") Check(MapaDeProductos.NormalizarVersion(PJava, malaJava) is null, "Java: version que no es la forma exacta, no se adivina: «" + malaJava + "»");
+            Check(MapaDeProductos.Cpe(PJava, "1.8.0:update401") == "cpe:2.3:a:oracle:jre:1.8.0:update401:*:*:*:*:*:*", "el CPE de Java lleva la actualizacion y 6 comodines");
+            Check(MapaDeProductos.NormalizarVersion(PJava, "8.0.4010.10") != MapaDeProductos.NormalizarVersion(PJava, "8.0.4110.10"), "dos actualizaciones distintas dan CPE distintos");
             Check(MapaDeProductos.Cpe(wr, "7.01") == "cpe:2.3:a:rarlab:winrar:7.01:*:*:*:*:*:*:*", "el CPE se arma exactamente como lo espera NVD");
 
             // La lista de riesgo y el mapa no deben contradecirse en un id con otra forma.
             Check(MapaDeProductos.Todas.Select(e => e.Prefijo).Distinct(StringComparer.OrdinalIgnoreCase).Count() == MapaDeProductos.Todas.Count, "el mapa no repite ids");
             Check(MapaDeProductos.Todas.All(e => Regex.IsMatch(MapaDeProductos.Cpe(e.Cpe, "1.0"), @"^cpe:2\.3:a:[a-z0-9_.\-]+:[a-z0-9_.\-]+:1\.0(:\*){7}$")), "todos los CPE del mapa tienen la forma que acepta la consulta HTTP");
+        }
+
+        public static void ProbarCveJava()
+        {
+            Console.WriteLine("17b. Cruce con CVE: Java 8 (respuesta REAL de NVD para 8u401)");
+            RespuestaDeNvdLeida j = ParserDeNvd.Parsear(NvdJava(), PJava, "1.8.0:update401");
+            Check(j.Reconocida && j.Cves.Count > 0 && j.Cves.Count + j.Descartados == 9, "NVD devuelve 9; se cuentan los que afectan al JRE y el resto se descarta (suman 9)", j.Cves.Count + "+" + j.Descartados);
+            Check(j.Cves.Any(c => c.Id == "CVE-2023-41993" && c.Explotada), "incluye CVE-2023-41993, que figura como explotado en la lista de CISA");
+            Check(ParserDeNvd.Parsear(NvdJava(), PJava, "1.8.0:update402").Cves.Count == 0, "la actualizacion 402 NO hereda los fallos de la 401 (la actualizacion debe coincidir exactamente)");
+            Check(ParserDeNvd.Parsear(NvdJava(), PJava, "1.8.0:update40").Cves.Count == 0, "«update40» no coincide con «update401» (no es por prefijo)");
+            Check(ParserDeNvd.Parsear(NvdJava(), PJava, "1.8.0").Cves.Count == 0, "sin actualizacion nuestra, un criterio con actualizacion concreta no cuenta");
+            Check(ParserDeNvd.Parsear(NvdJava(), new ProductoCpe("oracle", "jdk", Java8: true), "1.8.0:update401").Cves.Count >= j.Cves.Count, "el JDK de la misma actualizacion sale con los mismos o mas fallos que el JRE");
+            var nvd = new NvdFalso(cpe => new RespuestaHttp(200, NvdJava()));
+            ResultadoDeCruce r = Cruzar(new[] { App("Java 8 Update 401 (64-bit)", "Oracle.JavaRuntimeEnvironment", "8.0.4010.10") }, nvd).Resultados.Single();
+            Check(nvd.Consultas.Single() == "cpe:2.3:a:oracle:jre:1.8.0:update401:*:*:*:*:*:*" && r.Estado == EstadoDeCruce.ConFallos, "de punta a punta: Java 8 Update 401 se consulta como «1.8.0:update401» y sale con fallos", string.Join("|", nvd.Consultas));
+            var nvd2 = new NvdFalso(_ => new RespuestaHttp(200, NvdVacio));
+            Check(Cruzar(new[] { App("Java 11", "Oracle.JavaRuntimeEnvironment", "11.0.22") }, nvd2).Resultados.Single().Estado == EstadoDeCruce.NoSePudoComprobar && nvd2.Consultas.Count == 0, "una version de Java que no es la forma de Java 8 no se consulta: no se pudo comprobar");
         }
 
         public static void ProbarCveCruce()
@@ -368,8 +395,10 @@ namespace Nexo.Vuln.Demo
             Check(p.Method == HttpMethod.Get && p.Content is null, "es un GET sin cuerpo");
             Check(p.Headers.UserAgent.ToString() == "Nexo-Security-Suite" && p.Headers.Authorization is null && !p.Headers.Contains("apiKey") && !p.Headers.Contains("Cookie"), "se presenta con un nombre generico, sin cuenta, clave ni cookies (nada del usuario)", p.Headers.UserAgent.ToString());
 
+            Check(http.ConsultarCvesAsync("cpe:2.3:a:oracle:jre:1.8.0:update401:*:*:*:*:*:*", CancellationToken.None).GetAwaiter().GetResult().Estado == 200, "el CPE de Java con actualizacion («update401») se acepta");
             foreach (string mal in new[]
             {
+                "cpe:2.3:a:oracle:jre:1.8.0:update_401:*:*:*:*:*:*", "cpe:2.3:a:oracle:jre:1.8.0:update0:*:*:*:*:*:*", "cpe:2.3:a:oracle:jre:1.8.0:update401:*:*:*:*:*:*:*", "cpe:2.3:a:oracle:jre:1.8.0:update401x:*:*:*:*:*:*",
                 "", "cpe:2.3:a:rarlab:winrar:7.01:*:*:*:*:*:*:*&apiKey=x", "cpe:2.3:a:rarlab:winrar:7.01:*:*:*:*:*:*:*#", "cpe:2.3:a:rarlab:winrar:7.01\n:*:*:*:*:*:*:*",
                 "cpe:2.3:a:rar lab:winrar:7.01:*:*:*:*:*:*:*", "cpe:2.3:h:rarlab:winrar:7.01:*:*:*:*:*:*:*", "cpe:2.3:a:rarlab:winrar:7.01:*:*:*:*:*:*", "https://evil.example/", "cpe:2.3:a:rarlab:winrar:*:*:*:*:*:*:*:*",
                 "cpe:2.3:a:rarlab:winrar:7.01:a:*:*:*:*:*:*"
@@ -379,7 +408,7 @@ namespace Nexo.Vuln.Demo
                 try { http.ConsultarCvesAsync(mal, CancellationToken.None).GetAwaiter().GetResult(); } catch (ArgumentException) { lanzo = true; }
                 Check(lanzo, "un CPE que no tiene la forma esperada se rechaza ANTES de salir: " + Recorte(mal.Replace("\n", "\\n")));
             }
-            Check(m.Peticiones.Count == 1, "los CPE rechazados no hicieron ninguna peticion");
+            Check(m.Peticiones.Count == 2, "los CPE rechazados no hicieron ninguna peticion");
 
             RespuestaHttp Con(Func<HttpRequestMessage, HttpResponseMessage> f)
             {
