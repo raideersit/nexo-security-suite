@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using Nexo.Reports.Model;
 
@@ -31,7 +32,28 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             return Construir("Revision de Wi-Fi", "No se encontro nada en las redes Wi-Fi guardadas ni en la conexion actual.", r);
         }
 
-        private static NexoEvent Construir(string area, string textoLimpio, ResultadoDeAnalisis r)
+        /// <summary>
+        /// Un evento por revision de aplicaciones desactualizadas (winget, en espanol). Declara su alcance: winget solo conoce
+        /// las aplicaciones que sabe identificar, asi que NO es una revision de todo el software instalado, y una version nueva
+        /// no significa «vulnerable».
+        /// </summary>
+        public static NexoEvent RevisionDeAplicaciones(ResultadoDeAplicaciones r)
+        {
+            var sb = new StringBuilder();
+            if (r.Aplicaciones.Count > 0)
+            {
+                sb.AppendLine("| Aplicacion | Id | Instalada | Disponible |");
+                sb.AppendLine("|---|---|---|---|");
+                foreach (AplicacionDesactualizada a in r.Aplicaciones.Take(100))
+                    sb.AppendLine("| " + Celda(a.Nombre) + " | " + Celda(a.Id) + " | " + Celda(a.VersionInstalada) + " | " + Celda(a.VersionDisponible) + " |");
+                if (r.Aplicaciones.Count > 100) sb.AppendLine("| ... y " + (r.Aplicaciones.Count - 100) + " mas | | | |");
+                sb.AppendLine();
+            }
+            sb.AppendLine("*Alcance:* winget solo comprueba las aplicaciones que sabe identificar; no es una revision de todo el software instalado. Una version mas nueva no significa que la instalada sea vulnerable.");
+            return Construir("Revision de aplicaciones desactualizadas", "winget no encontro aplicaciones con una version mas nueva.", r.Analisis, sb.ToString());
+        }
+
+        private static NexoEvent Construir(string area, string textoLimpio, ResultadoDeAnalisis r, string? extra = null)
         {
             // Incompleta sin hallazgos: severidad Media (lo desconocido no es «bien»); completa y limpia: Info.
             Severidad sev = r.Hallazgos.Count > 0 ? r.Maxima : r.Completo ? Severidad.Info : Severidad.Media;
@@ -57,6 +79,7 @@ namespace Nexo.Modules.Threats.Vulnerabilidades
             {
                 sb.AppendLine(textoLimpio);
             }
+            if (extra is not null) { sb.AppendLine(); sb.Append(extra); }
 
             var e = new NexoEvent(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, titulo)
             {

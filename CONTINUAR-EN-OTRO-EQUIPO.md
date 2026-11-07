@@ -1199,6 +1199,32 @@ reglas, portable), `Nexo.Modules.Threats.Windows/LectorDeWifiWindows`, y `Revisi
 - **No cubierto:** categoría de red (Pública/Privada, `INetworkListManager`); redes de WPA empresarial (802.1X) más allá de leer su autenticación; sin cableado a
   servicio/ventana/bandeja. Falta 5a (aplicaciones desactualizadas).
 
+## 2u. Vulnerabilidades 5a: aplicaciones desactualizadas (2026-11-07, en el HP)
+
+Tercer y último paso del bloque de vulnerabilidades. Código: `Nexo.Modules.Threats/Vulnerabilidades/ModeloDeAplicaciones` (parser, reglas; portable),
+`Nexo.Modules.Threats.Windows/LectorDeWingetWindows` y `RevisionDeAplicaciones` en `EventosDeVulnerabilidades`. Sin commit.
+
+- **Solo español (decisión del usuario):** el parser exige el encabezado exacto `Nombre Id Versión Disponible Origen` y la línea de guiones. Con cualquier otro
+  idioma, o un error de winget (no poder abrir el origen…), el resultado es **«no evaluado»** con el motivo, nunca «sin actualizaciones». Las columnas se cortan por la
+  posición de cada título (los nombres llevan espacios). Una fila con el Id truncado (`…`), campos vacíos o más corta que la columna Origen no se adivina: es ilegible
+  y hace la revisión incompleta. **El recuento final («N actualizaciones disponibles.») debe cuadrar con las filas**; si falta, no cuadra, o winget añade texto
+  después (otra tabla de paquetes que no pudo comparar), se avisa. Guarda explícita: las posiciones de columna deben ser estrictamente crecientes (sin ella, una
+  rotura a propósito hizo lanzar `Substring`).
+- **Lector real:** `winget upgrade --accept-source-agreements --disable-interactivity` por `Process` (UTF-8, entrada cerrada para que no espere respuesta, tope de
+  120 s con `Kill` del árbol de procesos, tope de 2 MiB). **Solo consulta: jamás instala ni actualiza.** winget necesita sesión de usuario: lanzado desde el servicio
+  como SYSTEM normalmente no funciona; está pensado para la ventana o la consola.
+- **Reglas:** un programa de una lista corta de «muy atacados» (Java/JDK, WinRAR, 7-Zip, Chrome, Firefox, Edge, Adobe Acrobat, Zoom, VLC; se compara el **prefijo** del Id,
+  sin distinguir mayúsculas) desactualizado = **Media**, con el comando exacto `winget upgrade --id …`; el resto, un solo hallazgo **Baja**. **Una versión más nueva NO significa
+  «vulnerable»**: no hay cruce con CVE y los textos lo dicen. El evento declara su alcance: winget solo comprueba lo que sabe identificar, no todo el software instalado.
+- **Probado:** `Nexo.Vuln.Demo` secciones 12–14 usando como dato la **salida real de tu winget copiada tal cual** (21 filas, incluida `< 175.1.0.13416` y un nombre que llena
+  la columna). Con dientes (6 roturas: encabezado en inglés aceptado, recuento ignorado, Ids truncados aceptados, error tomado por «sin actualizaciones», Id por «contiene» en
+  vez de prefijo, texto extra sin avisar). **Contra el HP real** (`Nexo.Vuln.Windows.Demo`, sección 4): winget v1.29.380, 21 aplicaciones leídas, recuento coincide, **Java 8
+  Update 401 y WinRAR 7.01 marcados Media** + 19 en el hallazgo Bajo; con un límite de 1 ms devuelve `TiempoAgotado` y no una tabla a medias.
+- **SIN PROBAR con winget real:** el mensaje de «nada que actualizar» en español (el reconocimiento `No se encontr… actualizaci…` se probó solo con texto sintético; hay que
+  verlo la primera vez que el HP no tenga nada pendiente), y qué pasa con tablas adicionales de winget (paquetes con versión no determinada), que hoy solo avisan.
+- **No cubierto:** sin cruce con CVE (OSV.dev, gratuito: posible siguiente paso); sin inventario del registro (aplicaciones que winget no reconoce quedan fuera y no se dice
+  cuántas son); ejecución desde el servicio; sin cableado a ventana/bandeja.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

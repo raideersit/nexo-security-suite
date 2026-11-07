@@ -64,10 +64,38 @@ namespace Nexo.Vuln.Windows.Demo
             Check(!todo.Contains("DefaultPassword=", StringComparison.OrdinalIgnoreCase), "ningun hallazgo contiene un valor de contrasena");
 
             ProbarWifi();
+            ProbarWinget();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
+        }
+
+        private static void ProbarWinget()
+        {
+            Console.WriteLine("4. winget real (solo consulta: nunca instala ni actualiza nada)");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            SalidaDeWinget s = LectorDeWingetWindows.LeerAsync().GetAwaiter().GetResult();
+            Console.WriteLine("      INFO: estado " + s.Estado + ", codigo de salida " + s.CodigoDeSalida + ", " + s.Texto.Length + " caracteres, " + sw.ElapsedMilliseconds + " ms");
+            Check(s.Estado == EstadoDeWinget.Correcta && s.Texto.Length > 0, "winget se ejecuta y devuelve texto");
+
+            ResultadoDeParseo p = ParserDeActualizacionesWinget.Parsear(s.Texto);
+            Check(p.Reconocido, "la salida real, capturada por Process, se reconoce como tabla en espanol (tildes incluidas)", string.Join("; ", p.Avisos) + " | " + s.Texto.Substring(0, Math.Min(150, s.Texto.Length)).Replace("\n", "\\n"));
+            Check(p.Avisos.Count == 0, "sin avisos: recuento coherente y ninguna fila ilegible", string.Join("; ", p.Avisos));
+
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(s.Texto, @"(\d+)\s+actualizaci\S+\s+disponible");
+            Check(m.Success && int.Parse(m.Groups[1].Value) == p.Aplicaciones.Count, "el numero de aplicaciones leidas coincide con el que dice winget (" + p.Aplicaciones.Count + ")", m.Success ? m.Groups[1].Value : "sin recuento");
+            Check(p.Aplicaciones.All(a => a.Id.Length > 0 && !a.Id.Contains(' ') && a.VersionDisponible.Length > 0), "todas tienen Id y version disponible");
+
+            ResultadoDeAplicaciones r = AnalizadorDeAplicaciones.Analizar(s);
+            Check(r.Analisis.Completo, "el analisis es completo", string.Join("; ", r.Analisis.NoEvaluado));
+            Console.WriteLine("      INFO: " + r.Aplicaciones.Count + " aplicacion(es) con version nueva; hallazgos:");
+            foreach (HallazgoDeSistema h in r.Analisis.Hallazgos) Console.WriteLine("        - [" + h.Severidad + "] " + h.Titulo + (h.Sujeto is null ? "" : " (" + h.Sujeto + ")"));
+
+            // Tiempo limite: con 1 ms no puede terminar, y debe decirlo (no devolver una tabla a medias como si fuera completa).
+            SalidaDeWinget corto = LectorDeWingetWindows.LeerAsync(TimeSpan.FromMilliseconds(1)).GetAwaiter().GetResult();
+            Check(corto.Estado == EstadoDeWinget.TiempoAgotado && corto.Texto.Length == 0, "con un limite de 1 ms devuelve TiempoAgotado y NO una tabla a medias", corto.Estado.ToString());
+            Check(!AnalizadorDeAplicaciones.Analizar(corto).Analisis.Completo, "y eso queda como «no evaluado»");
         }
 
         private static void ProbarWifi()
