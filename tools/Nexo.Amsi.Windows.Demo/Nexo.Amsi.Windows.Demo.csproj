@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de AMSI REAL (el proveedor que tenga Windows, normalmente Defender). No escribe nada a disco: la cadena de
+         prueba de AMSI solo existe en memoria. No necesita administrador. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Amsi.Windows.Demo</RootNamespace>
+    <AssemblyName>nexo-amsi-windows-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

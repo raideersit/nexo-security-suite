@@ -177,6 +177,29 @@ namespace Nexo.Service
         /// </summary>
         private IMotorDeFirmas CrearMotor()
         {
+            IMotorDeFirmas basico = CrearMotorBasico();
+            if (!bool.TryParse(_config["Nexo:Amsi:Activo"], out bool amsi) || !amsi) return basico;
+
+            // AMSI se SUMA al motor de firmas (no lo sustituye) y solo si responde de verdad: se comprueba aqui con la
+            // cadena de prueba oficial. Si no responde (Defender apagado o ausente) no se suma y se dice en la nota de
+            // arranque, para que nadie crea que esta cubierto. Si falla mas tarde, esos archivos salen como «no analizados».
+            var backend = new BackendAmsiWindows();
+            var motorAmsi = new MotorAmsi(backend);
+            try
+            {
+                motorAmsi.VersionAsync().GetAwaiter().GetResult();
+                return new MotorCombinado(basico, motorAmsi);
+            }
+            catch (MotorNoDisponibleException ex)
+            {
+                backend.Dispose();
+                AvisosDeArranque.Add("Nexo:Amsi:Activo = true, pero AMSI no es operativo (" + ex.Message + "): se analiza solo con " + basico.Nombre + ".");
+                return basico;
+            }
+        }
+
+        private IMotorDeFirmas CrearMotorBasico()
+        {
             if (string.Equals(_config["Nexo:Motor"], "yara", StringComparison.OrdinalIgnoreCase))
             {
                 string? exe = _config["Nexo:Yara:Ejecutable"], reglas = _config["Nexo:Yara:Reglas"];

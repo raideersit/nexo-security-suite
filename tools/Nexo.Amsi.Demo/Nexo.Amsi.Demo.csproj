@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de MotorAmsi y MotorCombinado con un AMSI falso (portable): no necesita Windows ni Defender. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Amsi.Demo</RootNamespace>
+    <AssemblyName>nexo-amsi-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
+</Project>
