@@ -15,7 +15,7 @@ using Nexo.Reports.Model;
 
 namespace Nexo.Identity.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
 
@@ -36,7 +36,7 @@ namespace Nexo.Identity.Demo
             public Task InicializarVaultAsync(CancellationToken ct = default) => Task.CompletedTask;
         }
 
-        public static async Task<int> Main()
+        public static async Task<int> Main(string[] args)
         {
             Console.OutputEncoding = new UTF8Encoding(false);
             string dir = Path.Combine(Path.GetTempPath(), "nexo-identity-demo-" + Guid.NewGuid().ToString("N"));
@@ -54,6 +54,11 @@ namespace Nexo.Identity.Demo
                 await ProbarEventos(dir).ConfigureAwait(false);
                 ProbarGenerador();
                 await ProbarCostoReal(dir).ConfigureAwait(false);
+                await ProbarFiltraciones().ConfigureAwait(false);
+                await ProbarHttp().ConfigureAwait(false);
+                await ProbarAuditoria(dir).ConfigureAwait(false);
+                // Solo con --real: habla con Internet (envia unicamente el prefijo de 5 caracteres de una contrasena de prueba publica).
+                if (args.Contains("--real")) await ProbarServicioReal().ConfigureAwait(false);
             }
             finally
             {

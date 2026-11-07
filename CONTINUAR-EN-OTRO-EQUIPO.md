@@ -1123,6 +1123,29 @@ Primer paso del módulo M3 (`Nexo.Modules.Identity`, portable `net8.0`). **Hecho
   inactividad; sin permisos NTFS del archivo (hereda los de la carpeta); sin importar/exportar; sin comprobación de contraseñas filtradas (Pwned Passwords, el
   siguiente paso); sin prueba de que sobreviva a un corte de luz real en medio del guardado (solo el diseño: temporal + reemplazo + verificación).
 
+## 2r. Contraseñas filtradas: Pwned Passwords (2026-11-07, en el HP)
+
+Segundo paso de M3, en `Nexo.Modules.Identity/Filtraciones`. **Gratuito: la API de rangos no pide clave ni cuenta.** Sin commit.
+
+- **K-anonimato:** el SHA-1 se calcula en el equipo (bytes UTF-8 de la contraseña tal como se escribió, sin normalizar: así lo calcula el servicio) y a
+  `https://api.pwnedpasswords.com/range/XXXXX` solo sale el prefijo de **5 caracteres**. Ni la contraseña ni el hash completo salen jamás; la comparación del
+  sufijo se hace aquí. Cabecera `Add-Padding: true` (relleno con cantidad 0 que se ignora, para ocultar cuántos resultados reales hay).
+- **Tres estados honestos:** `Filtrada` (con su cantidad), `NoEncontrada` (solo si llegó un listado bien formado; significa «no aparece en las filtraciones
+  conocidas», NO «es buena») y `NoSePudoComprobar` (sin red, HTTP distinto de 200, redirección, 429, portal cautivo con HTML, respuesta vacía, más de 1 MiB,
+  tiempo agotado, línea inválida sin hallazgo). **Un fallo nunca es «no encontrada».** Un hallazgo no se descarta por una línea basura posterior.
+  Cantidades de 13 o más dígitos = línea inválida.
+- **Cliente HTTP** (`ConsultaDeRangosHttp`): servidor fijo y solo HTTPS, sin redirecciones ni cookies, prefijo validado con regex (`^[0-9A-F]{5}$`, nada de `/` ni `?`),
+  tope de 1 MiB leyendo en flujo (un flujo infinito se corta), 20 s de tiempo, cancelación propagada, nada se registra.
+- **Auditoría de la bóveda** (`AuditoriaDeBoveda.AuditarAsync`): una consulta por contraseña distinta, máximo 4 a la vez; separa `Filtradas`, `SinComprobar`,
+  `SinContrasena` y `NoEncontradas`; `TodoComprobadoYLimpio` solo es true si TODO se comprobó y nada apareció. Un evento `brecha-detectada` solo con conteos
+  (Alta si hay filtradas; **Media** si no hay pero algo quedó sin comprobar; Info si todo limpio). Nunca sitios, usuarios ni contraseñas.
+- **Probado:** secciones 12 a 14 de `Nexo.Identity.Demo` (vectores oficiales `password` → 5BAA6 y `123456` → 7C4A8; las defensas de arriba; concurrencia acotada), y
+  **contra el servicio real** (`dotnet run --project tools/Nexo.Identity.Demo -- --real`: `password` → 52 372 427 apariciones; una cadena aleatoria → no encontrada;
+  solo salen prefijos de prueba). Con dientes: enviar el hash completo, contar el relleno, devolver «no encontrada» ante un fallo, y contar lo no comprobado
+  como limpio hacen fallar 14 comprobaciones.
+- **No cubierto:** nada conectado al servicio ni a la ventana; no comprueba al teclear una contraseña nueva; no hay comprobación de correos (HIBP de pago, omitido
+  por la restricción de costo cero); un servicio caído no tiene reintentos; sin caché (cada auditoría vuelve a consultar).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
