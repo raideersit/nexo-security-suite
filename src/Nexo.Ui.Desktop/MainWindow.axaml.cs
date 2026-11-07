@@ -24,9 +24,12 @@ namespace Nexo.Ui.Desktop
         private const int PestanaDisco = 5;
         private const int PestanaCuarentena = 6;
         private const int PestanaSeguridad = 7;
+        private const int PestanaContrasenas = 8;
 
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
+        private readonly DispatcherTimer _temporizadorDeBoveda;
+        private bool _cerrandoLaBoveda;
 
         /// <summary>Solo para el previsualizador de Avalonia: sin servicio, y lo dice.</summary>
         public MainWindow() : this(new VentanaPrincipalModelo(new FuenteNoDisponible("vista de diseño")),
@@ -37,11 +40,12 @@ namespace Nexo.Ui.Desktop
                                    new TiempoRealModelo(new ServicioDeTiempoRealNoDisponible("vista de diseño"),
                                                         new ServicioDeEscaneoNoDisponible("vista de diseño")),
                                    new DiscoModelo(new ServicioDeDiscoNoDisponible("vista de diseño")),
-                                   new SeguridadModelo(new ServicioDeSeguridadNoDisponible("vista de diseño"))) { }
+                                   new SeguridadModelo(new ServicioDeSeguridadNoDisponible("vista de diseño")),
+                                   new ContrasenasModelo(ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia())) { }
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
-                          DiscoModelo disco, SeguridadModelo seguridad)
+                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -57,6 +61,9 @@ namespace Nexo.Ui.Desktop
             TiempoReal = tiempoReal;
             Disco = disco;
             Seguridad = seguridad;
+            Contrasenas = contrasenas;
+            // El portapapeles de Avalonia cuelga de la ventana: se enlaza aqui.
+            if (contrasenas.Portapapeles is PortapapelesDeAvalonia puente) puente.Enlazar(this);
             DataContext = modelo;
             PanelDeEscaneo.DataContext = escaneo;
             PanelDeCuarentena.DataContext = cuarentena;
@@ -66,14 +73,22 @@ namespace Nexo.Ui.Desktop
             PanelDeDisco.DataContext = disco;
             // «Seguridad» NO revisa sola al entrar en la pestaña: la de aplicaciones consulta Internet (winget), asi que solo corre cuando el usuario lo pide.
             PanelDeSeguridad.DataContext = seguridad;
+            PanelDeContrasenas.DataContext = contrasenas;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
-            Pestanas.SelectionChanged += async (_, _) =>
+            Pestanas.SelectionChanged += async (_, e) =>
             {
+                // SelectionChanged es un evento que SUBE por el arbol: sin esta guarda, elegir una fila de un ListBox de dentro de una pestaña (cuarentena,
+                // reglas del firewall, entradas de la boveda...) se tomaba por «cambie de pestaña», relanzaba la lectura y, en la boveda, reconstruia la lista
+                // (que cambia la seleccion, que vuelve a subir el evento: recursion infinita).
+                if (!ReferenceEquals(e.Source, Pestanas)) return;
                 if (Pestanas.SelectedIndex == PestanaCuarentena) await Cuarentena.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaEscaneo) await Escaneo.ActualizarProgramadasAsync();
                 else if (Pestanas.SelectedIndex == PestanaFirewall) await Firewall.ActualizarAsync();
                 else if (Pestanas.SelectedIndex == PestanaTiempoReal) await TiempoReal.ActualizarAsync();
-                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();                // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
+                else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
+                // Solo mira si existe el archivo de la boveda: abrirla exige la contraseña maestra.
+                else if (Pestanas.SelectedIndex == PestanaContrasenas) Contrasenas.Refrescar();
+                // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
 
@@ -90,6 +105,14 @@ namespace Nexo.Ui.Desktop
             };
             _temporizadorDeEscaneo = new DispatcherTimer { Interval = SondeoDeEscaneo };
             _temporizadorDeEscaneo.Tick += async (_, _) => await Escaneo.SondearAsync();
+
+            // La boveda se bloquea sola tras un rato sin tocar la ventana: cada tecla o movimiento cuenta como actividad.
+            _temporizadorDeBoveda = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            _temporizadorDeBoveda.Tick += (_, _) => Contrasenas.ComprobarInactividad();
+            AddHandler(KeyDownEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+            AddHandler(PointerPressedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+            AddHandler(PointerMovedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+
             Opened += async (_, _) =>
             {
                 await Modelo.ActualizarAsync();
@@ -98,11 +121,26 @@ namespace Nexo.Ui.Desktop
                 await Escaneo.ActualizarProgramadasAsync();
                 _temporizador.Start();
                 _temporizadorDeEscaneo.Start();
+                _temporizadorDeBoveda.Start();
+            };
+
+            // Al cerrar: la boveda se bloquea (clave a ceros). Si Nexo dejo una contraseña en el portapapeles, se espera a borrarla ANTES de cerrar de verdad.
+            Closing += async (_, e) =>
+            {
+                if (_cerrandoLaBoveda) return;
+                _cerrandoLaBoveda = true;
+                bool habiaAlgoCopiado = Contrasenas.HayTextoEnElPortapapeles;
+                Contrasenas.Bloquear();
+                if (!habiaAlgoCopiado) return;
+                e.Cancel = true;
+                await Contrasenas.EsperarBorradoAsync();
+                Close();
             };
             Closed += (_, _) =>
             {
                 _temporizador.Stop();
                 _temporizadorDeEscaneo.Stop();
+                _temporizadorDeBoveda.Stop();
             };
             KeyDown += (_, e) =>
             {
@@ -118,6 +156,58 @@ namespace Nexo.Ui.Desktop
         public TiempoRealModelo TiempoReal { get; }
         public DiscoModelo Disco { get; }
         public SeguridadModelo Seguridad { get; }
+        public ContrasenasModelo Contrasenas { get; }
+
+        // ------------------------------------------------------------ Contraseñas (la boveda corre aqui, con el usuario; nunca por el servicio)
+        private async void CrearBoveda(object? sender, RoutedEventArgs e)
+        {
+            if (await Contrasenas.CrearAsync(CajaMaestraNueva.Text ?? "", CajaMaestraRepetida.Text ?? ""))
+            {
+                CajaMaestraNueva.Text = "";
+                CajaMaestraRepetida.Text = "";
+            }
+        }
+
+        private async void DesbloquearBoveda(object? sender, RoutedEventArgs e)
+        {
+            if (await Contrasenas.DesbloquearAsync(CajaMaestra.Text ?? "")) CajaMaestra.Text = "";
+        }
+
+        private void TeclaEnCajaMaestra(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter) DesbloquearBoveda(sender, new RoutedEventArgs());
+        }
+
+        private void BloquearBoveda(object? sender, RoutedEventArgs e) => Contrasenas.Bloquear();
+        private void NuevaEntrada(object? sender, RoutedEventArgs e) => Contrasenas.NuevaEntrada();
+        private void EditarEntrada(object? sender, RoutedEventArgs e) => Contrasenas.EditarSeleccionada();
+        private void CancelarEntrada(object? sender, RoutedEventArgs e) => Contrasenas.CancelarEdicion();
+        private void GenerarContrasena(object? sender, RoutedEventArgs e) => Contrasenas.GenerarContrasena();
+        private void AlternarContrasena(object? sender, RoutedEventArgs e) => Contrasenas.AlternarContrasena();
+        private async void GuardarEntrada(object? sender, RoutedEventArgs e) => await Contrasenas.GuardarEdicionAsync();
+        private async void CopiarUsuario(object? sender, RoutedEventArgs e) => await Contrasenas.CopiarUsuarioAsync();
+        private async void CopiarContrasena(object? sender, RoutedEventArgs e) => await Contrasenas.CopiarContrasenaAsync();
+        private async void AuditarBoveda(object? sender, RoutedEventArgs e) => await Contrasenas.AuditarAsync();
+
+        private async void EliminarEntrada(object? sender, RoutedEventArgs e)
+        {
+            FilaDeEntrada? fila = Contrasenas.Seleccionada;
+            if (fila is null) return;
+            MessageBoxResult r = await MessageBox.ShowDialog(this,
+                "¿Eliminar la entrada «" + fila.Sitio + "»?\n\nSe borra del archivo cifrado y no queda ninguna copia. No se puede deshacer.",
+                "Eliminar entrada", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (r == MessageBoxResult.Yes) await Contrasenas.EliminarSeleccionadaAsync();
+        }
+
+        private async void CambiarMaestra(object? sender, RoutedEventArgs e)
+        {
+            if (await Contrasenas.CambiarMaestraAsync(CajaMaestraActual.Text ?? "", CajaMaestraNuevaCambio.Text ?? "", CajaMaestraRepetidaCambio.Text ?? ""))
+            {
+                CajaMaestraActual.Text = "";
+                CajaMaestraNuevaCambio.Text = "";
+                CajaMaestraRepetidaCambio.Text = "";
+            }
+        }
 
         private async void RevisarTodo(object? sender, RoutedEventArgs e) => await Seguridad.RevisarTodoAsync();
 

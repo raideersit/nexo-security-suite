@@ -9,7 +9,7 @@ namespace Nexo.Modules.Identity.Boveda
     /// </summary>
     public static class EventosDeBoveda
     {
-        public static NexoEvent Creada() => new(ModuloOrigen.Identidad, TipoEvento.BovedaCreada, "Boveda de contrasenas creada")
+        public static NexoEvent Creada() => new(ModuloOrigen.Identidad, TipoEvento.BovedaCreada, "Bóveda de contraseñas creada")
         {
             Severidad = Severidad.Info,
             Accion = Accion.Registrada
@@ -17,7 +17,7 @@ namespace Nexo.Modules.Identity.Boveda
 
         public static NexoEvent Desbloqueada(int entradas)
         {
-            var e = new NexoEvent(ModuloOrigen.Identidad, TipoEvento.BovedaDesbloqueada, "Boveda de contrasenas desbloqueada")
+            var e = new NexoEvent(ModuloOrigen.Identidad, TipoEvento.BovedaDesbloqueada, "Bóveda de contraseñas desbloqueada")
             {
                 Severidad = Severidad.Info,
                 Accion = Accion.Registrada
@@ -26,7 +26,7 @@ namespace Nexo.Modules.Identity.Boveda
             return e;
         }
 
-        public static NexoEvent FalloDeDesbloqueo() => new(ModuloOrigen.Identidad, TipoEvento.BovedaFalloDeDesbloqueo, "Intento fallido de abrir la boveda")
+        public static NexoEvent FalloDeDesbloqueo() => new(ModuloOrigen.Identidad, TipoEvento.BovedaFalloDeDesbloqueo, "Intento fallido de abrir la bóveda")
         {
             Severidad = Severidad.Media,
             Accion = Accion.Registrada

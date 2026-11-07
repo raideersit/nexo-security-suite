@@ -709,6 +709,179 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Contraseñas">
+                <ScrollViewer x:Name="PanelDeContrasenas" x:DataType="local:ContrasenasModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Bóveda de contraseñas">
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="TituloDeContrasenas" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Archivo}" TextWrapping="Wrap" Foreground="#404040" />
+                                <TextBlock x:Name="MensajeDeContrasenas" Text="{Binding Mensaje}" TextWrapping="Wrap" Foreground="#800000"
+                                           IsVisible="{Binding Mensaje, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <!-- 1. Todavia no hay boveda: crearla. -->
+                        <HeaderedContentControl x:Name="PanelSinBoveda" Header="Crear tu bóveda" IsVisible="{Binding EsSinBoveda}">
+                            <StackPanel Spacing="6">
+                                <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                           Text="Elige una contraseña maestra larga (mínimo 10 caracteres). Es la única que tendrás que recordar. No hay forma de recuperarla: si la olvidas, lo que guardes aquí se pierde." />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Contraseña maestra:" Width="150" VerticalAlignment="Center" />
+                                    <TextBox x:Name="CajaMaestraNueva" PasswordChar="•" Width="300" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Repítela:" Width="150" VerticalAlignment="Center" />
+                                    <TextBox x:Name="CajaMaestraRepetida" PasswordChar="•" Width="300" />
+                                </StackPanel>
+                                <Button x:Name="BotonCrearBoveda" Content="Crear bóveda" HorizontalAlignment="Left" IsEnabled="{Binding NoOcupado}" Click="CrearBoveda" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <!-- 2. Hay boveda pero esta cerrada. -->
+                        <HeaderedContentControl x:Name="PanelBloqueada" Header="Desbloquear" IsVisible="{Binding EsBloqueada}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Contraseña maestra:" VerticalAlignment="Center" />
+                                    <TextBox x:Name="CajaMaestra" PasswordChar="•" Width="300" KeyDown="TeclaEnCajaMaestra" />
+                                    <Button x:Name="BotonDesbloquear" Content="Desbloquear" IsEnabled="{Binding NoOcupado}" Click="DesbloquearBoveda" />
+                                </StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                           Text="Abrir la bóveda tarda una fracción de segundo a propósito: es lo que hace costoso adivinar la contraseña." />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <!-- 3. Abierta. -->
+                        <StackPanel x:Name="PanelAbierta" Spacing="10" IsVisible="{Binding EsAbierta}">
+
+                            <HeaderedContentControl Header="Entradas">
+                                <DockPanel>
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                            <Button x:Name="BotonNuevaEntrada" Content="Nueva..." IsEnabled="{Binding NoOcupado}" Click="NuevaEntrada" />
+                                            <Button x:Name="BotonAuditar" Content="Comprobar filtraciones" IsEnabled="{Binding NoOcupado}" Click="AuditarBoveda" />
+                                            <Button x:Name="BotonBloquearBoveda" Content="Bloquear" Click="BloquearBoveda" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="Buscar:" VerticalAlignment="Center" />
+                                            <TextBox x:Name="CajaDeBusqueda" Width="220" Text="{Binding Filtro, Mode=TwoWay}" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <Border Background="White" BorderBrush="#808080" BorderThickness="1" MinHeight="120" MaxHeight="260">
+                                        <DockPanel>
+                                            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*,200" Background="#C0C0C0">
+                                                <TextBlock Grid.Column="0" Margin="6,3" Text="Sitio" />
+                                                <TextBlock Grid.Column="1" Margin="6,3" Text="Usuario" />
+                                                <TextBlock Grid.Column="2" Margin="6,3" Text="Filtraciones" />
+                                            </Grid>
+                                            <ListBox x:Name="ListaDeEntradas" ItemsSource="{Binding Entradas}" SelectedItem="{Binding Seleccionada, Mode=TwoWay}"
+                                                     BorderThickness="0" Background="White" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="local:FilaDeEntrada">
+                                                        <Grid ColumnDefinitions="*,*,200">
+                                                            <TextBlock Grid.Column="0" Margin="2,1" Text="{Binding Sitio}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="1" Margin="6,1" Text="{Binding Usuario}" TextTrimming="CharacterEllipsis" />
+                                                            <StackPanel Grid.Column="2" Margin="6,1" Orientation="Horizontal" Spacing="6" IsVisible="{Binding TieneFiltracion}">
+                                                                <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                                <TextBlock Text="{Binding Filtracion}" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </DockPanel>
+                                    </Border>
+                                </DockPanel>
+                            </HeaderedContentControl>
+
+                            <HeaderedContentControl x:Name="PanelDeAuditoria" Header="Filtraciones" IsVisible="{Binding HayAuditoria}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="16" Height="16" VerticalAlignment="Top" Background="{Binding ColorDeAuditoria}" BorderBrush="Black" BorderThickness="1" />
+                                    <TextBlock x:Name="ResumenDeAuditoria" Text="{Binding Auditoria}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <!-- Detalle de la entrada elegida -->
+                            <HeaderedContentControl x:Name="PanelDeDetalle" Header="Entrada elegida" IsVisible="{Binding DetalleVisible}">
+                                <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="3">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Sitio:" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DetalleSitio}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Usuario:" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetalleUsuario}" TextWrapping="Wrap" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Contraseña:" />
+                                        <TextBlock x:Name="TextoDeContrasena" Grid.Row="2" Grid.Column="1" Text="{Binding DetalleContrasena}" TextWrapping="Wrap"
+                                                   FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Notas:" />
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DetalleNotas}" TextWrapping="Wrap" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding DetalleFechas}" Foreground="#404040" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button x:Name="BotonMostrarContrasena" Content="{Binding BotonMostrar}" Click="AlternarContrasena" />
+                                        <Button x:Name="BotonCopiarUsuario" Content="Copiar usuario" Click="CopiarUsuario" />
+                                        <Button x:Name="BotonCopiarContrasena" Content="Copiar contraseña" Click="CopiarContrasena" />
+                                        <Button x:Name="BotonEditarEntrada" Content="Editar..." IsEnabled="{Binding NoOcupado}" Click="EditarEntrada" />
+                                        <Button x:Name="BotonEliminarEntrada" Content="Eliminar..." IsEnabled="{Binding NoOcupado}" Click="EliminarEntrada" />
+                                    </StackPanel>
+                                    <TextBlock Foreground="#404040" TextWrapping="Wrap"
+                                               Text="Al copiar una contraseña, se borra sola del portapapeles a los 30 segundos (si no copiaste otra cosa mientras tanto)." />
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <!-- Formulario de alta y edicion -->
+                            <HeaderedContentControl x:Name="PanelDeEdicion" Header="{Binding EdicionTitulo}" IsVisible="{Binding EdicionVisible}">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="6">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Sitio:" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaDeSitio" Grid.Row="0" Grid.Column="1" Text="{Binding EdSitio, Mode=TwoWay}" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Usuario:" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaDeUsuario" Grid.Row="1" Grid.Column="1" Text="{Binding EdUsuario, Mode=TwoWay}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Contraseña:" VerticalAlignment="Center" />
+                                        <DockPanel Grid.Row="2" Grid.Column="1">
+                                            <Button x:Name="BotonGenerar" DockPanel.Dock="Right" Margin="6,0,0,0" Content="Generar" Click="GenerarContrasena" />
+                                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="{Binding BotonMostrar}" Click="AlternarContrasena" />
+                                            <TextBox x:Name="CajaDeContrasena" Text="{Binding EdContrasena, Mode=TwoWay}" PasswordChar="{Binding CaracterDeClave}"
+                                                     FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                        </DockPanel>
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Notas:" VerticalAlignment="Top" />
+                                        <TextBox x:Name="CajaDeNotas" Grid.Row="3" Grid.Column="1" Text="{Binding EdNotas, Mode=TwoWay}" AcceptsReturn="True" Height="60" TextWrapping="Wrap" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button x:Name="BotonGuardarEntrada" Content="Guardar" IsEnabled="{Binding NoOcupado}" Click="GuardarEntrada" />
+                                        <Button Content="Cancelar" Click="CancelarEntrada" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <Expander Header="Cambiar la contraseña maestra" HorizontalAlignment="Stretch">
+                                <StackPanel Spacing="6" Margin="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Contraseña actual:" Width="150" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaMaestraActual" PasswordChar="•" Width="300" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Contraseña nueva:" Width="150" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaMaestraNuevaCambio" PasswordChar="•" Width="300" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Repite la nueva:" Width="150" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaMaestraRepetidaCambio" PasswordChar="•" Width="300" />
+                                    </StackPanel>
+                                    <Button x:Name="BotonCambiarMaestra" Margin="156,0,0,0" Content="Cambiar" HorizontalAlignment="Left" IsEnabled="{Binding NoOcupado}" Click="CambiarMaestra" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+
+                        <HeaderedContentControl Header="Qué hay que saber">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="La bóveda es un archivo cifrado en tu perfil de usuario (AES-256-GCM, con la clave derivada de tu contraseña maestra con Argon2id). Todo ocurre en este equipo, con tu usuario: no pasa por el servicio de Nexo. Se bloquea sola tras 5 minutos sin usarla y al cerrar la ventana. «Comprobar filtraciones» consulta Pwned Passwords (gratuito, sin cuenta) y solo envía los 5 primeros caracteres del hash de cada contraseña, nunca la contraseña; que una contraseña no aparezca no significa que sea fuerte. Limitación: los textos en memoria de un programa .NET no se pueden borrar a voluntad, así que lo que sí se borra al bloquear es la clave de cifrado." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </classic:ClassicWindow>

@@ -80,7 +80,7 @@ namespace Nexo.Modules.Identity.Filtraciones
             // Alta si hay filtradas; Media si no hay ninguna pero hubo que no se pudieron mirar (lo desconocido no es «bien»); Info si todo se miro y esta limpio.
             Severidad sev = r.Filtradas.Count > 0 ? Severidad.Alta : r.SinComprobar.Count > 0 ? Severidad.Media : Severidad.Info;
             var e = new NexoEvent(ModuloOrigen.Identidad, TipoEvento.BrechaDetectada,
-                r.Filtradas.Count > 0 ? "Contrasenas de la boveda en filtraciones publicas" : "Revision de contrasenas de la boveda")
+                r.Filtradas.Count > 0 ? "Contraseñas de la bóveda en filtraciones públicas" : "Revisión de contraseñas de la bóveda")
             {
                 Severidad = sev,
                 Accion = Accion.Registrada

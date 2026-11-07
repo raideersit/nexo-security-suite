@@ -44,7 +44,7 @@ namespace Nexo.Modules.Identity.Filtraciones
         public async Task<RespuestaDeRango> ObtenerAsync(string prefijo, CancellationToken ct)
         {
             if (prefijo is null || !Prefijo.IsMatch(prefijo))
-                throw new ArgumentException("El prefijo debe ser de exactamente 5 caracteres hexadecimales en mayuscula.", nameof(prefijo));
+                throw new ArgumentException("El prefijo debe ser de exactamente 5 caracteres hexadecimales en mayúscula.", nameof(prefijo));
 
             using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
             limite.CancelAfter(_espera);
@@ -56,7 +56,7 @@ namespace Nexo.Modules.Identity.Filtraciones
 
                 using HttpResponseMessage resp = await _http.SendAsync(peticion, HttpCompletionOption.ResponseHeadersRead, limite.Token).ConfigureAwait(false);
                 if (resp.StatusCode != HttpStatusCode.OK)
-                    return RespuestaDeRango.Fallo("el servicio respondio HTTP " + (int)resp.StatusCode);
+                    return RespuestaDeRango.Fallo("el servicio respondió HTTP " + (int)resp.StatusCode);
                 if (resp.Content.Headers.ContentLength is long largo && largo > MaximoDeBytes)
                     return RespuestaDeRango.Fallo("la respuesta es demasiado grande");
 
@@ -73,11 +73,11 @@ namespace Nexo.Modules.Identity.Filtraciones
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return RespuestaDeRango.Fallo("se agoto el tiempo de espera");
+                return RespuestaDeRango.Fallo("se agotó el tiempo de espera");
             }
             catch (HttpRequestException e)
             {
-                return RespuestaDeRango.Fallo("no hay conexion con el servicio (" + (e.InnerException?.GetType().Name ?? e.GetType().Name) + ")");
+                return RespuestaDeRango.Fallo("no hay conexión con el servicio (" + (e.InnerException?.GetType().Name ?? e.GetType().Name) + ")");
             }
         }
 

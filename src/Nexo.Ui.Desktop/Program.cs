@@ -18,6 +18,7 @@ namespace Nexo.Ui.Desktop
             App.TiempoReal = Fuentes.TiempoRealPorDefecto(pipe);
             App.Disco = Fuentes.DiscoPorDefecto(pipe);
             App.Seguridad = Fuentes.SeguridadPorDefecto();
+            App.Contrasenas = Argumento(args, "--boveda");
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
 

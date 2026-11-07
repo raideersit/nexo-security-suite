@@ -44,6 +44,7 @@ namespace Nexo.Desktop.Demo
             ProbarTiempoReal();
             ProbarDisco();
             ProbarSeguridad();
+            ProbarContrasenas();
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
 
@@ -1255,17 +1256,24 @@ namespace Nexo.Desktop.Demo
             var dm = new DiscoModelo(disco);
             var seguridadFalsa = new SeguridadFalsa();
             var sm = new SeguridadModelo(seguridadFalsa);
+            // La boveda de la ventana: archivo temporal, parametros rapidos, y una espera que no termina sola (la prueba decide cuando).
+            string dirContrasenas = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexo-ventana-boveda-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(dirContrasenas);
+            var portapapeles = new PortapapelesFalso();
+            var controlesDeVentana = new Controles();
+            var cmod = new ContrasenasModelo(System.IO.Path.Combine(dirContrasenas, "boveda.nxv"), Rapidos, true, () => new RangosFalsos(), portapapeles,
+                                             () => controlesDeVentana.Ahora, null, null, controlesDeVentana.Espera);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm);
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
                 Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
-                Check(w.Pestanas.ItemCount == 8 && w.Pestanas.SelectedIndex == 0, "8 pestañas y se abre en «Estado»");
+                Check(w.Pestanas.ItemCount == 9 && w.Pestanas.SelectedIndex == 0, "9 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),
                     "los 5 botones de la barra tienen icono grande (24) y pequeño (16)");
@@ -1388,6 +1396,9 @@ namespace Nexo.Desktop.Demo
                     w.CaptureRenderedFrame()?.Save(tercera);
                     Console.WriteLine("           captura: " + tercera);
                 }
+
+                // La pestaña Contraseñas va la ULTIMA: su prueba cierra la ventana (para comprobar que al cerrar se borra el portapapeles).
+                ProbarVentanaDeContrasenas(w, cmod, portapapeles, captura);
             }
             catch (Exception ex)
             {

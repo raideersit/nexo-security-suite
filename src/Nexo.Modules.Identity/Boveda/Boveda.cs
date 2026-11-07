@@ -89,8 +89,8 @@ namespace Nexo.Modules.Identity.Boveda
             ValidarContrasenaMaestra(contrasenaMaestra);
             ParametrosDeClave p = parametros ?? ParametrosDeClave.Seguros;
             if (!p.EsLegible || (!permitirParametrosDebiles && !p.EsSeguro))
-                throw new ArgumentException("Los parametros de Argon2id son demasiado debiles para una boveda real.", nameof(parametros));
-            if (File.Exists(ruta)) throw new IOException("Ya existe un archivo en esa ruta: Nexo no sobrescribe una boveda existente.");
+                throw new ArgumentException("Los parámetros de Argon2id son demasiado débiles para una bóveda real.", nameof(parametros));
+            if (File.Exists(ruta)) throw new IOException("Ya existe un archivo en esa ruta: Nexo no sobrescribe una bóveda existente.");
 
             byte[] sal = RandomNumberGenerator.GetBytes(FormatoDeBoveda.TamSal);
             byte[] clave = await Task.Run(() => DerivarClave(contrasenaMaestra, sal, p), ct).ConfigureAwait(false);
@@ -119,7 +119,7 @@ namespace Nexo.Modules.Identity.Boveda
             {
                 if (!File.Exists(ruta)) return new ResultadoDeApertura(EstadoDeApertura.NoExiste, null);
                 if (new FileInfo(ruta).Length > FormatoDeBoveda.MaximoDeArchivo)
-                    return new ResultadoDeApertura(EstadoDeApertura.ArchivoIlegible, null, "el archivo es demasiado grande para ser una boveda");
+                    return new ResultadoDeApertura(EstadoDeApertura.ArchivoIlegible, null, "el archivo es demasiado grande para ser una bóveda");
                 archivo = await File.ReadAllBytesAsync(ruta, ct).ConfigureAwait(false);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -153,7 +153,7 @@ namespace Nexo.Modules.Identity.Boveda
             if (entradas is null || entradas.Count > MaximoDeEntradas || entradas.Any(e => e is null || e.Sitio is null || e.Usuario is null || e.Contrasena is null || e.Notas is null))
             {
                 CryptographicOperations.ZeroMemory(clave);
-                return new ResultadoDeApertura(EstadoDeApertura.ArchivoIlegible, null, "se descifro, pero el contenido no tiene la forma esperada");
+                return new ResultadoDeApertura(EstadoDeApertura.ArchivoIlegible, null, "se descifró, pero el contenido no tiene la forma esperada");
             }
 
             var b = new Boveda(ruta, reportes, clave, c.Sal, c.Parametros);
@@ -176,7 +176,7 @@ namespace Nexo.Modules.Identity.Boveda
             lock (_cerrojo)
             {
                 ExigirAbierta();
-                if (_entradas.Count >= MaximoDeEntradas) throw new InvalidOperationException("La boveda alcanzo el maximo de entradas.");
+                if (_entradas.Count >= MaximoDeEntradas) throw new InvalidOperationException("La bóveda alcanzó el máximo de entradas.");
                 _entradas.Add(e);
             }
             try { await GuardarAsync().ConfigureAwait(false); }
@@ -239,7 +239,7 @@ namespace Nexo.Modules.Identity.Boveda
             bool coincide = CryptographicOperations.FixedTimeEquals(probada, claveActual);
             CryptographicOperations.ZeroMemory(probada);
             CryptographicOperations.ZeroMemory(claveActual);
-            if (!coincide) throw new UnauthorizedAccessException("La contrasena maestra actual no es correcta.");
+            if (!coincide) throw new UnauthorizedAccessException("La contraseña maestra actual no es correcta.");
 
             byte[] salNueva = RandomNumberGenerator.GetBytes(FormatoDeBoveda.TamSal);
             byte[] claveNueva = await Task.Run(() => DerivarClave(nueva, salNueva, _parametros), ct).ConfigureAwait(false);
@@ -341,7 +341,7 @@ namespace Nexo.Modules.Identity.Boveda
                 {
                     if (habiaAnterior && File.Exists(bak)) File.Copy(bak, _ruta, overwrite: true);
                     else File.Delete(_ruta);
-                    throw new IOException("El archivo guardado no paso la verificacion; se restauro el anterior.");
+                    throw new IOException("El archivo guardado no pasó la verificación; se restauró el anterior.");
                 }
                 if (habiaAnterior) TryBorrar(bak); // no dejar una copia vieja: lo que se borro debe desaparecer del disco
             }
@@ -406,25 +406,25 @@ namespace Nexo.Modules.Identity.Boveda
 
         private void ExigirAbierta()
         {
-            if (_clave is null) throw new InvalidOperationException("La boveda esta bloqueada.");
+            if (_clave is null) throw new InvalidOperationException("La bóveda está bloqueada.");
         }
 
         private static void ValidarRuta(string ruta)
         {
-            if (string.IsNullOrWhiteSpace(ruta) || !Path.IsPathRooted(ruta)) throw new ArgumentException("La ruta de la boveda debe ser absoluta.", nameof(ruta));
+            if (string.IsNullOrWhiteSpace(ruta) || !Path.IsPathRooted(ruta)) throw new ArgumentException("La ruta de la bóveda debe ser absoluta.", nameof(ruta));
         }
 
         private static void ValidarContrasenaMaestra(string c)
         {
             if (c is null || c.Length < LongitudMinimaDeContrasenaMaestra)
-                throw new ArgumentException("La contrasena maestra debe tener al menos " + LongitudMinimaDeContrasenaMaestra + " caracteres.", nameof(c));
+                throw new ArgumentException("La contraseña maestra debe tener al menos " + LongitudMinimaDeContrasenaMaestra + " caracteres.", nameof(c));
         }
 
         private static void ValidarTexto(string? t, string nombre, bool obligatorio, int maximo = 1_000)
         {
             if (t is null) throw new ArgumentNullException(nombre);
-            if (obligatorio && string.IsNullOrWhiteSpace(t)) throw new ArgumentException("No puede estar vacio.", nombre);
-            if (t.Length > maximo) throw new ArgumentException("Es demasiado largo (maximo " + maximo + ").", nombre);
+            if (obligatorio && string.IsNullOrWhiteSpace(t)) throw new ArgumentException("No puede estar vacío.", nombre);
+            if (t.Length > maximo) throw new ArgumentException("Es demasiado largo (máximo " + maximo + ").", nombre);
         }
 
         private static void TryBorrar(string ruta)

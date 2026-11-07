@@ -66,11 +66,84 @@ namespace Nexo.Vuln.Windows.Demo
             ProbarWifi();
             ProbarWinget();
             ProbarPestanaDeSeguridad();
+            ProbarPestanaDeContrasenas();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
         }
+
+        private sealed class PortapapelesDePrueba : Nexo.Ui.Desktop.Nucleo.IPortapapeles
+        {
+            public string? Texto;
+            public System.Threading.Tasks.Task<bool> PonerAsync(string t) { Texto = t; return System.Threading.Tasks.Task.FromResult(true); }
+            public System.Threading.Tasks.Task<string?> LeerAsync() => System.Threading.Tasks.Task.FromResult(Texto);
+            public System.Threading.Tasks.Task BorrarAsync() { Texto = null; return System.Threading.Tasks.Task.CompletedTask; }
+        }
+
+        private static void ProbarPestanaDeContrasenas()
+        {
+            Console.WriteLine("6. La pestaña «Contraseñas» con parámetros REALES de Argon2id y Pwned Passwords REAL (solo sale el prefijo 5BAA6 y uno aleatorio)");
+            string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexo-vuln-boveda-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(dir);
+            string ruta = System.IO.Path.Combine(dir, "boveda.nxv");
+            string maestra = "maestra-real-de-prueba-" + Guid.NewGuid().ToString("N").Substring(0, 6);
+            try
+            {
+                var portapapeles = new PortapapelesDePrueba();
+                // Sin parametros ni consulta inyectados: los de produccion (64 MiB / 3 iteraciones / 2 hilos, y HTTPS a api.pwnedpasswords.com).
+                var m = new Nexo.Ui.Desktop.ContrasenasModelo(ruta, portapapeles: portapapeles);
+                Check(m.EsSinBoveda, "sin archivo: «sin bóveda»");
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                bool creada = m.CrearAsync(maestra, maestra).GetAwaiter().GetResult();
+                long tCrear = sw.ElapsedMilliseconds;
+                Check(creada && m.EsAbierta && System.IO.File.Exists(ruta), "crea la bóveda con los parámetros por omisión", m.Mensaje);
+                Console.WriteLine("      INFO: crear tardó " + tCrear + " ms");
+
+                m.NuevaEntrada(); m.EdSitio = "ejemplo.cl"; m.EdUsuario = "ana"; m.EdContrasena = "password"; m.GuardarEdicionAsync().GetAwaiter().GetResult();
+                m.NuevaEntrada(); m.EdSitio = "otro.cl"; m.EdUsuario = "luis"; m.EdContrasena = "Nx-" + Guid.NewGuid().ToString("N") + "-Zq9"; m.GuardarEdicionAsync().GetAwaiter().GetResult();
+                Check(m.Cantidad == 2, "2 entradas guardadas");
+
+                byte[] disco = System.IO.File.ReadAllBytes(ruta);
+                Check(disco.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes("ejemplo.cl")) < 0 && disco.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes("password")) < 0, "en el archivo real no aparecen ni el sitio ni la contraseña");
+
+                sw.Restart();
+                m.AuditarAsync().GetAwaiter().GetResult();
+                Console.WriteLine("      INFO: auditar (2 consultas reales) tardó " + sw.ElapsedMilliseconds + " ms; resultado: " + m.Auditoria);
+                FilaDeEntradaDePrueba(m, "ejemplo.cl", out string fPass);
+                FilaDeEntradaDePrueba(m, "otro.cl", out string fOtra);
+                Console.WriteLine("      INFO: «password» → " + fPass + " | cadena aleatoria → " + fOtra);
+                Check(fPass.StartsWith("Filtrada (") && m.IndicadorDeAuditoria == Nexo.Ui.Desktop.Nucleo.Indicador.Alerta, "«password» sale como filtrada (millones de veces) y el resultado es alerta");
+                Check(fOtra == "No aparece en filtraciones conocidas", "una cadena aleatoria nueva no aparece");
+
+                // copiar: el modelo pone la contraseña y se borra al bloquear
+                m.Seleccionada = m.Entradas.First(e => e.Sitio == "ejemplo.cl");
+                m.CopiarContrasenaAsync().GetAwaiter().GetResult();
+                Check(portapapeles.Texto == "password" && m.HayTextoEnElPortapapeles, "copiar pone la contraseña en el portapapeles");
+                m.Bloquear();
+                m.EsperarBorradoAsync().GetAwaiter().GetResult();
+                Check(portapapeles.Texto is null && m.EsBloqueada && m.Cantidad == 0, "bloquear la borra del portapapeles y olvida las entradas");
+
+                sw.Restart();
+                bool mal = m.DesbloquearAsync("esta-no-es-la-maestra").GetAwaiter().GetResult();
+                long tMal = sw.ElapsedMilliseconds;
+                sw.Restart();
+                bool bien = m.DesbloquearAsync(maestra).GetAwaiter().GetResult();
+                long tBien = sw.ElapsedMilliseconds;
+                Console.WriteLine("      INFO: desbloquear (mal) " + tMal + " ms · (bien) " + tBien + " ms");
+                Check(!mal && bien && m.Cantidad == 2 && !m.HayAuditoria, "maestra equivocada no abre; la correcta abre con las 2 entradas y SIN los resultados de filtraciones anteriores");
+                Check(tMal >= 30 && tBien >= 30, "abrir cuesta tiempo de verdad (Argon2id con los parámetros reales)");
+                m.Dispose();
+            }
+            finally
+            {
+                try { System.IO.Directory.Delete(dir, true); } catch (System.IO.IOException) { } catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        private static void FilaDeEntradaDePrueba(Nexo.Ui.Desktop.ContrasenasModelo m, string sitio, out string filtracion)
+            => filtracion = m.Entradas.First(e => e.Sitio == sitio).Filtracion;
 
         private static void ProbarPestanaDeSeguridad()
         {

@@ -24,6 +24,9 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeSeguridad? Seguridad { get; set; }
 
+        /// <summary>Donde esta la boveda (Program la fija con --boveda; por omision, el perfil del usuario).</summary>
+        internal static string? Contrasenas { get; set; }
+
         public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
@@ -39,7 +42,9 @@ namespace Nexo.Ui.Desktop
                     new TiempoRealModelo(TiempoReal ?? new ServicioDeTiempoRealNoDisponible(sinFuente),
                                          Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)),
                     new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)),
-                    new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)));
+                    new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)),
+                    // La boveda vive en el perfil del usuario y corre en este proceso; el portapapeles real se enlaza a la ventana al crearla.
+                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()));
             base.OnFrameworkInitializationCompleted();
         }
     }

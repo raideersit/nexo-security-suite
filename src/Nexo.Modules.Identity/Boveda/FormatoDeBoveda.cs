@@ -28,7 +28,7 @@ namespace Nexo.Modules.Identity.Boveda
 
         public static byte[] Escribir(ParametrosDeClave p, byte[] sal, byte[] nonce, byte[] cifrado, byte[] etiqueta)
         {
-            if (sal.Length != TamSal || nonce.Length != TamNonce || etiqueta.Length != TamEtiqueta) throw new ArgumentException("Tamano de sal, nonce o etiqueta incorrecto.");
+            if (sal.Length != TamSal || nonce.Length != TamNonce || etiqueta.Length != TamEtiqueta) throw new ArgumentException("Tamaño de sal, nonce o etiqueta incorrecto.");
             byte[] r = new byte[TamCabecera + cifrado.Length + TamEtiqueta];
             Cabecera(p, sal, nonce, cifrado.Length).CopyTo(r, 0);
             cifrado.CopyTo(r, TamCabecera);

@@ -61,7 +61,7 @@ namespace Nexo.Modules.Identity.Filtraciones
         public async Task<ResultadoDeComprobacion> ComprobarAsync(string contrasena, CancellationToken ct = default)
         {
             if (contrasena is null) throw new ArgumentNullException(nameof(contrasena));
-            if (contrasena.Length == 0) return ResultadoDeComprobacion.NoSePudo("la contrasena esta vacia");
+            if (contrasena.Length == 0) return ResultadoDeComprobacion.NoSePudo("la contraseña está vacía");
 
             string hash = Sha1Hex(contrasena);
             string prefijo = hash.Substring(0, 5), sufijo = hash.Substring(5);
@@ -71,7 +71,7 @@ namespace Nexo.Modules.Identity.Filtraciones
             catch (OperationCanceledException) { throw; }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                return ResultadoDeComprobacion.NoSePudo("la consulta fallo (" + ex.GetType().Name + ")");
+                return ResultadoDeComprobacion.NoSePudo("la consulta falló (" + ex.GetType().Name + ")");
             }
 
             if (!r.Exito || r.Cuerpo is null) return ResultadoDeComprobacion.NoSePudo(r.Motivo ?? "sin respuesta");
@@ -99,7 +99,7 @@ namespace Nexo.Modules.Identity.Filtraciones
             }
 
             if (encontrado > 0) return new ResultadoDeComprobacion(EstadoDeComprobacion.Filtrada, encontrado);
-            if (validas == 0) return ResultadoDeComprobacion.NoSePudo("la respuesta llego vacia");
+            if (validas == 0) return ResultadoDeComprobacion.NoSePudo("la respuesta llegó vacía");
             return new ResultadoDeComprobacion(EstadoDeComprobacion.NoEncontrada);
         }
 

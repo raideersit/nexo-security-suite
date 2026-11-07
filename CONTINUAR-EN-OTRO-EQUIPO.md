@@ -1256,6 +1256,43 @@ Primer paso del cableado de los módulos nuevos a la ventana (`src/Nexo.Ui.Deskt
 - **SIN PROBAR:** la ventana real con pantalla (solo sin pantalla y con captura); el botón «Revisar» dentro de la plantilla (el manejador de eventos en una `DataTemplate` se
   resuelve en la ventana: compila y carga, pero no se simuló un clic real).
 
+## 2w. Ventana: pestaña «Contraseñas» (la bóveda) (2026-11-07, en el HP)
+
+Segundo paso del cableado (`src/Nexo.Ui.Desktop`): la 9.ª pestaña. Sin commit.
+
+- **Corre en el proceso de la ventana, con el usuario; NUNCA por el servicio (SYSTEM).** Archivo por omisión `%LOCALAPPDATA%\Nexo\boveda.nxv` (perfil del usuario, no `ProgramData`);
+  `--boveda <ruta>` lo cambia. Hereda los permisos NTFS de esa carpeta (no se fijan permisos propios). Nada se publica al vault de reportes desde la ventana (el `ReportWriter` es del servicio).
+- **Tres estados:** «sin bóveda» (crear: maestra de ≥ 10 caracteres, repetida; avisa que no hay recuperación), «bloqueada» (desbloquear) y «abierta» (lista con búsqueda, detalle,
+  alta/edición/baja con confirmación, generador de 20 caracteres, copiar, comprobar filtraciones, cambiar la maestra). Archivos: `Nucleo/Contrasenas.cs` (`IPortapapeles`, `FaseDeBoveda`),
+  `ContrasenasModelo.cs` (toda la lógica, portable), `PortapapelesDeAvalonia.cs` y el XAML.
+- **Reglas (todas con prueba):** la maestra solo viaja como argumento (ninguna propiedad ni campo de texto del modelo la guarda, comprobado por reflexión, ni sale en ningún mensaje);
+  bloquear (a mano, por **5 min de inactividad** con teclado/ratón como actividad, o al cerrar la ventana) cierra la bóveda, pone la clave a ceros y olvida lista, selección, filtro,
+  formulario y resultados de filtraciones; la contraseña se muestra oculta siempre con los MISMOS 8 puntos (no se adivina el largo) y **vuelve a ocultarse al guardar** (un defecto real
+  que encontró la prueba: tras «Generar» quedaba a la vista); «contraseña incorrecta o archivo alterado» no se distingue y el texto lo dice; archivos truncados, de versión futura o con
+  parámetros hostiles (4 GiB) se rechazan con su explicación en milisegundos.
+- **Portapapeles:** copiar una contraseña la borra a los **30 s solo si el portapapeles sigue teniendo lo que puso Nexo** (si el usuario copió otra cosa, no se toca y se dice); dos copias
+  seguidas: la espera de la primera ya no borra la segunda; **bloquear o cerrar borra al instante** (el cierre espera a que se borre); copiar el usuario no programa nada; si el
+  portapapeles falla lo dice y no finge. Con dientes: sin la guarda de «sigue siendo lo mío» y sin el borrado al bloquear fallan las pruebas.
+- **Comprobar filtraciones (Pwned Passwords):** solo cuando el usuario pulsa; sale a Internet un prefijo de 5 caracteres por contraseña distinta. Resultado por entrada («Filtrada (52.372.427
+  veces)», «No aparece en filtraciones conocidas», «Sin comprobar», «Sin contraseña»); **sin Internet = «Sin comprobar» + atención, nunca bien**; todo limpio = correcto pero aclara «no significa
+  que sean fuertes»; bóveda vacía = «No hay contraseñas que comprobar»; **editar una contraseña borra su resultado** (ya no vale); bloquear borra todos los resultados.
+- **Defecto latente de TODA la ventana, corregido:** `Pestanas.SelectionChanged` recibía también los eventos de selección de los `ListBox` de dentro de las pestañas (el evento SUBE por el árbol).
+  Al elegir una fila de mi lista se ejecutaba «entré en la pestaña Contraseñas», que reconstruía la lista, que cambiaba la selección, que volvía a subir el evento: **recursión infinita (desbordamiento
+  de pila)**. En las otras pestañas ocurría en silencio: elegir una fila de Cuarentena o de Firewall relanzaba su consulta al servicio. Ahora el manejador solo reacciona si `e.Source` es la propia
+  barra de pestañas (`MainWindow.axaml.cs`). Quitar esa guarda hace caer la prueba. Además la lista no se reconstruye al cambiar de fila ni al abrir el formulario, y se ignora el `null` que el
+  `ListBox` empuja al recibir una lista nueva. También se arregló un comentario pegado a una línea de código del cambio anterior.
+- **Defecto de diseño encontrado en la captura:** las cajas de la maestra en una rejilla con `Width` + `HorizontalAlignment` salían como una raya de 6 px; se pasaron a `StackPanel` en fila (como «Desbloquear»).
+- **Textos de Identidad pulidos** (25 cadenas: «bóveda», «contraseña», «débiles», «máximo»…) con el mismo script (ahora protege los nombres de campo con guion bajo, p. ej. `sin_contrasena`).
+- **Probado:** `Nexo.Desktop.Demo` (portable; modelo ≈ 95 comprobaciones + la ventana de verdad sin pantalla con clics en los botones y 4 capturas: crear, abierta, edición, bloqueada); con
+  dientes (12 roturas, incluidas: portapapeles al bloquear, «sigue siendo lo mío», guarda de generación, contraseña siempre visible, largo real, inactividad doble, resultados al bloquear, lo no comprobado
+  como bueno, editar sin invalidar, y la guarda de eventos). Una regresión que dejaba una espera abierta COLGABA la prueba: ahora las esperas del portapapeles tienen límite y fallan. **En el HP real**
+  (`Nexo.Vuln.Windows.Demo` §6): parámetros de producción (crear ~0,5 s, abrir ~0,17 s), el archivo no contiene sitio ni contraseña, Pwned Passwords real (`password` → 52.372.427 veces; una cadena aleatoria no
+  aparece), copiar/bloquear/desbloquear, y sin resultados de filtraciones tras reabrir.
+- **SIN PROBAR:** el portapapeles real de Avalonia/Windows (las pruebas usan uno falso; `PortapapelesDeAvalonia` solo compila); la ventana con pantalla real y un clic de verdad; el bloqueo por inactividad con el
+  temporizador real de 10 s (se probó la lógica con reloj falso); cerrar la ventana real con una contraseña copiada. Limitación declarada en la propia pestaña: las cadenas de .NET no se borran de la memoria.
+- **No cubierto:** Windows Hello; importar/exportar; copia de seguridad del archivo (si se pierde o se corrompe, se pierde todo: **conviene copiarlo**); bloquear al minimizar o al bloquear Windows;
+  eventos al vault de reportes desde la ventana.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

@@ -40,6 +40,8 @@
        con el usuario: no pasan por el servicio (winget necesita sesion de usuario y nada de esto necesita privilegios). -->
   <ItemGroup>
     <ProjectReference Include="..\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+    <!-- La boveda de contraseñas tambien corre en el proceso de la ventana (jamas por el servicio, que es SYSTEM). -->
+    <ProjectReference Include="..\Nexo.Modules.Identity\Nexo.Modules.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
