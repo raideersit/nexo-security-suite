@@ -154,6 +154,16 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        /// <summary>El rastro de la ventana va al servicio por el pipe; sin servicio (o sin Windows) no deja rastro.</summary>
+        public static IRastroDeVentana RastroPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new RastroPorPipe(pipe, Espera);
+#else
+            return RastroNulo.Instancia;
+#endif
+        }
+
         private static string SinServicio => OperatingSystem.IsWindows()
             ? "esta compilación no incluye la conexión con el servicio (use la de Windows)"
             : "el servicio de Nexo todavía no existe para Linux";

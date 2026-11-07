@@ -1379,6 +1379,21 @@ Antes la bóveda solo se bloqueaba a mano, al cerrar o tras 5 min sin usar la ve
 - **Pruebas:** `Nexo.Desktop.Demo` (modelo con operación en curso, ventana minimizada con contraseña copiada, restaurar no desbloquea, motivo de sesión) y `Nexo.Vuln.Windows.Demo` §8 (mapeo de eventos y suscripción REAL a `SystemEvents`); todas las reglas rotas a propósito (8). Se quitó una línea redundante que la rotura demostró sin efecto.
 - **SIN PROBAR:** un bloqueo REAL de la sesión de Windows o una suspensión real (lo haría el usuario: Win+L con la bóveda abierta debería mostrarla bloqueada al volver); minimizar con clic real en la ventana. Un minimizado por «Mostrar escritorio» (Win+D) debería contar igual; sin comprobar.
 
+## 2ab. Rastro de la ventana en el vault de reportes (2026-11-07, en el HP)
+
+Las revisiones de Seguridad y la bóveda corrían en el proceso de la ventana y no dejaban nada en el vault. Decisión del usuario (AskUserQuestion): que la ventana avise al servicio por el pipe y el servicio escriba.
+La ventana NO escribe en el vault (es del servicio, de SYSTEM): dos procesos en la misma nota y cualquier programa podría colar eventos falsos.
+
+- **Servicio:** `ModuloRastroDeVentana` (`ventana.registrar`, ya cableado en `NexoWorker`; `estado` ahora lista 27 métodos). El cliente solo envía una CLAVE de un catálogo fijo y pocos campos acotados; el TEXTO del evento lo pone siempre el servicio.
+  Claves: `seguridad.cuentas|wifi|aplicaciones|fallos_conocidos` (hallazgos 0–1000, gravedad máxima, completa) y `boveda.creada|desbloqueada(entradas)|bloqueada(motivo: manual/inactividad/minimizar/sesion/cierre)|fallo_de_desbloqueo|copia_guardada|restaurada|auditoria(comprobadas, comprometidas)`.
+  Se rechaza (no se ignora) todo campo que el tipo no admite, valores fuera de rango o de otro tipo, gravedad sin hallazgos, más comprometidas que comprobadas. Tope: 2 s entre avisos iguales y 120 por hora; lo no registrado se dice (`registrado: false`).
+  Cada nota dice «informado por la ventana; el servicio no lo comprobó» (un proceso del mismo usuario podría mentir). Tipos nuevos en `TipoEvento`: `BovedaBloqueada`, `BovedaCopiaGuardada`, `BovedaRestaurada`, `BovedaAuditada`.
+- **Ventana:** `IRastroDeVentana` (`Nucleo/Rastro.cs`; `RastroPorPipe` en Windows, `RastroNulo` sin servicio). Mejor esfuerzo, en segundo plano, se traga cualquier fallo: sin servicio simplemente no queda rastro (la ventana no lo presenta como registrado). `SeguridadModelo` avisa al terminar cada revisión
+  (una revisión que falla se avisa como incompleta: lo desconocido no es «bien»; las notas Info no cuentan como hallazgos); `ContrasenasModelo` avisa creación, desbloqueo, intento fallido, bloqueo con su motivo, copia, restauración y auditoría. **Nunca** sitios, usuarios, contraseñas, rutas, nombres de redes/cuentas/programas.
+- **Defecto encontrado por las pruebas:** `ContrasenasModelo` ya tenía un `Avisar(string)` que notifica cambios de propiedad; mis llamadas sin datos caían ahí en silencio. Renombrado a `AvisarRastro`. Moraleja: los avisos sin campos de un método con el mismo nombre se resuelven al más específico.
+- **Pruebas:** `Nexo.Service.Demo` (módulo con 30+ casos, escritura en vault REAL, y de punta a punta por el pipe real), `Nexo.Desktop.Demo` (`RastroPruebas.cs`: qué se avisa, que no se filtra contenido, que un rastro que lanza no rompe nada); 15 reglas rotas a propósito (la de «contar Info» se detecta por caída del proceso).
+- **SIN PROBAR:** `RastroPorPipe` contra el servicio real instalado como SYSTEM con la ventana real (solo el módulo por el pipe de la prueba y el modelo con un rastro falso); que las notas se lean bien en Obsidian; si hace falta permitir el método a usuarios no administradores (el pipe ya admite al usuario; sin comprobar con una cuenta estándar).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

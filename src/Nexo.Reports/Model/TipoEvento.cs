@@ -31,6 +31,10 @@ namespace Nexo.Reports.Model
         public const string BovedaCreada = "boveda-creada";
         public const string BovedaDesbloqueada = "boveda-desbloqueada";
         public const string BovedaFalloDeDesbloqueo = "boveda-fallo-de-desbloqueo";
+        public const string BovedaBloqueada = "boveda-bloqueada";
+        public const string BovedaCopiaGuardada = "boveda-copia-guardada";
+        public const string BovedaRestaurada = "boveda-restaurada";
+        public const string BovedaAuditada = "boveda-auditada";
 
         // --- Modulo de limpieza (Prompt 4) ---
         public const string SesionLimpieza = "sesion-limpieza";

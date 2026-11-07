@@ -42,6 +42,7 @@ namespace Nexo.Service.Demo
                 ProbarManejador();
                 await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 ProbarPlanes();
+                await ProbarRastroDeVentana(raiz).ConfigureAwait(false);
                 ProbarAprobacionDeOtroUsuario();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
@@ -142,8 +143,8 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 26,
-                      "estado lista los metodos que expone: los basicos y los del firewall");
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 27,
+                      "estado lista los metodos que expone: los basicos, los del firewall y «ventana.registrar»");
 
                 // Salud del disco: el servicio lee al arrancar (en segundo plano); disco.estado no vuelve a leer.
                 Respuesta disco = await c.LlamarAsync("disco.estado").ConfigureAwait(false);
@@ -159,6 +160,13 @@ namespace Nexo.Service.Demo
                 Check(leer.Exito && leer.Resultado?.GetProperty("iniciada").GetBoolean() == false
                       && leer.Resultado?.GetProperty("motivo").GetString()!.Contains("menos de 5 minutos") == true,
                       "disco.leer justo despues del arranque se niega (como mucho una lectura cada 5 min)");
+
+                // El rastro de la ventana, de punta a punta: pipe real -> modulo -> vault real.
+                Respuesta rastro = await c.LlamarAsync("ventana.registrar", new Dictionary<string, object?> { ["tipo"] = "boveda.bloqueada", ["motivo"] = "minimizar" }).ConfigureAwait(false);
+                Check(rastro.Exito && rastro.Resultado?.GetProperty("registrado").GetBoolean() == true, "ventana.registrar por el pipe real registra el aviso");
+                Respuesta rastroMalo = await c.LlamarAsync("ventana.registrar", new Dictionary<string, object?> { ["tipo"] = "boveda.bloqueada", ["motivo"] = "<script>" }).ConfigureAwait(false);
+                Check(!rastroMalo.Exito && rastroMalo.Error!.Codigo == CodigoDeError.ParametrosInvalidos, "un motivo inventado por el pipe se rechaza");
+                Check(LeerTodo(Notas(vault)).Contains("motivo: minimizar") && !LeerTodo(Notas(vault)).Contains("<script>"), "la nota quedo en el vault real, sin el texto rechazado");
 
                 foreach (string peligroso in new[] { "limpiar", "borrar", "firewall.bloquear", "cuarentena.mover", "cuarentena.eliminar", "ejecutar" })
                 {

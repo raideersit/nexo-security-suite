@@ -166,6 +166,8 @@ namespace Nexo.Service
             var fuentes = new List<IResultadosDeEscaneo> { escaneo };
             if (tiempoReal is not null) fuentes.Add(tiempoReal);
             if (programado is not null) fuentes.Add(programado);
+            // El rastro de la ventana (revisiones y boveda): la ventana avisa y el servicio escribe, con textos y topes propios.
+            modulos.Add(new ModuloRastroDeVentana(reportes));
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }

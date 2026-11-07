@@ -59,6 +59,26 @@ namespace Nexo.Ui.Desktop
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        /// <summary>Donde se avisa de cada revision terminada (solo conteos y gravedad maxima, jamas nombres). Sin servicio, no deja rastro.</summary>
+        public IRastroDeVentana Rastro { get; set; } = RastroNulo.Instancia;
+
+        private static string ClaveDeRastro(SeccionDeSeguridad s) => s switch
+        {
+            SeccionDeSeguridad.Cuentas => "seguridad.cuentas",
+            SeccionDeSeguridad.Wifi => "seguridad.wifi",
+            SeccionDeSeguridad.Aplicaciones => "seguridad.aplicaciones",
+            _ => "seguridad.fallos_conocidos"
+        };
+
+        /// <summary>Una revision que no se pudo hacer queda como «incompleta, sin hallazgos»: lo desconocido no es «bien».</summary>
+        private void AvisarRevision(SeccionDeSeguridad s, Consulta<RevisionDeSeccion> r)
+        {
+            int n = r.Valor?.Analisis.Hallazgos.Count(h => h.Severidad != Severidad.Info) ?? 0;
+            string maxima = n == 0 ? "Info" : r.Valor!.Analisis.Hallazgos.Where(h => h.Severidad != Severidad.Info).Max(h => h.Severidad).ToString();
+            var campos = new Dictionary<string, object?>(StringComparer.Ordinal) { ["hallazgos"] = n, ["maxima"] = maxima, ["completa"] = r.Valor?.Analisis.Completo ?? false };
+            try { Rastro.Avisar(ClaveDeRastro(s), campos); } catch (Exception) { /* el rastro nunca rompe la revision */ }
+        }
+
         public string Titulo { get; private set; } = "";
         public string Explicacion { get; private set; } = "";
         public IBrush Color { get; private set; } = Colores.De(Indicador.SinDatos);
@@ -110,6 +130,7 @@ namespace Nexo.Ui.Desktop
                     r = Consulta<RevisionDeSeccion>.Mal("error inesperado al revisar (" + ex.GetType().Name + ")");
                 }
                 _ultimas[seccion] = r;
+                AvisarRevision(seccion, r);
             }
             finally
             {

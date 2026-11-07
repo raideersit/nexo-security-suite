@@ -35,7 +35,7 @@ namespace Nexo.Ui.Desktop
         internal const string MotivoAlMinimizar = "La bóveda se bloqueó porque minimizaste la ventana.";
 
         /// <summary>Bloquea la boveda por una razon de seguridad del equipo (solo si esta abierta). Lo usan el minimizar y el vigilante de sesion.</summary>
-        internal bool BloquearBovedaPorSeguridad(string motivo) => Contrasenas.BloquearPorSeguridad(motivo);
+        internal bool BloquearBovedaPorSeguridad(string motivo, string motivoDeRastro = "sesion") => Contrasenas.BloquearPorSeguridad(motivo, motivoDeRastro);
         private bool _cerrandoLaBoveda;
 
         /// <summary>Solo para el previsualizador de Avalonia: sin servicio, y lo dice.</summary>
@@ -123,7 +123,7 @@ namespace Nexo.Ui.Desktop
             // La boveda tambien se bloquea al minimizar la ventana y cuando el equipo deja de estar a la vista (sesion bloqueada, suspension).
             PropertyChanged += (_, e) =>
             {
-                if (e.Property == WindowStateProperty && WindowState == Avalonia.Controls.WindowState.Minimized) BloquearBovedaPorSeguridad(MotivoAlMinimizar);
+                if (e.Property == WindowStateProperty && WindowState == Avalonia.Controls.WindowState.Minimized) BloquearBovedaPorSeguridad(MotivoAlMinimizar, "minimizar");
             };
 #if WINDOWS
             _vigilante = new Nexo.Ui.Desktop.Nucleo.VigilanteDeSesionWindows();
@@ -147,7 +147,7 @@ namespace Nexo.Ui.Desktop
                 if (_cerrandoLaBoveda) return;
                 _cerrandoLaBoveda = true;
                 bool habiaAlgoCopiado = Contrasenas.HayTextoEnElPortapapeles;
-                Contrasenas.Bloquear();
+                Contrasenas.Bloquear(motivoDeRastro: "cierre");
                 if (!habiaAlgoCopiado) return;
                 e.Cancel = true;
                 await Contrasenas.EsperarBorradoAsync();

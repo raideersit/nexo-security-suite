@@ -46,6 +46,7 @@ namespace Nexo.Desktop.Demo
             ProbarSeguridad();
             ProbarSeguridadFallosConocidos();
             ProbarBloqueoDeSeguridadDelModelo();
+            ProbarRastroDeLaVentana();
             ProbarContrasenas();
             ProbarDialogos(captura);
             ProbarFuentePorDefecto();

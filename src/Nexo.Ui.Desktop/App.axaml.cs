@@ -24,6 +24,9 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeSeguridad? Seguridad { get; set; }
 
+        /// <summary>Por donde la ventana avisa al servicio de lo que hizo (para el vault de reportes). Sin servicio, no deja rastro.</summary>
+        internal static IRastroDeVentana? Rastro { get; set; }
+
         /// <summary>Donde esta la boveda (Program la fija con --boveda; por omision, el perfil del usuario).</summary>
         internal static string? Contrasenas { get; set; }
 
@@ -42,9 +45,9 @@ namespace Nexo.Ui.Desktop
                     new TiempoRealModelo(TiempoReal ?? new ServicioDeTiempoRealNoDisponible(sinFuente),
                                          Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)),
                     new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)),
-                    new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)),
+                    new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)) { Rastro = Rastro ?? RastroNulo.Instancia },
                     // La boveda vive en el perfil del usuario y corre en este proceso; el portapapeles real se enlaza a la ventana al crearla.
-                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()));
+                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia });
             base.OnFrameworkInitializationCompleted();
         }
     }

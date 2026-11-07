@@ -61,6 +61,7 @@ namespace Nexo.Ui.Desktop
         private FaseDeBoveda _fase;
         private string _mensaje = "";
         private bool _ocupado;
+        private string _motivoPendiente = "sesion";
         private string? _bloqueoPendiente; // un bloqueo pedido mientras habia una operacion en curso: se aplica al terminar, nunca la interrumpe
         private string _filtro = "";
         private bool _mostrar;
@@ -88,6 +89,16 @@ namespace Nexo.Ui.Desktop
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        /// <summary>Donde se avisa de lo que pasa con la boveda (solo hechos y conteos, jamas contenido). Sin servicio, no deja rastro.</summary>
+        public IRastroDeVentana Rastro { get; set; } = RastroNulo.Instancia;
+
+        private void AvisarRastro(string tipo, params (string, object?)[] campos)
+        {
+            var d = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach ((string k, object? v) in campos) d[k] = v;
+            try { Rastro.Avisar(tipo, d); } catch (Exception) { /* el rastro nunca rompe la boveda */ }
+        }
+
         /// <summary>Donde se guarda por omision: el perfil del usuario, nunca ProgramData.</summary>
         public static string RutaPorOmision()
             => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nexo", "boveda.nxv");
@@ -107,7 +118,7 @@ namespace Nexo.Ui.Desktop
                 if (_ocupado == value) return;
                 _ocupado = value;
                 RecalcularEstado();
-                if (!value && _bloqueoPendiente is string motivo && _fase == FaseDeBoveda.Abierta) Bloquear(motivo);
+                if (!value && _bloqueoPendiente is string motivo && _fase == FaseDeBoveda.Abierta) Bloquear(motivo, _motivoPendiente);
                 if (!value) _bloqueoPendiente = null;
             }
         }
@@ -194,6 +205,7 @@ namespace Nexo.Ui.Desktop
                 CargarEntradas();
                 _fase = FaseDeBoveda.Abierta;
                 Actividad();
+                AvisarRastro("boveda.creada");
                 Mensaje = "Bóveda creada. Si olvidas la contraseña maestra, no hay forma de recuperar lo que guardes: apúntala en un lugar seguro.";
                 return true;
             }
@@ -224,9 +236,11 @@ namespace Nexo.Ui.Desktop
                     CargarEntradas();
                     _fase = FaseDeBoveda.Abierta;
                     Actividad();
+                    AvisarRastro("boveda.desbloqueada", ("entradas", _todas.Count));
                     Mensaje = "";
                     return true;
                 }
+                if (r.Estado == EstadoDeApertura.ContrasenaIncorrectaOArchivoAlterado) AvisarRastro("boveda.fallo_de_desbloqueo");
                 Mensaje = r.Estado switch
                 {
                     EstadoDeApertura.NoExiste => "El archivo de la bóveda ya no existe.",
@@ -246,8 +260,9 @@ namespace Nexo.Ui.Desktop
         }
 
         /// <summary>Cierra la bóveda: clave a ceros, entradas olvidadas, contraseña oculta y portapapeles limpio (si sigue siendo lo que puso Nexo).</summary>
-        public void Bloquear(string? aviso = null)
+        public void Bloquear(string? aviso = null, string motivoDeRastro = "manual")
         {
+            bool estabaAbierta = _fase == FaseDeBoveda.Abierta;
             _generacionDeCopia++;
             if (_textoCopiado is not null) _borradoPendiente = BorrarSiSigueIgualAsync();
 
@@ -267,17 +282,18 @@ namespace Nexo.Ui.Desktop
             _fase = File.Exists(_ruta) ? FaseDeBoveda.Bloqueada : FaseDeBoveda.SinBoveda;
             Mensaje = aviso ?? "Bóveda bloqueada.";
             Recalcular();
+            if (estabaAbierta) AvisarRastro("boveda.bloqueada", ("motivo", motivoDeRastro));
         }
 
         /// <summary>
         /// Bloqueo pedido por la seguridad del equipo (ventana minimizada, sesion de Windows bloqueada, suspension). Solo actua con la
         /// boveda abierta. Si hay una operacion en curso (guardar...) no la interrumpe: bloquea en cuanto termina. true = bloqueo ahora.
         /// </summary>
-        public bool BloquearPorSeguridad(string aviso)
+        public bool BloquearPorSeguridad(string aviso, string motivoDeRastro = "sesion")
         {
             if (_fase != FaseDeBoveda.Abierta) return false;
-            if (_ocupado) { _bloqueoPendiente = aviso; return false; }
-            Bloquear(aviso);
+            if (_ocupado) { _bloqueoPendiente = aviso; _motivoPendiente = motivoDeRastro; return false; }
+            Bloquear(aviso, motivoDeRastro);
             return true;
         }
 
@@ -290,7 +306,7 @@ namespace Nexo.Ui.Desktop
         {
             if (_fase != FaseDeBoveda.Abierta || _ocupado) return false;
             if (_reloj() - _ultimaActividad < _inactividad) return false;
-            Bloquear("La bóveda se bloqueó por inactividad.");
+            Bloquear("La bóveda se bloqueó por inactividad.", "inactividad");
             return true;
         }
 
@@ -485,6 +501,7 @@ namespace Nexo.Ui.Desktop
                     _auditoria[h.EntradaId] = "Filtrada (" + h.Apariciones.ToString("N0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', '.') + " veces)";
                     _filtradas.Add(h.EntradaId);
                 }
+                AvisarRastro("boveda.auditoria", ("comprobadas", _todas.Count), ("comprometidas", Math.Min(r.Filtradas.Count, _todas.Count)));
                 foreach (Guid id in r.SinComprobar) _auditoria[id] = "Sin comprobar";
                 foreach (Guid id in r.SinContrasena) _auditoria[id] = "Sin contraseña";
                 foreach (EntradaDeBoveda e in _todas)
@@ -557,6 +574,7 @@ namespace Nexo.Ui.Desktop
             {
                 await _boveda.ExportarCopiaAsync(destino, sobrescribir);
                 _ultimaCopia = _reloj();
+                AvisarRastro("boveda.copia_guardada");
                 Mensaje = "Copia guardada en «" + destino + "». Se abre con tu contraseña maestra actual. Contiene lo que hay ahora: si luego borras una entrada, seguirá en esta copia. Guárdala en un lugar seguro, mejor en otro disco.";
                 return true;
             }
@@ -589,6 +607,7 @@ namespace Nexo.Ui.Desktop
                 if (r.Restaurada)
                 {
                     _fase = FaseDeBoveda.Bloqueada;
+                    AvisarRastro("boveda.restaurada");
                     Mensaje = "Copia restaurada. Escribe la contraseña maestra de la copia para abrirla."
                               + (r.ArchivoAnterior is null ? "" : " La bóveda que había se guardó aparte como «" + r.ArchivoAnterior + "»: no se borró.");
                     return true;
