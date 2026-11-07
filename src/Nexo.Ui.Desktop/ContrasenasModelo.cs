@@ -187,7 +187,7 @@ namespace Nexo.Ui.Desktop
             }
             catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
             {
-                Mensaje = "No se pudo crear la bóveda: " + ex.Message;
+                Mensaje = "No se pudo crear la bóveda: " + Motivo(ex);
                 return false;
             }
             finally
@@ -246,6 +246,7 @@ namespace Nexo.Ui.Desktop
             _filtradas.Clear();
             _resumenDeAuditoria = null;
             _indicadorDeAuditoria = Indicador.SinDatos;
+            _ultimaCopia = null;     // «ultima copia de esta sesion»: una sesion nueva empieza sin ella
             _seleccionada = null;
             _mostrar = false;
             _edicion = false;
@@ -342,7 +343,7 @@ namespace Nexo.Ui.Desktop
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException)
             {
-                Mensaje = "No se pudo guardar: " + ex.Message;
+                Mensaje = "No se pudo guardar: " + Motivo(ex);
                 return false;
             }
             finally
@@ -369,7 +370,7 @@ namespace Nexo.Ui.Desktop
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
-                Mensaje = "No se pudo eliminar: " + ex.Message;
+                Mensaje = "No se pudo eliminar: " + Motivo(ex);
                 return false;
             }
             finally
@@ -501,6 +502,97 @@ namespace Nexo.Ui.Desktop
             }
         }
 
+        // ---------------------------------------------------------------- copia de seguridad
+        private DateTime? _ultimaCopia;
+
+        /// <summary>Recordatorio: la bóveda es UN archivo; si se pierde o se daña, se pierde todo. Dice si ya se hizo una copia en esta sesión.</summary>
+        public string TextoDeCopia => _ultimaCopia is DateTime f
+            ? "Última copia de esta sesión: " + f.ToString("dd/MM HH:mm", System.Globalization.CultureInfo.InvariantCulture) + "."
+            : "Todavía no guardaste ninguna copia en esta sesión.";
+        public bool HayCopiaReciente => _ultimaCopia is not null;
+
+        /// <summary>true si se puede restaurar una copia: solo con la bóveda cerrada (o sin bóveda) y sin otra operación en curso.</summary>
+        public bool PuedeRestaurar => _fase != FaseDeBoveda.Abierta && !_ocupado;
+
+        /// <summary>true si ya hay una bóveda en el archivo: restaurar la APARTARÁ (no la borra) y la ventana lo pregunta antes.</summary>
+        public bool ExisteBoveda => _fase == FaseDeBoveda.Bloqueada;
+
+        public static string NombreSugeridoDeCopia() => "boveda-copia-" + DateTime.Now.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture) + ".nxv";
+
+        /// <summary>
+        /// Guarda una copia cifrada del estado actual donde elija el usuario (idealmente otro disco). Se verifica que la copia descifra antes de darla
+        /// por buena. Una copia conserva lo que había en ese momento, incluso lo que se borre después: se avisa.
+        /// </summary>
+        public async Task<bool> GuardarCopiaAsync(string destino, bool sobrescribir = false)
+        {
+            if (_boveda is null || _fase != FaseDeBoveda.Abierta || _ocupado) return false;
+            Actividad();
+            Ocupado = true;
+            Mensaje = "Guardando la copia...";
+            try
+            {
+                await _boveda.ExportarCopiaAsync(destino, sobrescribir);
+                _ultimaCopia = _reloj();
+                Mensaje = "Copia guardada en «" + destino + "». Se abre con tu contraseña maestra actual. Contiene lo que hay ahora: si luego borras una entrada, seguirá en esta copia. Guárdala en un lugar seguro, mejor en otro disco.";
+                return true;
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Mensaje = "No se pudo guardar la copia: " + Motivo(ex);
+                return false;
+            }
+            finally
+            {
+                Ocupado = false;
+                Recalcular();
+            }
+        }
+
+        /// <summary>
+        /// Restaura una copia como la bóveda de este equipo. Antes de tocar nada comprueba que la copia abre con su contraseña. Si ya había una bóveda NO se
+        /// borra: se aparta con fecha y hora. La bóveda restaurada queda BLOQUEADA: hay que abrirla con la contraseña maestra de la copia.
+        /// </summary>
+        public async Task<bool> RestaurarAsync(string rutaDeLaCopia, string contrasenaDeLaCopia, CancellationToken ct = default)
+        {
+            if (_ocupado || _fase == FaseDeBoveda.Abierta) return false;
+            if (string.IsNullOrEmpty(contrasenaDeLaCopia)) { Mensaje = "Escribe primero la contraseña maestra de la copia."; return false; }
+
+            Ocupado = true;
+            Mensaje = "Comprobando la copia...";
+            try
+            {
+                ResultadoDeRestauracion r = await Bov.RestaurarAsync(rutaDeLaCopia, contrasenaDeLaCopia, _ruta, ct);
+                if (r.Restaurada)
+                {
+                    _fase = FaseDeBoveda.Bloqueada;
+                    Mensaje = "Copia restaurada. Escribe la contraseña maestra de la copia para abrirla."
+                              + (r.ArchivoAnterior is null ? "" : " La bóveda que había se guardó aparte como «" + r.ArchivoAnterior + "»: no se borró.");
+                    return true;
+                }
+                Mensaje = r.Estado switch
+                {
+                    EstadoDeRestauracion.CopiaNoExiste => "El archivo de la copia no existe.",
+                    EstadoDeRestauracion.CopiaIlegible => "El archivo no es una copia de bóveda de Nexo o está dañado. No se cambió nada.",
+                    EstadoDeRestauracion.VersionNoSoportada => "La copia es de una versión más nueva de Nexo: actualiza Nexo para usarla. No se cambió nada.",
+                    EstadoDeRestauracion.ParametrosFueraDeRango => "La copia pide parámetros de cifrado fuera de lo aceptable: Nexo no la usa. No se cambió nada.",
+                    EstadoDeRestauracion.ContrasenaIncorrectaOArchivoAlterado => "Contraseña incorrecta, o la copia fue alterada: no se puede distinguir una cosa de la otra. No se cambió nada.",
+                    EstadoDeRestauracion.DestinoEsLaCopia => "Elegiste el archivo de la propia bóveda: no hay nada que restaurar.",
+                    _ => "No se pudo restaurar" + (r.Detalle is null ? "." : ": " + r.Detalle + ".")
+                };
+                return false;
+            }
+            catch (Exception ex) when (ex is ArgumentException)
+            {
+                Mensaje = "No se pudo restaurar: " + Motivo(ex);
+                return false;
+            }
+            finally
+            {
+                Ocupado = false;
+                Recalcular();
+            }
+        }
+
         // ---------------------------------------------------------------- contraseña maestra
         public async Task<bool> CambiarMaestraAsync(string actual, string nueva, string repetida, CancellationToken ct = default)
         {
@@ -524,7 +616,7 @@ namespace Nexo.Ui.Desktop
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException)
             {
-                Mensaje = "No se pudo cambiar: " + ex.Message;
+                Mensaje = "No se pudo cambiar: " + Motivo(ex);
                 return false;
             }
             finally
@@ -592,10 +684,17 @@ namespace Nexo.Ui.Desktop
                          nameof(DetalleVisible), nameof(DetalleSitio), nameof(DetalleUsuario), nameof(DetalleNotas), nameof(DetalleFechas), nameof(MostrarContrasena),
                          nameof(BotonMostrar), nameof(DetalleContrasena), nameof(EdicionVisible), nameof(EdicionTitulo), nameof(EdSitio), nameof(EdUsuario),
                          nameof(EdContrasena), nameof(EdNotas), nameof(CaracterDeClave), nameof(Auditoria), nameof(HayAuditoria), nameof(ColorDeAuditoria),
-                         nameof(IndicadorDeAuditoria), nameof(ResumenDeInactividad)
+                         nameof(IndicadorDeAuditoria), nameof(ResumenDeInactividad), nameof(TextoDeCopia), nameof(HayCopiaReciente), nameof(PuedeRestaurar), nameof(ExisteBoveda)
                      })
                 Avisar(n);
         }
+
+        /// <summary>
+        /// El motivo de una excepcion para mostrarlo al usuario: sin el sufijo tecnico que .NET añade a las de argumento («(Parameter 'x')», o
+        /// «(Parámetro 'x')» en un sistema en español).
+        /// </summary>
+        internal static string Motivo(Exception ex)
+            => System.Text.RegularExpressions.Regex.Replace(ex.Message, @"\s*\((?:Parameter|Parámetro) '[^']*'\)\s*$", "");
 
         private void Avisar([CallerMemberName] string? nombre = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nombre));
 

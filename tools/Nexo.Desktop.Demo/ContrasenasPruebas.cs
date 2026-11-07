@@ -112,7 +112,7 @@ namespace Nexo.Desktop.Demo
             var textos = new HashSet<string>(StringComparer.Ordinal);
             void Espiar(ContrasenasModelo mod)
             {
-                string[] nombres = { "Mensaje", "Titulo", "Explicacion", "Auditoria", "BotonMostrar", "EdicionTitulo", "DetalleFechas", "ResumenDeInactividad" };
+                string[] nombres = { "Mensaje", "Titulo", "Explicacion", "Auditoria", "BotonMostrar", "EdicionTitulo", "DetalleFechas", "ResumenDeInactividad", "TextoDeCopia" };
                 mod.PropertyChanged += (_, e) =>
                 {
                     if (e.PropertyName is { } n && Array.IndexOf(nombres, n) >= 0)
@@ -325,6 +325,64 @@ namespace Nexo.Desktop.Demo
             Check(!Esperar(m.DesbloquearAsync(Maestra)) && Esperar(m.DesbloquearAsync("otra-maestra-nueva-77")) && m.Cantidad == 2, "la vieja ya no abre; la nueva si, con las 2 entradas");
             m.Bloquear();
 
+            // ---- copia de seguridad
+            const string maestraActual = "otra-maestra-nueva-77";
+            Check(!m.HayCopiaReciente && m.TextoDeCopia == "Todavía no guardaste ninguna copia en esta sesión.", "sin copias en la sesión, el recordatorio lo dice");
+            string copiaRuta = Path.Combine(dir, "respaldos", "copia.nxv");
+            Check(!Esperar(m.GuardarCopiaAsync(copiaRuta)) && !File.Exists(copiaRuta), "con la bóveda bloqueada no se puede guardar una copia (y no se crea nada)");
+            Esperar(m.DesbloquearAsync(maestraActual));
+            c.Ahora = new DateTime(2026, 11, 7, 18, 45, 0);
+            m.Actividad();
+            Check(Esperar(m.GuardarCopiaAsync(copiaRuta)) && File.Exists(copiaRuta), "guardar una copia en una carpeta que no existe: la crea");
+            Check(m.Mensaje.StartsWith("Copia guardada en «") && m.Mensaje.Contains("seguirá en esta copia") && m.Mensaje.Contains("otro disco"), "el mensaje avisa que lo borrado después seguirá en la copia y recomienda otro disco", m.Mensaje);
+            Check(m.HayCopiaReciente && m.TextoDeCopia == "Última copia de esta sesión: 07/11 18:45.", "y el recordatorio muestra la hora de la última copia", m.TextoDeCopia);
+            ResultadoDeApertura rc = Esperar(Bov.AbrirAsync(copiaRuta, maestraActual));
+            Check(rc.Abierta && rc.Boveda!.Entradas.Count == 2, "la copia abre con la contraseña maestra actual y trae las 2 entradas");
+            rc.Boveda?.Dispose();
+            Check(!Esperar(m.GuardarCopiaAsync(ruta)) && m.Mensaje == "No se pudo guardar la copia: La copia no puede ser el mismo archivo de la bóveda.", "no acepta guardar la copia sobre la propia bóveda", m.Mensaje);
+            Check(!Esperar(m.GuardarCopiaAsync(copiaRuta)) && m.Mensaje.StartsWith("No se pudo guardar la copia: Ya existe un archivo en ese destino"), "ni sobre otra copia que ya existe, salvo permiso expreso", m.Mensaje);
+            Check(Esperar(m.GuardarCopiaAsync(copiaRuta, sobrescribir: true)) && !m.Ocupado, "con permiso expreso la sobrescribe, y no queda «ocupado»");
+            Check(!m.PuedeRestaurar && !Esperar(m.RestaurarAsync(copiaRuta, maestraActual)), "con la bóveda abierta no se puede restaurar (no hace nada)");
+            m.Bloquear();
+            Check(!m.HayCopiaReciente && m.PuedeRestaurar && m.ExisteBoveda, "al bloquear se olvida la «última copia de esta sesión»; ahora sí se puede restaurar, y hay una bóveda que se apartaría");
+
+            // la bóveda cambia DESPUES de la copia (otra contraseña maestra); luego se restaura la copia
+            Esperar(m.DesbloquearAsync(maestraActual));
+            Esperar(m.CambiarMaestraAsync(maestraActual, "maestra-posterior-55", "maestra-posterior-55"));
+            m.Bloquear();
+            Check(!Esperar(m.RestaurarAsync(copiaRuta, "")) && m.Mensaje == "Escribe primero la contraseña maestra de la copia.", "restaurar sin escribir la contraseña de la copia: lo pide");
+            Check(!Esperar(m.RestaurarAsync(copiaRuta, "no-es-la-maestra-de-la-copia")) && m.Mensaje.StartsWith("Contraseña incorrecta, o la copia fue alterada") && m.Mensaje.EndsWith("No se cambió nada."),
+                  "con la contraseña equivocada: rechazada y lo dice, sin cambiar nada", m.Mensaje);
+            Check(Esperar(m.DesbloquearAsync("maestra-posterior-55")) && m.Cantidad == 2, "control: la bóveda sigue intacta (abre con su contraseña actual)");
+            m.Bloquear();
+
+            Check(Esperar(m.RestaurarAsync(copiaRuta, maestraActual)) && m.Fase == FaseDeBoveda.Bloqueada, "restaurar la copia con su contraseña: queda BLOQUEADA, a la espera de abrirla");
+            Check(m.Mensaje.StartsWith("Copia restaurada. Escribe la contraseña maestra de la copia para abrirla.") && m.Mensaje.Contains("se guardó aparte como «") && m.Mensaje.Contains("no se borró"),
+                  "y dice que la bóveda anterior se guardó aparte y no se borró", m.Mensaje);
+            Check(!Esperar(m.DesbloquearAsync("maestra-posterior-55")) && Esperar(m.DesbloquearAsync(maestraActual)) && m.Cantidad == 2, "ahora abre con la contraseña de la COPIA, no con la posterior");
+            m.Bloquear();
+            string[] apartadas = Directory.GetFiles(dir, Path.GetFileName(ruta) + ".anterior-*");
+            Check(apartadas.Length == 1, "hay exactamente un archivo apartado", string.Join(",", apartadas.Select(Path.GetFileName)));
+            ResultadoDeApertura ap = Esperar(Bov.AbrirAsync(apartadas[0], "maestra-posterior-55"));
+            Check(ap.Abierta && ap.Boveda!.Entradas.Count == 2, "y la bóveda apartada sigue abriendo con SU contraseña (no se perdió nada)");
+            ap.Boveda?.Dispose();
+
+            string mala = Path.Combine(dir, "copia-mala.nxv");
+            File.WriteAllBytes(mala, new byte[100]);
+            Check(!Esperar(m.RestaurarAsync(mala, maestraActual)) && m.Mensaje.StartsWith("El archivo no es una copia de bóveda de Nexo o está dañado.") && m.Mensaje.EndsWith("No se cambió nada."), "un archivo que no es una copia: rechazado, sin cambiar nada");
+            Check(!Esperar(m.RestaurarAsync(Path.Combine(dir, "no-existe.nxv"), maestraActual)) && m.Mensaje == "El archivo de la copia no existe.", "una copia que no existe");
+            Check(!Esperar(m.RestaurarAsync(ruta, maestraActual)) && m.Mensaje == "Elegiste el archivo de la propia bóveda: no hay nada que restaurar.", "elegir la propia bóveda como copia: no hay nada que restaurar");
+            Check(Directory.GetFiles(dir, Path.GetFileName(ruta) + ".anterior-*").Length == 1, "los rechazos no dejan archivos apartados de más");
+
+            // sin bóveda: restaurar crea la bóveda desde la copia
+            var mn = Modelo(Ruta(dir, "desdecopia"), c, clip);
+            Espiar(mn);
+            Check(mn.EsSinBoveda && mn.PuedeRestaurar && !mn.ExisteBoveda, "sin bóveda también se puede restaurar (y no hay nada que apartar)");
+            Check(Esperar(mn.RestaurarAsync(copiaRuta, maestraActual)) && mn.EsBloqueada && !mn.Mensaje.Contains("aparte"), "restaurar sin bóveda previa: queda bloqueada y no habla de «aparte»");
+            Check(Esperar(mn.DesbloquearAsync(maestraActual)) && mn.Cantidad == 2, "y abre con la contraseña de la copia, con sus 2 entradas");
+            mn.Bloquear();
+            Check(Regex.IsMatch(ContrasenasModelo.NombreSugeridoDeCopia(), @"^boveda-copia-\d{8}\.nxv$"), "el nombre sugerido de la copia lleva la fecha");
+
             // ---- archivos raros
             string original = ruta;
             byte[] bytes = File.ReadAllBytes(original);
@@ -375,7 +433,7 @@ namespace Nexo.Desktop.Demo
             // ---- tildes
             var banales = new SortedSet<string>(StringComparer.Ordinal);
             foreach (string t in textos)
-                foreach (Match mm in Regex.Matches(t, @"[A-Za-zÁÉÍÓÚáéíóúñÑ]+"))
+                foreach (Match mm in Regex.Matches(Regex.Replace(t, "«[^»]*»", "«»"), @"[A-Za-zÁÉÍÓÚáéíóúñÑ]+"))
                     if (Array.IndexOf(SinTildeContrasenas, mm.Value.ToLowerInvariant()) >= 0) banales.Add(mm.Value + " en «" + t + "»");
             Check(textos.Count > 25 && banales.Count == 0, "los " + textos.Count + " textos distintos que mostro la pestaña llevan sus tildes y eñes", string.Join(" | ", banales.Take(4)));
         }
@@ -398,6 +456,7 @@ namespace Nexo.Desktop.Demo
             Dispatcher.UIThread.RunJobs();
             Check(w.Pestanas.ItemCount == 9 && w.TituloDeContrasenas.Text == "Todavía no tienes una bóveda", "pestaña Contraseñas: sin archivo, «Todavía no tienes una bóveda»", w.TituloDeContrasenas.Text);
             Check(w.PanelSinBoveda.IsVisible && !w.PanelBloqueada.IsVisible && !w.PanelAbierta.IsVisible, "solo se ve el panel de crear");
+            Check(w.PanelDeRestauracion.IsVisible && w.BotonRestaurarCopia.IsEnabled, "y debajo, el panel «Restaurar desde una copia» (se puede restaurar sin tener bóveda)");
             if (captura is not null) Foto(w, captura, "contrasenas-crear");
 
             // crear con clic real en el boton
@@ -411,6 +470,8 @@ namespace Nexo.Desktop.Demo
             Check(EsperarA(() => m.EsAbierta), "con las dos iguales, el clic crea la bóveda");
             Check(w.PanelAbierta.IsVisible && !w.PanelSinBoveda.IsVisible && !w.PanelBloqueada.IsVisible, "se ve solo el panel de la bóveda abierta");
             Check(w.CajaMaestraNueva.Text == "" && w.CajaMaestraRepetida.Text == "", "y las cajas de la maestra se vaciaron");
+            Check(w.PanelDeCopia.IsEffectivelyVisible && !w.PanelDeRestauracion.IsEffectivelyVisible, "con la bóveda abierta se ve «Copia de seguridad» y NO «Restaurar» (restaurar sobre una bóveda abierta no existe)");
+            Check(w.TextoDeCopiaGuardada.Text == "Todavía no guardaste ninguna copia en esta sesión." && w.BotonGuardarCopia.IsEnabled, "y el recordatorio dice que aún no hay copia en esta sesión");
             Check(w.CajaMaestraNueva.PasswordChar == '•' && w.CajaMaestra.PasswordChar == '•' && w.CajaMaestraActual.PasswordChar == '•', "las cajas de la maestra ocultan lo que se escribe");
 
             // alta por la interfaz
@@ -439,6 +500,7 @@ namespace Nexo.Desktop.Demo
             // bloquear con clic, y desbloquear con la maestra
             Clic(w.BotonBloquearBoveda);
             Check(EsperarA(() => w.PanelBloqueada.IsVisible) && !w.PanelAbierta.IsVisible, "«Bloquear»: se ve solo el panel de desbloquear");
+            Check(w.PanelDeRestauracion.IsEffectivelyVisible && !w.PanelDeCopia.IsEffectivelyVisible, "y vuelve el panel «Restaurar desde una copia» (y el de «Copia de seguridad» deja de verse)");
             EsperarA(() => clip.Texto is null);
             Check(clip.Texto is null, "y al bloquear el portapapeles queda limpio");
             if (captura is not null) Foto(w, captura, "contrasenas-bloqueada");

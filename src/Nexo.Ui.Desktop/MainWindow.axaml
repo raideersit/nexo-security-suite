@@ -753,6 +753,19 @@
                             </StackPanel>
                         </HeaderedContentControl>
 
+                        <!-- Restaurar una copia: solo con la boveda cerrada o sin boveda. -->
+                        <HeaderedContentControl x:Name="PanelDeRestauracion" Header="Restaurar desde una copia" IsVisible="{Binding PuedeRestaurar}">
+                            <StackPanel Spacing="6">
+                                <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                           Text="Si tienes una copia de seguridad, escribe aquí su contraseña maestra y elige el archivo. Antes de instalarla se comprueba que se abre; si ya tienes una bóveda, NO se borra: se guarda aparte con la fecha y la hora." />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Contraseña de la copia:" Width="150" VerticalAlignment="Center" />
+                                    <TextBox x:Name="CajaMaestraDeCopia" PasswordChar="•" Width="300" />
+                                    <Button x:Name="BotonRestaurarCopia" Content="Elegir copia y restaurar..." IsEnabled="{Binding NoOcupado}" Click="RestaurarCopia" />
+                                </StackPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
                         <!-- 3. Abierta. -->
                         <StackPanel x:Name="PanelAbierta" Spacing="10" IsVisible="{Binding EsAbierta}">
 
@@ -853,6 +866,18 @@
                                         <Button x:Name="BotonGuardarEntrada" Content="Guardar" IsEnabled="{Binding NoOcupado}" Click="GuardarEntrada" />
                                         <Button Content="Cancelar" Click="CancelarEntrada" />
                                     </StackPanel>
+                                </StackPanel>
+                            </HeaderedContentControl>
+
+                            <HeaderedContentControl x:Name="PanelDeCopia" Header="Copia de seguridad">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="La bóveda es UN solo archivo: si se pierde o se daña, se pierde todo lo que guardaste. Guarda una copia cifrada, mejor en otro disco o en un USB." TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button x:Name="BotonGuardarCopia" Content="Guardar copia..." IsEnabled="{Binding NoOcupado}" Click="GuardarCopia" />
+                                        <TextBlock x:Name="TextoDeCopiaGuardada" Text="{Binding TextoDeCopia}" VerticalAlignment="Center" Foreground="#404040" />
+                                    </StackPanel>
+                                    <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                               Text="La copia se abre con tu contraseña maestra actual y contiene lo que hay AHORA: si después borras una entrada, seguirá en la copia que ya hiciste. Cuida las copias como cuidas la bóveda." />
                                 </StackPanel>
                             </HeaderedContentControl>
 

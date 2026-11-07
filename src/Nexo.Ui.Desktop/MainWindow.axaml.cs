@@ -199,6 +199,50 @@ namespace Nexo.Ui.Desktop
             if (r == MessageBoxResult.Yes) await Contrasenas.EliminarSeleccionadaAsync();
         }
 
+        private async void GuardarCopia(object? sender, RoutedEventArgs e)
+        {
+            // El selector pregunta por si mismo si ya existe el archivo (ShowOverwritePrompt): la respuesta del usuario es el permiso para sobrescribir.
+            IStorageFile? archivo = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Guardar una copia de la bóveda",
+                SuggestedFileName = ContrasenasModelo.NombreSugeridoDeCopia(),
+                DefaultExtension = "nxv",
+                ShowOverwritePrompt = true,
+                FileTypeChoices = new[] { new FilePickerFileType("Bóveda de Nexo") { Patterns = new[] { "*.nxv" } } }
+            });
+            string? ruta = archivo?.TryGetLocalPath();
+            if (ruta is null) return;
+            await Contrasenas.GuardarCopiaAsync(ruta, sobrescribir: true);
+        }
+
+        private async void RestaurarCopia(object? sender, RoutedEventArgs e)
+        {
+            string pass = CajaMaestraDeCopia.Text ?? "";
+            if (pass.Length == 0)
+            {
+                await Contrasenas.RestaurarAsync("", ""); // deja el mensaje «escribe primero la contraseña de la copia»
+                return;
+            }
+
+            IReadOnlyList<IStorageFile> elegidos = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Elige la copia de la bóveda",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("Bóveda de Nexo") { Patterns = new[] { "*.nxv" } }, FilePickerFileTypes.All }
+            });
+            string? ruta = elegidos.FirstOrDefault()?.TryGetLocalPath();
+            if (ruta is null) return;
+
+            if (Contrasenas.ExisteBoveda)
+            {
+                MessageBoxResult r = await MessageBox.ShowDialog(this,
+                    "Ya tienes una bóveda en este equipo.\n\nSi sigues, se guardará aparte (con la fecha y la hora en el nombre) y no se borra. La copia ocupará su lugar.\n\n¿Restaurar la copia?",
+                    "Restaurar copia", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (r != MessageBoxResult.Yes) return;
+            }
+            if (await Contrasenas.RestaurarAsync(ruta, pass)) CajaMaestraDeCopia.Text = "";
+        }
+
         private async void CambiarMaestra(object? sender, RoutedEventArgs e)
         {
             if (await Contrasenas.CambiarMaestraAsync(CajaMaestraActual.Text ?? "", CajaMaestraNuevaCambio.Text ?? "", CajaMaestraRepetidaCambio.Text ?? ""))

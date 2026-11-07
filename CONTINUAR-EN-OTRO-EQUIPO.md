@@ -1290,8 +1290,35 @@ Segundo paso del cableado (`src/Nexo.Ui.Desktop`): la 9.ª pestaña. Sin commit.
   aparece), copiar/bloquear/desbloquear, y sin resultados de filtraciones tras reabrir.
 - **SIN PROBAR:** el portapapeles real de Avalonia/Windows (las pruebas usan uno falso; `PortapapelesDeAvalonia` solo compila); la ventana con pantalla real y un clic de verdad; el bloqueo por inactividad con el
   temporizador real de 10 s (se probó la lógica con reloj falso); cerrar la ventana real con una contraseña copiada. Limitación declarada en la propia pestaña: las cadenas de .NET no se borran de la memoria.
-- **No cubierto:** Windows Hello; importar/exportar; copia de seguridad del archivo (si se pierde o se corrompe, se pierde todo: **conviene copiarlo**); bloquear al minimizar o al bloquear Windows;
+- **No cubierto:** Windows Hello; importar/exportar; copia de seguridad (HECHA después, ver §2x); bloquear al minimizar o al bloquear Windows;
   eventos al vault de reportes desde la ventana.
+
+## 2x. Copia de seguridad de la bóveda y restauración (2026-11-07, en el HP)
+
+Cierra la mayor debilidad práctica de la bóveda: es UN archivo, y si se pierde o se daña se pierde todo. Sin commit.
+
+- **Principio:** una copia NO puede romper la garantía de borrado de la bóveda (lo eliminado desaparece del disco). Por eso la copia es **siempre una acción explícita del usuario**, con destino que él
+  elige; no hay copias automáticas ni `.bak` permanente. La pestaña lo advierte: una copia conserva lo que había en ese momento, **incluso lo que borres después**; cuídala como la bóveda.
+- **`Boveda.ExportarCopiaAsync(destino, sobrescribir)`** (`Nexo.Modules.Identity`): exporta el estado ACTUAL con un nonce nuevo y **verifica que descifra** antes de darlo por bueno (reutiliza la escritura
+  atómica con verificación de siempre, ahora parametrizada por ruta; `ConstruirArchivo` extraído). Nunca sobrescribe sin permiso expreso; **jamás acepta como destino el propio archivo de la bóveda**
+  (ni con permiso); crea la carpeta si falta; no deja temporales ni `.bak`; con la bóveda bloqueada no hace nada. Se abre con la contraseña maestra ACTUAL.
+- **`Boveda.RestaurarAsync(copia, contraseñaDeLaCopia, destino)`:** **primero comprueba que la copia abre** con su contraseña (no se instala algo inservible: contraseña equivocada, truncada, un bit
+  cambiado, versión futura o parámetros hostiles se rechazan sin tocar nada); si ya hay una bóveda en el destino, **NO se borra: se aparta** como `boveda.nxv.anterior-AAAAMMDD-HHMMSS` (con sufijo si
+  chocan dos en el mismo segundo); escribe la copia, la **vuelve a abrir** para comprobarla, y si no abre o algo falla (p. ej. otro programa tiene el destino abierto) devuelve todo a su sitio.
+- **Interfaz** (pestaña Contraseñas): en la bóveda abierta, «Copia de seguridad» con **«Guardar copia...»** (selector de archivo con aviso de sobrescritura del sistema, nombre sugerido
+  `boveda-copia-AAAAMMDD.nxv`) y un recordatorio: «Todavía no guardaste ninguna copia en esta sesión» / «Última copia de esta sesión: dd/MM HH:mm.». Con la bóveda cerrada (o sin bóveda),
+  «Restaurar desde una copia»: escribes la contraseña de la copia, eliges el archivo, y si ya hay bóveda se pregunta antes (se aparta, no se borra). La restaurada queda **bloqueada**: se abre con la
+  contraseña de la copia. Restaurar con la bóveda abierta no existe. `ContrasenasModelo.GuardarCopiaAsync/RestaurarAsync/TextoDeCopia/PuedeRestaurar/ExisteBoveda`.
+- **Defecto corregido de paso:** los mensajes mostraban el sufijo técnico de .NET («… (Parameter 'destino')» / «(Parámetro 'x')») al usuario; ahora un único ayudante (`Motivo`) lo quita en todos los
+  mensajes de la pestaña (afectaba, p. ej., a «sitio demasiado largo»). También se renombró `BotonRestaurar` → `BotonRestaurarCopia` (chocaba con el de Cuarentena).
+- **Probado:** `Nexo.Identity.Demo` §16–17 (≈ 33 comprobaciones: copia abre con la misma maestra, nonce distinto, nada en claro, lo borrado después sigue en la copia, no sobrescribe, no acepta la propia
+  bóveda, bloqueada no exporta, exportar mientras se escribe, restaurar en destino vacío / sobre una bóveda (apartada idéntica y abriendo con SU contraseña) / dos seguidas sin pisarse, 6 rechazos que dejan
+  el destino intacto, destino abierto por otro programa); `Nexo.Desktop.Demo` (modelo + ventana: paneles según el estado, «Restaurar» oculto con la bóveda abierta, textos con tildes); **con dientes** (9
+  roturas: sin comprobar la copia, borrar en vez de apartar, exportar sobre la propia bóveda, sobrescribir sin permiso, recordatorio sin actualizar, restaurar con la bóveda abierta, ocultar que se apartó,
+  no olvidar la copia al bloquear, sufijo técnico). **En el HP real** (`Nexo.Vuln.Windows.Demo` §6, parámetros de producción): guardar ~12 ms, restaurar ~0,3 s, la restaurada abre con la contraseña de la
+  copia y no con la posterior, la posterior queda apartada y sigue abriendo con la suya.
+- **SIN PROBAR:** los selectores de archivos de verdad (`SaveFilePickerAsync`/`OpenFilePickerAsync`: solo compilan; los manejadores hacen el selector y llaman al modelo, que sí está probado); la ventana
+  con pantalla real. **No cubierto:** copia automática programada (a propósito: ver el principio); copia a un destino remoto; cifrar la copia con otra contraseña distinta de la maestra.
 
 ## 3. Lo que necesita el otro equipo
 

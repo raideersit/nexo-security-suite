@@ -54,6 +54,7 @@ namespace Nexo.Identity.Demo
                 await ProbarEventos(dir).ConfigureAwait(false);
                 ProbarGenerador();
                 await ProbarCostoReal(dir).ConfigureAwait(false);
+                await ProbarCopias(dir).ConfigureAwait(false);
                 await ProbarFiltraciones().ConfigureAwait(false);
                 await ProbarHttp().ConfigureAwait(false);
                 await ProbarAuditoria(dir).ConfigureAwait(false);

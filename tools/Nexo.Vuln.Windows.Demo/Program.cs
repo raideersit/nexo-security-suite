@@ -134,6 +134,29 @@ namespace Nexo.Vuln.Windows.Demo
                 Console.WriteLine("      INFO: desbloquear (mal) " + tMal + " ms · (bien) " + tBien + " ms");
                 Check(!mal && bien && m.Cantidad == 2 && !m.HayAuditoria, "maestra equivocada no abre; la correcta abre con las 2 entradas y SIN los resultados de filtraciones anteriores");
                 Check(tMal >= 30 && tBien >= 30, "abrir cuesta tiempo de verdad (Argon2id con los parámetros reales)");
+
+                // Copia de seguridad: guardar, cambiar la maestra, restaurar la copia. Lo posterior se aparta, no se borra.
+                string copia = System.IO.Path.Combine(dir, "respaldo", "copia.nxv");
+                sw.Restart();
+                bool guardada = m.GuardarCopiaAsync(copia).GetAwaiter().GetResult();
+                Console.WriteLine("      INFO: guardar la copia tardó " + sw.ElapsedMilliseconds + " ms");
+                byte[] bytesCopia = guardada ? System.IO.File.ReadAllBytes(copia) : Array.Empty<byte>();
+                Check(guardada && bytesCopia.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes("ejemplo.cl")) < 0, "guarda la copia cifrada (sin sitio ni contraseña en claro)");
+                string nueva = maestra + "-NUEVA";
+                Check(m.CambiarMaestraAsync(maestra, nueva, nueva).GetAwaiter().GetResult(), "cambia la contraseña maestra después de la copia");
+                m.Bloquear();
+                sw.Restart();
+                bool restaurada = m.RestaurarAsync(copia, maestra).GetAwaiter().GetResult();
+                Console.WriteLine("      INFO: restaurar tardó " + sw.ElapsedMilliseconds + " ms; mensaje: " + m.Mensaje.Substring(0, Math.Min(90, m.Mensaje.Length)) + "...");
+                Check(restaurada && m.EsBloqueada && m.Mensaje.Contains("se guardó aparte"), "restaurar la copia: queda bloqueada y avisa que la bóveda anterior se guardó aparte");
+                bool conNueva = m.DesbloquearAsync(nueva).GetAwaiter().GetResult();
+                bool conCopia = m.DesbloquearAsync(maestra).GetAwaiter().GetResult();
+                Check(!conNueva && conCopia && m.Cantidad == 2, "ahora abre con la contraseña de la COPIA (no con la posterior) y trae las 2 entradas");
+                string[] apartadas = System.IO.Directory.GetFiles(dir, "boveda.nxv.anterior-*");
+                Check(apartadas.Length == 1, "la bóveda posterior quedó apartada (1 archivo), no borrada");
+                var verApartada = Nexo.Modules.Identity.Boveda.Boveda.AbrirAsync(apartadas[0], nueva).GetAwaiter().GetResult();
+                Check(verApartada.Abierta && verApartada.Boveda!.Entradas.Count == 2, "y la apartada sigue abriendo con la contraseña nueva");
+                verApartada.Boveda?.Dispose();
                 m.Dispose();
             }
             finally

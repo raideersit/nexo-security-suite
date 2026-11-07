@@ -36,6 +36,26 @@ namespace Nexo.Modules.Identity.Boveda
         public bool Abierta => Estado == EstadoDeApertura.Abierta;
     }
 
+    public enum EstadoDeRestauracion
+    {
+        Restaurada,
+        CopiaNoExiste,
+        CopiaIlegible,
+        VersionNoSoportada,
+        ParametrosFueraDeRango,
+        ContrasenaIncorrectaOArchivoAlterado,
+
+        /// <summary>El destino es el mismo archivo que la copia: no hay nada que restaurar.</summary>
+        DestinoEsLaCopia,
+        ErrorDeEscritura
+    }
+
+    /// <param name="ArchivoAnterior">Donde quedo la boveda que habia (apartada, no borrada), o null si no habia ninguna.</param>
+    public sealed record ResultadoDeRestauracion(EstadoDeRestauracion Estado, string? ArchivoAnterior, string? Detalle = null)
+    {
+        public bool Restaurada => Estado == EstadoDeRestauracion.Restaurada;
+    }
+
     /// <summary>
     /// Boveda de contrasenas: un archivo cifrado con AES-256-GCM, con la clave derivada de la contrasena maestra por Argon2id.
     ///
@@ -285,25 +305,10 @@ namespace Nexo.Modules.Identity.Boveda
                 List<EntradaDeBoveda> copia;
                 lock (_cerrojo) { ExigirAbierta(); clave = (byte[])_clave!.Clone(); sal = _sal; copia = _entradas.ToList(); }
 
-                byte[] claro = JsonSerializer.SerializeToUtf8Bytes(new ContenidoDeBoveda { Version = 1, Entradas = copia });
-                byte[] nonce = RandomNumberGenerator.GetBytes(FormatoDeBoveda.TamNonce);
-                byte[] cifrado = new byte[claro.Length];
-                byte[] etiqueta = new byte[FormatoDeBoveda.TamEtiqueta];
-                byte[] cabecera = FormatoDeBoveda.Cabecera(_parametros, sal, nonce, claro.Length);
+                byte[] archivo = ConstruirArchivo(clave, sal, copia);
                 try
                 {
-                    using var aes = new AesGcm(clave, FormatoDeBoveda.TamEtiqueta);
-                    aes.Encrypt(nonce, claro, cifrado, etiqueta, cabecera);
-                }
-                finally
-                {
-                    CryptographicOperations.ZeroMemory(claro);
-                }
-
-                byte[] archivo = FormatoDeBoveda.Escribir(_parametros, sal, nonce, cifrado, etiqueta);
-                try
-                {
-                    await EscribirConVerificacionAsync(archivo, clave).ConfigureAwait(false);
+                    await EscribirConVerificacionAsync(_ruta, archivo, clave).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -316,13 +321,150 @@ namespace Nexo.Modules.Identity.Boveda
             }
         }
 
-        private async Task EscribirConVerificacionAsync(byte[] archivo, byte[] clave)
+        /// <summary>El archivo cifrado completo para un estado dado: nonce NUEVO cada vez, cabecera autenticada.</summary>
+        private byte[] ConstruirArchivo(byte[] clave, byte[] sal, List<EntradaDeBoveda> entradas)
         {
-            string? directorio = Path.GetDirectoryName(Path.GetFullPath(_ruta));
+            byte[] claro = JsonSerializer.SerializeToUtf8Bytes(new ContenidoDeBoveda { Version = 1, Entradas = entradas });
+            byte[] nonce = RandomNumberGenerator.GetBytes(FormatoDeBoveda.TamNonce);
+            byte[] cifrado = new byte[claro.Length];
+            byte[] etiqueta = new byte[FormatoDeBoveda.TamEtiqueta];
+            byte[] cabecera = FormatoDeBoveda.Cabecera(_parametros, sal, nonce, claro.Length);
+            try
+            {
+                using var aes = new AesGcm(clave, FormatoDeBoveda.TamEtiqueta);
+                aes.Encrypt(nonce, claro, cifrado, etiqueta, cabecera);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(claro);
+            }
+            return FormatoDeBoveda.Escribir(_parametros, sal, nonce, cifrado, etiqueta);
+        }
+
+        // ---------------------------------------------------------------- copia de seguridad
+
+        /// <summary>
+        /// Guarda una COPIA CIFRADA del estado actual en <paramref name="destino"/> (otro disco, un USB...). Se abre con la misma contraseña maestra.
+        /// Se escribe con un nonce nuevo y se VERIFICA que descifra antes de darla por buena; nunca sobrescribe sin permiso y jamas sobre el propio archivo
+        /// de la boveda. OJO: una copia conserva lo que habia en ese momento, incluso lo que se borre despues (es su razon de ser); las copias hay que
+        /// cuidarlas como la boveda misma.
+        /// </summary>
+        public async Task ExportarCopiaAsync(string destino, bool sobrescribir = false)
+        {
+            ValidarRuta(destino);
+            string completo = Path.GetFullPath(destino);
+            if (string.Equals(completo, Path.GetFullPath(_ruta), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("La copia no puede ser el mismo archivo de la bóveda.", nameof(destino));
+            if (File.Exists(completo) && !sobrescribir) throw new IOException("Ya existe un archivo en ese destino: Nexo no lo sobrescribe sin permiso.");
+
+            await _escritura.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                byte[] clave, sal;
+                List<EntradaDeBoveda> entradas;
+                lock (_cerrojo) { ExigirAbierta(); clave = (byte[])_clave!.Clone(); sal = _sal; entradas = _entradas.ToList(); }
+                byte[] archivo = ConstruirArchivo(clave, sal, entradas);
+                try { await EscribirConVerificacionAsync(completo, archivo, clave).ConfigureAwait(false); }
+                finally { CryptographicOperations.ZeroMemory(clave); }
+            }
+            finally
+            {
+                _escritura.Release();
+            }
+        }
+
+        /// <summary>
+        /// Instala una copia como bóveda en <paramref name="destino"/>. ANTES de tocar nada comprueba que la copia abre con su contraseña. Si ya hay
+        /// una boveda en el destino NO se borra: se aparta con fecha y hora (<see cref="ResultadoDeRestauracion.ArchivoAnterior"/>). Despues de instalar se
+        /// vuelve a abrir el resultado; si no abre, se deshace y se devuelve lo anterior a su sitio.
+        /// </summary>
+        public static async Task<ResultadoDeRestauracion> RestaurarAsync(string copia, string contrasenaDeLaCopia, string destino, CancellationToken ct = default)
+        {
+            ValidarRuta(copia);
+            ValidarRuta(destino);
+            string cCopia = Path.GetFullPath(copia), cDestino = Path.GetFullPath(destino);
+            if (string.Equals(cCopia, cDestino, StringComparison.OrdinalIgnoreCase))
+                return new ResultadoDeRestauracion(EstadoDeRestauracion.DestinoEsLaCopia, null, "la copia y el destino son el mismo archivo");
+
+            // 1) La copia debe abrir con su contraseña: no se instala algo que no se puede usar.
+            byte[] bytes;
+            try
+            {
+                if (!File.Exists(cCopia)) return new ResultadoDeRestauracion(EstadoDeRestauracion.CopiaNoExiste, null);
+                bytes = await File.ReadAllBytesAsync(cCopia, ct).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return new ResultadoDeRestauracion(EstadoDeRestauracion.ErrorDeEscritura, null, "no se pudo leer la copia (" + e.GetType().Name + ")");
+            }
+
+            ResultadoDeApertura a = await AbrirAsync(cCopia, contrasenaDeLaCopia, null, ct).ConfigureAwait(false);
+            if (!a.Abierta)
+            {
+                return new ResultadoDeRestauracion(a.Estado switch
+                {
+                    EstadoDeApertura.NoExiste => EstadoDeRestauracion.CopiaNoExiste,
+                    EstadoDeApertura.ArchivoIlegible => EstadoDeRestauracion.CopiaIlegible,
+                    EstadoDeApertura.VersionNoSoportada => EstadoDeRestauracion.VersionNoSoportada,
+                    EstadoDeApertura.ParametrosFueraDeRango => EstadoDeRestauracion.ParametrosFueraDeRango,
+                    EstadoDeApertura.ContrasenaIncorrectaOArchivoAlterado => EstadoDeRestauracion.ContrasenaIncorrectaOArchivoAlterado,
+                    _ => EstadoDeRestauracion.ErrorDeEscritura
+                }, null, a.Detalle);
+            }
+            a.Boveda?.Dispose();
+
+            // 2) Instalar: lo que habia se aparta (nunca se borra), se escribe la copia y se comprueba que abre.
+            string? anterior = null;
+            string tmp = cDestino + "." + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant() + ".tmp";
+            try
+            {
+                string? dir = Path.GetDirectoryName(cDestino);
+                if (dir is not null) Directory.CreateDirectory(dir);
+                using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                {
+                    await fs.WriteAsync(bytes.AsMemory(), ct).ConfigureAwait(false);
+                    await fs.FlushAsync(ct).ConfigureAwait(false);
+                    fs.Flush(true);
+                }
+
+                if (File.Exists(cDestino))
+                {
+                    anterior = cDestino + ".anterior-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+                    int n = 1;
+                    while (File.Exists(anterior)) anterior = cDestino + ".anterior-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture) + "-" + n++;
+                    File.Move(cDestino, anterior);
+                }
+                File.Move(tmp, cDestino);
+
+                ResultadoDeApertura b = await AbrirAsync(cDestino, contrasenaDeLaCopia, null, ct).ConfigureAwait(false);
+                if (!b.Abierta)
+                {
+                    File.Delete(cDestino);
+                    if (anterior is not null) File.Move(anterior, cDestino);
+                    return new ResultadoDeRestauracion(EstadoDeRestauracion.ErrorDeEscritura, null, "la copia instalada no abrió; se dejó todo como estaba");
+                }
+                b.Boveda?.Dispose();
+                return new ResultadoDeRestauracion(EstadoDeRestauracion.Restaurada, anterior);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Si algo se movio y no se pudo terminar, se devuelve lo anterior a su sitio.
+                try { if (anterior is not null && !File.Exists(cDestino)) File.Move(anterior, cDestino); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                return new ResultadoDeRestauracion(EstadoDeRestauracion.ErrorDeEscritura, null, "no se pudo instalar la copia (" + e.GetType().Name + "); se dejó todo como estaba");
+            }
+            finally
+            {
+                TryBorrar(tmp);
+            }
+        }
+
+        private async Task EscribirConVerificacionAsync(string ruta, byte[] archivo, byte[] clave)
+        {
+            string? directorio = Path.GetDirectoryName(Path.GetFullPath(ruta));
             if (directorio is not null) Directory.CreateDirectory(directorio);
 
-            string tmp = _ruta + "." + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant() + ".tmp";
-            string bak = _ruta + ".bak";
+            string tmp = ruta + "." + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant() + ".tmp";
+            string bak = ruta + ".bak";
             try
             {
                 using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
@@ -332,15 +474,15 @@ namespace Nexo.Modules.Identity.Boveda
                     fs.Flush(true);
                 }
 
-                bool habiaAnterior = File.Exists(_ruta);
-                if (habiaAnterior) File.Replace(tmp, _ruta, bak, ignoreMetadataErrors: true);
-                else File.Move(tmp, _ruta);
+                bool habiaAnterior = File.Exists(ruta);
+                if (habiaAnterior) File.Replace(tmp, ruta, bak, ignoreMetadataErrors: true);
+                else File.Move(tmp, ruta);
 
                 // Verificar lo escrito (solo AES, sin repetir Argon2): si no descifra, se restaura lo anterior.
-                if (!ArchivoDescifraCon(_ruta, clave))
+                if (!ArchivoDescifraCon(ruta, clave))
                 {
-                    if (habiaAnterior && File.Exists(bak)) File.Copy(bak, _ruta, overwrite: true);
-                    else File.Delete(_ruta);
+                    if (habiaAnterior && File.Exists(bak)) File.Copy(bak, ruta, overwrite: true);
+                    else File.Delete(ruta);
                     throw new IOException("El archivo guardado no pasó la verificación; se restauró el anterior.");
                 }
                 if (habiaAnterior) TryBorrar(bak); // no dejar una copia vieja: lo que se borro debe desaparecer del disco
