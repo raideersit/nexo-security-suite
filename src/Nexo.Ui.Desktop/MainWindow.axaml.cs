@@ -207,6 +207,7 @@ namespace Nexo.Ui.Desktop
         private async void GuardarEntrada(object? sender, RoutedEventArgs e) => await Contrasenas.GuardarEdicionAsync();
         private async void CopiarUsuario(object? sender, RoutedEventArgs e) => await Contrasenas.CopiarUsuarioAsync();
         private async void CopiarContrasena(object? sender, RoutedEventArgs e) => await Contrasenas.CopiarContrasenaAsync();
+        private async void CopiarCodigoTotp(object? sender, RoutedEventArgs e) => await Contrasenas.CopiarCodigoTotpAsync();
         private async void AuditarBoveda(object? sender, RoutedEventArgs e) => await Contrasenas.AuditarAsync();
 
         private async void EliminarEntrada(object? sender, RoutedEventArgs e)

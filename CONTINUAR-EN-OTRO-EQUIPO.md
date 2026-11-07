@@ -1394,6 +1394,20 @@ La ventana NO escribe en el vault (es del servicio, de SYSTEM): dos procesos en 
 - **Pruebas:** `Nexo.Service.Demo` (módulo con 30+ casos, escritura en vault REAL, y de punta a punta por el pipe real), `Nexo.Desktop.Demo` (`RastroPruebas.cs`: qué se avisa, que no se filtra contenido, que un rastro que lanza no rompe nada); 15 reglas rotas a propósito (la de «contar Info» se detecta por caída del proceso).
 - **SIN PROBAR:** `RastroPorPipe` contra el servicio real instalado como SYSTEM con la ventana real (solo el módulo por el pipe de la prueba y el modelo con un rastro falso); que las notas se lean bien en Obsidian; si hace falta permitir el método a usuarios no administradores (el pipe ya admite al usuario; sin comprobar con una cuenta estándar).
 
+## 2ac. Códigos 2FA (TOTP) en la bóveda (2026-11-07, en el HP)
+
+Cada entrada puede guardar la clave 2FA del sitio y la ventana copia el código de 6 dígitos del momento. Todo local, gratuito, sin red. No venía en el Prompt 3; lo pidió la recomendación (gestor moderno).
+
+- **Núcleo:** `GeneradorDeTotp` (`Nexo.Modules.Identity/Boveda`): HOTP (RFC 4226) y TOTP (RFC 6238) con SHA1/SHA256/SHA512, 6–8 dígitos, periodo 15–120 s; acepta la clave en base32 (sin distinguir mayúsculas, ignora espacios y guiones) o el enlace `otpauth://totp/...`.
+  **Se rechaza (no se adivina):** HOTP por contador, algoritmo o dígitos o periodo fuera de lo admitido, parámetros repetidos, clave no base32, de menos de 10 bytes o de más de 128. Un código calculado con parámetros distintos sería uno que no funciona y nadie sabría por qué.
+- **Bóveda:** `EntradaDeBoveda.Totp` (campo opcional con valor por omisión: las bóvedas anteriores se leen con el 2FA vacío; formato del archivo SIN cambio de versión). `AgregarAsync(..., totp)` y `ActualizarAsync(..., totp)`: `null` conserva, `""` quita; una clave inválida se rechaza al guardar. Va cifrada como todo (comprobado que no aparece en el archivo).
+  **Aviso para bajar de versión:** un Nexo anterior ignoraría el campo y lo perdería al volver a guardar.
+- **Ventana:** campo «Clave 2FA» en el formulario (enmascarado, sigue el botón «Mostrar») y botón «Copiar código 2FA» (solo si la entrada tiene clave). El código se calcula al pulsar (no se guarda), se borra del portapapeles a los 30 s como la contraseña (y al bloquear), y el mensaje dice cuántos segundos le quedan, con aviso si faltan 5 o menos. El mensaje NO repite el código ni la clave.
+- **Pruebas:** `Nexo.Identity.Demo` (vectores OFICIALES: RFC 4226 contadores 0–9; RFC 6238 SHA1/SHA256/SHA512 en 6 instantes; RFC 4648 base32; rechazos; bóveda con persistencia, cifrado y compatibilidad) y `Nexo.Desktop.Demo` (`TotpPruebas.cs`); 17 reglas rotas a propósito, todas detectadas
+  (dos pruebas mías flojas se encontraron así: una comprobación vacía con `|| true` y un reinicio del formulario que nunca se ejercitaba).
+- **SIN PROBAR:** contra un sitio real (comparar con el código de una app como Google Authenticator con la misma clave: es la prueba definitiva y la haría el usuario); el botón con clic real; relojes del equipo desajustados (el código usa la hora del equipo: si está atrasada, los sitios lo rechazan).
+  No hay lectura de códigos QR (el usuario pega la clave o el enlace); no hay formato de Steam ni HOTP.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

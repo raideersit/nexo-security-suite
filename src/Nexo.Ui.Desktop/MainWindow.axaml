@@ -836,6 +836,7 @@
                                         <Button x:Name="BotonMostrarContrasena" Content="{Binding BotonMostrar}" Click="AlternarContrasena" />
                                         <Button x:Name="BotonCopiarUsuario" Content="Copiar usuario" Click="CopiarUsuario" />
                                         <Button x:Name="BotonCopiarContrasena" Content="Copiar contraseña" Click="CopiarContrasena" />
+                                        <Button x:Name="BotonCopiarCodigo2fa" Content="Copiar código 2FA" IsVisible="{Binding HayTotp}" Click="CopiarCodigoTotp" />
                                         <Button x:Name="BotonEditarEntrada" Content="Editar..." IsEnabled="{Binding NoOcupado}" Click="EditarEntrada" />
                                         <Button x:Name="BotonEliminarEntrada" Content="Eliminar..." IsEnabled="{Binding NoOcupado}" Click="EliminarEntrada" />
                                     </StackPanel>
@@ -847,7 +848,7 @@
                             <!-- Formulario de alta y edicion -->
                             <HeaderedContentControl x:Name="PanelDeEdicion" Header="{Binding EdicionTitulo}" IsVisible="{Binding EdicionVisible}">
                                 <StackPanel Spacing="6">
-                                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="6">
+                                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="6">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Sitio:" VerticalAlignment="Center" />
                                         <TextBox x:Name="CajaDeSitio" Grid.Row="0" Grid.Column="1" Text="{Binding EdSitio, Mode=TwoWay}" />
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Usuario:" VerticalAlignment="Center" />
@@ -859,6 +860,9 @@
                                             <TextBox x:Name="CajaDeContrasena" Text="{Binding EdContrasena, Mode=TwoWay}" PasswordChar="{Binding CaracterDeClave}"
                                                      FontFamily="Courier New,DejaVu Sans Mono,monospace" />
                                         </DockPanel>
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Clave 2FA:" VerticalAlignment="Center" />
+                                        <TextBox x:Name="CajaDeTotp" Grid.Row="4" Grid.Column="1" Text="{Binding EdTotp, Mode=TwoWay}" PasswordChar="{Binding CaracterDeClave}" Watermark="Opcional: la clave que da el sitio, o su enlace otpauth://"
+                                                 FontFamily="Courier New,DejaVu Sans Mono,monospace" />
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Notas:" VerticalAlignment="Top" />
                                         <TextBox x:Name="CajaDeNotas" Grid.Row="3" Grid.Column="1" Text="{Binding EdNotas, Mode=TwoWay}" AcceptsReturn="True" Height="60" TextWrapping="Wrap" />
                                     </Grid>

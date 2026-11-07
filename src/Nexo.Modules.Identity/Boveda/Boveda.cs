@@ -184,15 +184,16 @@ namespace Nexo.Modules.Identity.Boveda
 
         // ---------------------------------------------------------------- entradas (cada cambio se guarda en el acto)
 
-        public async Task<EntradaDeBoveda> AgregarAsync(string sitio, string usuario, string contrasena, string notas = "")
+        public async Task<EntradaDeBoveda> AgregarAsync(string sitio, string usuario, string contrasena, string notas = "", string totp = "")
         {
+            ValidarTotp(totp);
             ValidarTexto(sitio, nameof(sitio), obligatorio: true);
             ValidarTexto(usuario, nameof(usuario), obligatorio: false);
             ValidarTexto(contrasena, nameof(contrasena), obligatorio: false);
             ValidarTexto(notas, nameof(notas), obligatorio: false, maximo: 10_000);
 
             var ahora = DateTimeOffset.Now;
-            var e = new EntradaDeBoveda(Guid.NewGuid(), sitio.Trim(), usuario, contrasena, notas, ahora, ahora);
+            var e = new EntradaDeBoveda(Guid.NewGuid(), sitio.Trim(), usuario, contrasena, notas, ahora, ahora, (totp ?? "").Trim());
             lock (_cerrojo)
             {
                 ExigirAbierta();
@@ -204,8 +205,10 @@ namespace Nexo.Modules.Identity.Boveda
             return e;
         }
 
-        public async Task<EntradaDeBoveda> ActualizarAsync(Guid id, string sitio, string usuario, string contrasena, string notas)
+        /// <param name="totp">null = conservar la clave 2FA que ya tenia; «» = quitarla.</param>
+        public async Task<EntradaDeBoveda> ActualizarAsync(Guid id, string sitio, string usuario, string contrasena, string notas, string? totp = null)
         {
+            if (totp is not null) ValidarTotp(totp);
             ValidarTexto(sitio, nameof(sitio), obligatorio: true);
             ValidarTexto(usuario, nameof(usuario), obligatorio: false);
             ValidarTexto(contrasena, nameof(contrasena), obligatorio: false);
@@ -218,7 +221,7 @@ namespace Nexo.Modules.Identity.Boveda
                 int i = _entradas.FindIndex(x => x.Id == id);
                 if (i < 0) throw new KeyNotFoundException("No existe esa entrada.");
                 anterior = _entradas[i];
-                nueva = anterior with { Sitio = sitio.Trim(), Usuario = usuario, Contrasena = contrasena, Notas = notas, Modificada = DateTimeOffset.Now };
+                nueva = anterior with { Sitio = sitio.Trim(), Usuario = usuario, Contrasena = contrasena, Notas = notas, Totp = totp is null ? anterior.Totp : totp.Trim(), Modificada = DateTimeOffset.Now };
                 _entradas[i] = nueva;
             }
             try { await GuardarAsync().ConfigureAwait(false); }
@@ -567,6 +570,14 @@ namespace Nexo.Modules.Identity.Boveda
             if (t is null) throw new ArgumentNullException(nombre);
             if (obligatorio && string.IsNullOrWhiteSpace(t)) throw new ArgumentException("No puede estar vacío.", nombre);
             if (t.Length > maximo) throw new ArgumentException("Es demasiado largo (máximo " + maximo + ").", nombre);
+        }
+
+        /// <summary>La clave 2FA, si la hay, debe entenderse del todo: se rechaza una que despues no daria codigos que funcionen.</summary>
+        private static void ValidarTotp(string? totp)
+        {
+            if (totp is null) throw new ArgumentNullException(nameof(totp));
+            if (totp.Trim().Length == 0) return;
+            if (!GeneradorDeTotp.TryParsear(totp, out _, out string? error)) throw new ArgumentException(error, nameof(totp));
         }
 
         private static void TryBorrar(string ruta)

@@ -67,7 +67,7 @@ namespace Nexo.Ui.Desktop
         private bool _mostrar;
         private bool _edicion;
         private bool _esNueva;
-        private string _edSitio = "", _edUsuario = "", _edContrasena = "", _edNotas = "";
+        private string _edSitio = "", _edUsuario = "", _edContrasena = "", _edNotas = "", _edTotp = "";
 
         public ContrasenasModelo(string ruta, ParametrosDeClave? parametros = null, bool permitirParametrosDebiles = false,
                                  Func<IConsultaDeRangos>? consulta = null, IPortapapeles? portapapeles = null, Func<DateTime>? reloj = null,
@@ -164,6 +164,7 @@ namespace Nexo.Ui.Desktop
         public string EdSitio { get => _edSitio; set { value ??= ""; if (_edSitio == value) return; _edSitio = value; Avisar(); } }
         public string EdUsuario { get => _edUsuario; set { value ??= ""; if (_edUsuario == value) return; _edUsuario = value; Avisar(); } }
         public string EdContrasena { get => _edContrasena; set { value ??= ""; if (_edContrasena == value) return; _edContrasena = value; Avisar(); } }
+        public string EdTotp { get => _edTotp; set { value ??= ""; if (_edTotp == value) return; _edTotp = value; Avisar(); } }
         public string EdNotas { get => _edNotas; set { value ??= ""; if (_edNotas == value) return; _edNotas = value; Avisar(); } }
         /// <summary>El caracter con que se oculta el campo de contraseña al editar ('\0' = visible).</summary>
         public char CaracterDeClave => _mostrar ? '\0' : '•';
@@ -278,7 +279,7 @@ namespace Nexo.Ui.Desktop
             _mostrar = false;
             _edicion = false;
             _filtro = "";
-            _edSitio = _edUsuario = _edContrasena = _edNotas = "";
+            _edSitio = _edUsuario = _edContrasena = _edNotas = _edTotp = "";
             _fase = File.Exists(_ruta) ? FaseDeBoveda.Bloqueada : FaseDeBoveda.SinBoveda;
             Mensaje = aviso ?? "Bóveda bloqueada.";
             Recalcular();
@@ -317,7 +318,7 @@ namespace Nexo.Ui.Desktop
             Actividad();
             _esNueva = true;
             _edicion = true;
-            _edSitio = _edUsuario = _edContrasena = _edNotas = "";
+            _edSitio = _edUsuario = _edContrasena = _edNotas = _edTotp = "";
             Mensaje = "";
             RecalcularEstado();
         }
@@ -328,7 +329,7 @@ namespace Nexo.Ui.Desktop
             Actividad();
             _esNueva = false;
             _edicion = true;
-            _edSitio = e.Sitio; _edUsuario = e.Usuario; _edContrasena = e.Contrasena; _edNotas = e.Notas;
+            _edSitio = e.Sitio; _edUsuario = e.Usuario; _edContrasena = e.Contrasena; _edNotas = e.Notas; _edTotp = e.Totp;
             Mensaje = "";
             RecalcularEstado();
         }
@@ -339,7 +340,7 @@ namespace Nexo.Ui.Desktop
             Actividad();
             _edicion = false;
             _mostrar = false;
-            _edSitio = _edUsuario = _edContrasena = _edNotas = "";
+            _edSitio = _edUsuario = _edContrasena = _edNotas = _edTotp = "";
             RecalcularEstado();
         }
 
@@ -364,20 +365,20 @@ namespace Nexo.Ui.Desktop
             {
                 if (_esNueva)
                 {
-                    EntradaDeBoveda e = await _boveda.AgregarAsync(_edSitio, _edUsuario, _edContrasena, _edNotas);
+                    EntradaDeBoveda e = await _boveda.AgregarAsync(_edSitio, _edUsuario, _edContrasena, _edNotas, _edTotp);
                     _seleccionada = e.Id;
                     Mensaje = "Entrada guardada.";
                 }
                 else if (_seleccionada is Guid id)
                 {
-                    await _boveda.ActualizarAsync(id, _edSitio, _edUsuario, _edContrasena, _edNotas);
+                    await _boveda.ActualizarAsync(id, _edSitio, _edUsuario, _edContrasena, _edNotas, _edTotp);
                     _auditoria.Remove(id);    // la contraseña pudo cambiar: lo que se comprobó antes ya no vale
                     _filtradas.Remove(id);
                     Mensaje = "Entrada actualizada.";
                 }
                 _edicion = false;
                 _mostrar = false;    // lo generado se vio para anotarlo; guardado, la contraseña vuelve a estar oculta
-                _edSitio = _edUsuario = _edContrasena = _edNotas = "";
+                _edSitio = _edUsuario = _edContrasena = _edNotas = _edTotp = "";
                 CargarEntradas();
                 return true;
             }
@@ -445,6 +446,35 @@ namespace Nexo.Ui.Desktop
             _textoCopiado = e.Contrasena;
             int generacion = ++_generacionDeCopia;
             Mensaje = "Contraseña copiada. Se borrará del portapapeles en " + (int)_borrado.TotalSeconds + " s.";
+            _borradoPendiente = BorrarDespuesAsync(generacion);
+        }
+
+        /// <summary>true si la entrada elegida tiene guardada una clave 2FA.</summary>
+        public bool HayTotp => Actual is { } e && e.Totp.Length > 0;
+
+        /// <summary>
+        /// Copia el codigo 2FA de AHORA de la entrada elegida (calculado en el momento, localmente) y lo borra del portapapeles como la contraseña.
+        /// Dice cuantos segundos le quedan: un codigo a punto de caducar se avisa para no pegarlo ya vencido.
+        /// </summary>
+        public async Task CopiarCodigoTotpAsync()
+        {
+            if (Actual is not { } e) return;
+            Actividad();
+            if (e.Totp.Length == 0) { Mensaje = "Esta entrada no tiene clave 2FA."; return; }
+            if (!GeneradorDeTotp.TryParsear(e.Totp, out ConfiguracionTotp? cfg, out string? error) || cfg is null)
+            {
+                Mensaje = "No se pudo calcular el código: " + (error ?? "la clave 2FA guardada no es válida") + (error is not null && error.EndsWith(".") ? "" : ".");
+                return;
+            }
+            var ahora = new DateTimeOffset(_reloj());
+            string codigo = GeneradorDeTotp.Codigo(cfg, ahora);
+            int resto = GeneradorDeTotp.SegundosRestantes(cfg, ahora);
+            if (!await _portapapeles.PonerAsync(codigo)) { Mensaje = "No se pudo usar el portapapeles."; return; }
+
+            _textoCopiado = codigo;
+            int generacion = ++_generacionDeCopia;
+            Mensaje = "Código 2FA copiado: vale " + resto + (resto == 1 ? " segundo más" : " segundos más") + (resto <= 5 ? " (está a punto de cambiar: si falla, copia otro)" : "")
+                      + ". Se borrará del portapapeles en " + (int)_borrado.TotalSeconds + " s.";
             _borradoPendiente = BorrarDespuesAsync(generacion);
         }
 
@@ -726,7 +756,7 @@ namespace Nexo.Ui.Desktop
                          nameof(Titulo), nameof(Explicacion), nameof(Cantidad), nameof(HayEntradaSeleccionada),
                          nameof(DetalleVisible), nameof(DetalleSitio), nameof(DetalleUsuario), nameof(DetalleNotas), nameof(DetalleFechas), nameof(MostrarContrasena),
                          nameof(BotonMostrar), nameof(DetalleContrasena), nameof(EdicionVisible), nameof(EdicionTitulo), nameof(EdSitio), nameof(EdUsuario),
-                         nameof(EdContrasena), nameof(EdNotas), nameof(CaracterDeClave), nameof(Auditoria), nameof(HayAuditoria), nameof(ColorDeAuditoria),
+                         nameof(EdContrasena), nameof(EdNotas), nameof(EdTotp), nameof(HayTotp), nameof(CaracterDeClave), nameof(Auditoria), nameof(HayAuditoria), nameof(ColorDeAuditoria),
                          nameof(IndicadorDeAuditoria), nameof(ResumenDeInactividad), nameof(TextoDeCopia), nameof(HayCopiaReciente), nameof(PuedeRestaurar), nameof(ExisteBoveda)
                      })
                 Avisar(n);

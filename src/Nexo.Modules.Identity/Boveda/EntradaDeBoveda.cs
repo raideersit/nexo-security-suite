@@ -13,5 +13,6 @@ namespace Nexo.Modules.Identity.Boveda
         string Contrasena,
         string Notas,
         DateTimeOffset Creada,
-        DateTimeOffset Modificada);
+        DateTimeOffset Modificada,
+        string Totp = "");
 }
