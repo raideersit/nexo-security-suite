@@ -50,6 +50,7 @@ namespace Nexo.Vuln.Demo
             ProbarCveHttp();
             ProbarCveTextos();
             ProbarDispositivos();
+            ProbarAlertas();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

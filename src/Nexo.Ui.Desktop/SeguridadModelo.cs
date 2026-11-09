@@ -42,8 +42,8 @@ namespace Nexo.Ui.Desktop
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
         /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
-        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos };
-        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos };
+        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Accesos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
@@ -74,6 +74,8 @@ namespace Nexo.Ui.Desktop
         /// <summary>Una revision que no se pudo hacer queda como «incompleta, sin hallazgos»: lo desconocido no es «bien».</summary>
         private void AvisarRevision(SeccionDeSeguridad s, Consulta<RevisionDeSeccion> r)
         {
+            // «Accesos» la hace el servicio, que ya deja su propia nota en el vault: no se duplica.
+            if (s == SeccionDeSeguridad.Accesos) return;
             int n = r.Valor?.Analisis.Hallazgos.Count(h => h.Severidad != Severidad.Info) ?? 0;
             string maxima = n == 0 ? "Info" : r.Valor!.Analisis.Hallazgos.Where(h => h.Severidad != Severidad.Info).Max(h => h.Severidad).ToString();
             var campos = new Dictionary<string, object?>(StringComparer.Ordinal) { ["hallazgos"] = n, ["maxima"] = maxima, ["completa"] = r.Valor?.Analisis.Completo ?? false };
@@ -186,6 +188,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Wifi => "Redes Wi-Fi",
             SeccionDeSeguridad.Aplicaciones => "Aplicaciones desactualizadas",
             SeccionDeSeguridad.Dispositivos => "Cámara y micrófono",
+            SeccionDeSeguridad.Accesos => "Accesos y cuentas (registro de Seguridad de Windows)",
             _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
 
@@ -260,7 +263,7 @@ namespace Nexo.Ui.Desktop
             var hechas = secciones.Where(x => !x.Revisando && x.Consulta is not null).ToList();
             if (hechas.Count == 0)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Sin revisar todavía",
-                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones y qué programas usaron la cámara y el micrófono. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
+                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
 
             Indicador peor = hechas.Select(x => x.Consulta!.Valor is RevisionDeSeccion v ? IndicadorSeccion(v) : Indicador.SinDatos).Aggregate(Mas);
             bool todas = hechas.Count == secciones.Count;
@@ -291,6 +294,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Wifi => n + (n == 1 ? " red guardada" : " redes guardadas"),
             SeccionDeSeguridad.FallosConocidos => n + (n == 1 ? " programa consultado" : " programas consultados"),
             SeccionDeSeguridad.Dispositivos => n + (n == 1 ? " programa en el registro" : " programas en el registro"),
+            SeccionDeSeguridad.Accesos => n + (n == 1 ? " evento revisado en 7 días" : " eventos revisados en 7 días"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };
     }

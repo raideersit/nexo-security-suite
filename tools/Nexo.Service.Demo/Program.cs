@@ -43,6 +43,8 @@ namespace Nexo.Service.Demo
                 await ProbarFirewallPorIpc(Path.Combine(raiz, "vault3"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 ProbarPlanes();
                 await ProbarRastroDeVentana(raiz).ConfigureAwait(false);
+                await ProbarVpnDelServicio().ConfigureAwait(false);
+                await ProbarAlertasDelServicio().ConfigureAwait(false);
                 ProbarAprobacionDeOtroUsuario();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
                 await ProbarUsnReal(raiz).ConfigureAwait(false);
@@ -143,8 +145,10 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 27,
-                      "estado lista los metodos que expone: los basicos, los del firewall y «ventana.registrar»");
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 31
+                      && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Select(x => x.GetString()).Count(x => x!.StartsWith("vpn.")) == 3
+                      && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Any(x => x.GetString() == "alertas.revisar"),
+                      "estado lista los metodos que expone: los basicos, los del firewall, «ventana.registrar», los tres «vpn.*» y «alertas.revisar»");
 
                 // Salud del disco: el servicio lee al arrancar (en segundo plano); disco.estado no vuelve a leer.
                 Respuesta disco = await c.LlamarAsync("disco.estado").ConfigureAwait(false);

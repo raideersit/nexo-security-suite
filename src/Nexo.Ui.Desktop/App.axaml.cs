@@ -24,6 +24,8 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeSeguridad? Seguridad { get; set; }
 
+        internal static IServicioDeVpn? Vpn { get; set; }
+
         /// <summary>Por donde la ventana avisa al servicio de lo que hizo (para el vault de reportes). Sin servicio, no deja rastro.</summary>
         internal static IRastroDeVentana? Rastro { get; set; }
 
@@ -36,6 +38,10 @@ namespace Nexo.Ui.Desktop
         {
             const string sinFuente = "la ventana se abrió sin conexión configurada";
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime escritorio)
+            {
+                // El anti-phishing corre aqui, con el usuario; la VPN reutiliza sus listas para cruzar el servidor.
+                EnlacesModelo enlaces = EnlacesModelo.PorOmision(Rastro);
+                VpnModelo vpn = VpnModelo.PorOmision(() => enlaces.ListasActuales, Rastro, Vpn ?? new ServicioDeVpnNoDisponible(sinFuente));
                 escritorio.MainWindow = new MainWindow(
                     new VentanaPrincipalModelo(Fuente ?? new FuenteNoDisponible(sinFuente)),
                     new EscaneoModelo(Escaneo ?? new ServicioDeEscaneoNoDisponible(sinFuente)),
@@ -48,8 +54,8 @@ namespace Nexo.Ui.Desktop
                     new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)) { Rastro = Rastro ?? RastroNulo.Instancia },
                     // La boveda vive en el perfil del usuario y corre en este proceso; el portapapeles real se enlaza a la ventana al crearla.
                     new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia },
-                    // El anti-phishing tambien corre aqui, con el usuario: las listas viven en su perfil y el enlace nunca sale del equipo.
-                    EnlacesModelo.PorOmision(Rastro));
+                    enlaces, vpn);
+            }
             base.OnFrameworkInitializationCompleted();
         }
     }

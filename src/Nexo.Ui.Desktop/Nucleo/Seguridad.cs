@@ -18,7 +18,12 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// <summary>Cruce de las aplicaciones con los fallos conocidos de NVD. Envia nombre y version a Internet: solo con su propio boton.</summary>
         FallosConocidos,
         /// <summary>Que programas usaron la camara y el microfono (registro de Windows del usuario). Solo lectura, local, sin red.</summary>
-        Dispositivos
+        Dispositivos,
+        /// <summary>
+        /// Señales de intrusion en los registros de Seguridad y de Sistema (cuentas creadas, administradores nuevos, Escritorio remoto, registro
+        /// borrado...). Exige administrador: la hace el SERVICIO («alertas.revisar»), no la ventana. Solo lectura, sin red.
+        /// </summary>
+        Accesos
     }
 
     /// <summary>
@@ -62,8 +67,14 @@ namespace Nexo.Ui.Desktop.Nucleo
     public sealed class ServicioDeSeguridadLocal : IServicioDeSeguridad
     {
         private readonly Func<DateTimeOffset> _reloj;
+        private readonly string? _pipe;
 
-        public ServicioDeSeguridadLocal(Func<DateTimeOffset>? reloj = null) => _reloj = reloj ?? (() => DateTimeOffset.Now);
+        /// <param name="pipe">El canal del servicio, para la sección «Accesos» (el registro de Seguridad exige administrador). Sin él, esa sección lo dice.</param>
+        public ServicioDeSeguridadLocal(Func<DateTimeOffset>? reloj = null, string? pipe = null)
+        {
+            _reloj = reloj ?? (() => DateTimeOffset.Now);
+            _pipe = pipe;
+        }
 
         public async Task<Consulta<RevisionDeSeccion>> RevisarAsync(SeccionDeSeguridad seccion, CancellationToken ct)
         {
@@ -82,6 +93,14 @@ namespace Nexo.Ui.Desktop.Nucleo
                         string? nota = s.Estado == EstadoDeLecturaWifi.SinAdaptador ? "Este equipo no tiene adaptador Wi-Fi: no hay redes que revisar." : null;
                         return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, AnalizadorDeWifi.Analizar(s), _reloj(), nota,
                             s.Adaptadores.Sum(a => a.Perfiles.Count)));
+                    }
+                    case SeccionDeSeguridad.Accesos:
+                    {
+                        if (_pipe is null) return Consulta<RevisionDeSeccion>.Mal(LectorDeAlertasDelServicio.SinServicio);
+                        RespuestaCruda r = await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(3), "alertas.revisar", new { dias = LectorDeAlertasDelServicio.Dias }, ct).ConfigureAwait(false);
+                        Consulta<RevisionDeAlertas> c = LectorDeAlertasDelServicio.Leer(r);
+                        return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
+                            : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), Elementos: c.Valor.Eventos));
                     }
                     case SeccionDeSeguridad.Dispositivos:
                     {

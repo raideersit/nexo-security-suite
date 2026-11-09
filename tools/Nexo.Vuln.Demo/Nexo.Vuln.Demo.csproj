@@ -15,6 +15,8 @@
     <EmbeddedResource Include="Datos\nvd-winrar-7.01.json" LogicalName="nvd-winrar-7.01.json" />
     <EmbeddedResource Include="Datos\nvd-nodejs-24.15.0.json" LogicalName="nvd-nodejs-24.15.0.json" />
     <EmbeddedResource Include="Datos\nvd-java-8u401.json" LogicalName="nvd-java-8u401.json" />
+    <!-- Evento 7045 REAL de este equipo (servicio de Chrome), con el nombre del equipo cambiado. -->
+    <EmbeddedResource Include="Datos\evento-7045-real.xml" LogicalName="evento-7045-real.xml" />
   </ItemGroup>
 
   <ItemGroup>

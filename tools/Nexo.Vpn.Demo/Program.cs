@@ -12,7 +12,7 @@ using Nexo.Reports.Model;
 
 namespace Nexo.Vpn.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
 
@@ -24,6 +24,9 @@ namespace Nexo.Vpn.Demo
         }
 
         private static string Clave() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+        /// <summary>Busca una clave en un texto JSON: System.Text.Json escribe «+» como «+», y una clave con «+» pasaria desapercibida.</summary>
+        internal static bool Aparece(string texto, string clave) => texto.Contains(clave) || texto.Contains(clave.Replace("+", "\\u002B"));
 
         private static readonly string Privada = Clave(), Publica = Clave(), Compartida = Clave();
 
@@ -41,7 +44,7 @@ namespace Nexo.Vpn.Demo
 
         private static bool Tiene(ResultadoDeAnalisis r, string id, Severidad? s = null) => r.Hallazgos.Any(h => h.Id == id && (s is null || h.Severidad == s));
 
-        public static int Main()
+        public static async System.Threading.Tasks.Task<int> Main()
         {
             Console.OutputEncoding = new UTF8Encoding(false);
             ProbarLectura();
@@ -50,6 +53,8 @@ namespace Nexo.Vpn.Demo
             ProbarAnalisis();
             ProbarClavesNuncaSeMuestran();
             ProbarTextos();
+            ProbarPlanes();
+            await ProbarAplicarPlanes();
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
@@ -169,11 +174,13 @@ namespace Nexo.Vpn.Demo
         private static void ProbarClavesNuncaSeMuestran()
         {
             Console.WriteLine("5. La clave privada y la compartida nunca salen");
+            Check(Aparece(JsonSerializer.Serialize(new { k = "ab+cd/ef==" }), "ab+cd/ef==") && !Aparece(JsonSerializer.Serialize(new { k = "otra" }), "ab+cd/ef=="),
+                "la búsqueda encuentra una clave aunque el JSON escriba su «+» escapado (si no, una fuga con «+» pasaría desapercibida)");
             string texto = Conf(allowed: "0.0.0.0/0", dns: null, extraInterfaz: "PostUp = echo hola\n");
             LecturaDeConfiguracionWg l = L(texto);
             ResultadoDeAnalisis r = AnalizadorDeVpn.Analizar(l.Configuracion!);
             string todo = JsonSerializer.Serialize(l) + JsonSerializer.Serialize(r);
-            Check(todo.Contains(Publica) && !todo.Contains(Privada) && !todo.Contains(Compartida), "ni en la lectura ni en el análisis (serializados enteros) aparece la clave privada ni la compartida; la pública sí");
+            Check(Aparece(todo, Publica) && !Aparece(todo, Privada) && !Aparece(todo, Compartida), "ni en la lectura ni en el análisis (serializados enteros) aparece la clave privada ni la compartida; la pública sí");
             LecturaDeConfiguracionWg mal = L(texto.Replace("MTU", "") + "MTU = 1\n");
             Check(!string.Join(" ", mal.Errores).Contains(Privada), "tampoco en los mensajes de error");
         }

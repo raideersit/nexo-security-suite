@@ -52,6 +52,8 @@ namespace Nexo.Desktop.Demo
             ProbarEnlaces();
             ProbarQrEnLaVentana();
             ProbarVpn();
+            ProbarVpnConectar();
+            ProbarAlertasEnLaVentana();
             ProbarDialogos(captura);
             ProbarFuentePorDefecto();
             ProbarVentana(captura);

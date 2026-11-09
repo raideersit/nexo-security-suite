@@ -41,22 +41,27 @@ namespace Nexo.Ui.Desktop
         private ResultadoDeAnalisis? _analisis;
         private string? _archivo;
         private string? _errorDeArchivo;
+        private readonly IServicioDeVpn _servicio;
+        // El texto del archivo revisado (lleva la clave privada): PRIVADO, solo para enviarlo al servicio al conectar. Ninguna propiedad lo
+        // expone, y se olvida al revisar otro archivo, al olvidar este y tras intentar conectar.
+        private string? _textoParaConectar;
 
-        public VpnModelo(ILectorDeWireGuard lector, Func<ListasDePhishing>? listas = null)
+        public VpnModelo(ILectorDeWireGuard lector, Func<ListasDePhishing>? listas = null, IServicioDeVpn? servicio = null)
         {
+            _servicio = servicio ?? new ServicioDeVpnNoDisponible("sin conexión con el servicio de Nexo");
             _lector = lector;
             _listas = listas ?? (() => ListasDePhishing.Vacias);
             Calcular();
         }
 
-        public static VpnModelo PorOmision(Func<ListasDePhishing>? listas = null, IRastroDeVentana? rastro = null)
+        public static VpnModelo PorOmision(Func<ListasDePhishing>? listas = null, IRastroDeVentana? rastro = null, IServicioDeVpn? servicio = null)
         {
 #if WINDOWS
             ILectorDeWireGuard l = new Nexo.Modules.Threats.Windows.LectorDeWireGuardWindows();
 #else
             ILectorDeWireGuard l = new LectorDeWireGuardNoDisponible("WireGuard para Windows solo existe en Windows");
 #endif
-            return new VpnModelo(l, listas) { Rastro = rastro ?? RastroNulo.Instancia };
+            return new VpnModelo(l, listas, servicio) { Rastro = rastro ?? RastroNulo.Instancia };
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -79,6 +84,38 @@ namespace Nexo.Ui.Desktop
         public IReadOnlyList<FilaDeHallazgoVista> Hallazgos { get; private set; } = Array.Empty<FilaDeHallazgoVista>();
         public bool HayHallazgos => Hallazgos.Count > 0;
 
+        /// <summary>Solo con un archivo que WireGuard aceptaria (el servicio vuelve a revisar todo y puede rechazarlo igual).</summary>
+        public bool PuedeConectar => _textoParaConectar is not null && _lectura?.Valida == true && !_ocupado;
+        private bool _ocupado;
+
+        /// <summary>Pide al servicio el plan para conectar con el archivo revisado. No cambia nada.</summary>
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarConexionAsync(System.Threading.CancellationToken ct = default)
+        {
+            if (_textoParaConectar is null || _archivo is null) return Consulta<PlanDelServicio>.Mal("primero elige un archivo .conf válido");
+            return await _servicio.PrevisualizarConexionAsync(_textoParaConectar, _archivo, ct).ConfigureAwait(true);
+        }
+
+        public Task<Consulta<PlanDelServicio>> PrevisualizarDesconexionAsync(string tunel, System.Threading.CancellationToken ct = default)
+            => _servicio.PrevisualizarDesconexionAsync(tunel, ct);
+
+        /// <summary>Aplica un plan confirmado. Tras intentarlo se olvida el texto del archivo y se vuelve a leer el estado.</summary>
+        public async Task<ResultadoDeAccion> AplicarAsync(string token, bool eraConexion, System.Threading.CancellationToken ct = default)
+        {
+            _ocupado = true;
+            Calcular();
+            try
+            {
+                ResultadoDeAccion r = await _servicio.AplicarAsync(token, ct).ConfigureAwait(true);
+                if (eraConexion && !r.PidioAprobacion) _textoParaConectar = null;
+                return r;
+            }
+            finally
+            {
+                _ocupado = false;
+                await ActualizarAsync().ConfigureAwait(true);
+            }
+        }
+
         public async Task ActualizarAsync()
         {
             if (_leyendo) return;
@@ -99,7 +136,7 @@ namespace Nexo.Ui.Desktop
         /// <summary>Lee y revisa un archivo .conf. No lo instala, no lo copia y no se conecta a nada.</summary>
         public async Task RevisarArchivoAsync(Stream archivo, string nombre)
         {
-            _lectura = null; _analisis = null; _errorDeArchivo = null;
+            _lectura = null; _analisis = null; _errorDeArchivo = null; _textoParaConectar = null;
             _archivo = nombre;
             try
             {
@@ -114,6 +151,7 @@ namespace Nexo.Ui.Desktop
                         return (l, l.Configuracion is null ? null : AnalizadorDeVpn.Analizar(l.Configuracion, listas));
                     }).ConfigureAwait(true);
                     AvisarRastro();
+                    if (_lectura.Valida) _textoParaConectar = texto;
                 }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or DecoderFallbackException)
@@ -137,7 +175,7 @@ namespace Nexo.Ui.Desktop
 
         public void OlvidarArchivo()
         {
-            _lectura = null; _analisis = null; _archivo = null; _errorDeArchivo = null;
+            _lectura = null; _analisis = null; _archivo = null; _errorDeArchivo = null; _textoParaConectar = null;
             Calcular();
         }
 
@@ -167,7 +205,7 @@ namespace Nexo.Ui.Desktop
 
             foreach (string p in new[] { nameof(EstadoTitulo), nameof(EstadoDetalle), nameof(EstadoColor), nameof(Tuneles), nameof(HayTuneles), nameof(PuedeActualizar),
                                          nameof(ArchivoTitulo), nameof(ArchivoDetalle), nameof(ArchivoColor), nameof(ArchivoIndicador), nameof(Errores), nameof(HayErrores),
-                                         nameof(Hallazgos), nameof(HayHallazgos) })
+                                         nameof(Hallazgos), nameof(HayHallazgos), nameof(PuedeConectar) })
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
         }
     }

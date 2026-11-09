@@ -195,6 +195,23 @@ namespace Nexo.Ui.Desktop
         // ------------------------------------------------------------ VPN (solo lectura en este paso)
         private async void ActualizarVpn(object? sender, RoutedEventArgs e) => await Vpn.ActualizarAsync();
 
+        private async void ConectarVpn(object? sender, RoutedEventArgs e)
+        {
+            string? token = await ConfirmarPlanAsync(await Vpn.PrevisualizarConexionAsync(), "Conectar la VPN",
+                "¿Conectar la VPN? Desde ese momento tu tráfico pasará por el servidor del proveedor.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Conectar la VPN", await Vpn.AplicarAsync(token, eraConexion: true));
+        }
+
+        private async void DesconectarVpn(object? sender, RoutedEventArgs e)
+        {
+            if (sender is not Avalonia.Controls.Control { Tag: string tunel }) return;
+            string? token = await ConfirmarPlanAsync(await Vpn.PrevisualizarDesconexionAsync(tunel), "Desconectar la VPN",
+                "¿Desconectar y quitar este túnel? Tu tráfico volverá a salir directo por tu conexión.");
+            if (token is null) return;
+            await MostrarResultadoAsync("Desconectar la VPN", await Vpn.AplicarAsync(token, eraConexion: false));
+        }
+
         private async void RevisarConf(object? sender, RoutedEventArgs e)
         {
             IReadOnlyList<IStorageFile> elegidos = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

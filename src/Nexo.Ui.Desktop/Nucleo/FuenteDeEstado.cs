@@ -108,6 +108,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeVpn VpnPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeVpnPorPipe(pipe, Espera);
+#else
+            return new ServicioDeVpnNoDisponible(SinServicio);
+#endif
+        }
+
         public static IServicioDeFirewall FirewallPorDefecto(string pipe)
         {
 #if WINDOWS
@@ -145,10 +154,10 @@ namespace Nexo.Ui.Desktop.Nucleo
         }
 
         /// <summary>Las revisiones de seguridad corren en el propio proceso de la ventana (no hay pipe): solo existen en Windows.</summary>
-        public static IServicioDeSeguridad SeguridadPorDefecto()
+        public static IServicioDeSeguridad SeguridadPorDefecto(string? pipe = null)
         {
 #if WINDOWS
-            return new ServicioDeSeguridadLocal();
+            return new ServicioDeSeguridadLocal(pipe: pipe);
 #else
             return new ServicioDeSeguridadNoDisponible("las revisiones de seguridad leen APIs de Windows y no existen para Linux");
 #endif

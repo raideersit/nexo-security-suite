@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Nexo.Modules.Threats.Vpn;
 using Nexo.Ui.Desktop;
 using Nexo.Ui.Desktop.Nucleo;
+using System.Threading.Tasks;
 
 namespace Nexo.Desktop.Demo
 {
@@ -90,6 +91,58 @@ namespace Nexo.Desktop.Demo
             Check(f.Llamadas == 3, "revisar archivos no vuelve a leer los servicios", f.Llamadas.ToString());
         }
 
+        private sealed class ServicioDeVpnFalso : IServicioDeVpn
+        {
+            public string? ConfEnviada, ArchivoEnviado, TunelPedido;
+            public ResultadoDeAccion Resultado = new(true, false, "Túnel «proton-CL-12» instalado y en marcha.");
+            public int Aplicados;
+            public Task<Consulta<PlanDelServicio>> PrevisualizarConexionAsync(string conf, string archivo, System.Threading.CancellationToken ct)
+            {
+                ConfEnviada = conf; ArchivoEnviado = archivo;
+                return Task.FromResult(Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Conectar la VPN «proton-CL-12»", true, new string('a', 64), new List<string>())));
+            }
+            public Task<Consulta<PlanDelServicio>> PrevisualizarDesconexionAsync(string tunel, System.Threading.CancellationToken ct)
+            {
+                TunelPedido = tunel;
+                return Task.FromResult(Consulta<PlanDelServicio>.Bien(new PlanDelServicio("Desconectar", true, new string('b', 64), new List<string>())));
+            }
+            public Task<ResultadoDeAccion> AplicarAsync(string token, System.Threading.CancellationToken ct) { Aplicados++; return Task.FromResult(Resultado); }
+        }
+
+        public static void ProbarVpnConectar()
+        {
+            Console.WriteLine("Pestaña VPN: conectar y desconectar por el servicio");
+            var f = new LectorDeWireGuardFalso();
+            var s = new ServicioDeVpnFalso();
+            var m = new VpnModelo(f, null, s);
+            Check(!m.PuedeConectar, "sin archivo, «Conectar» está apagado");
+            Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn(extra: "SaveConfig = true\n")), "malo.conf"));
+            Check(!m.PuedeConectar, "con un archivo que WireGuard rechazaría, también");
+            Consulta<PlanDelServicio> sinArchivo = Esperar2(m.PrevisualizarConexionAsync());
+            Check(sinArchivo.Valor is null && s.ConfEnviada is null, "sin archivo válido no se envía nada al servicio");
+            Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn()), "proton-CL-12.conf"));
+            Check(m.PuedeConectar && !TodoElTexto(m).Contains(PrivadaVpn), "con un archivo válido se habilita, y la clave sigue sin estar en ninguna propiedad");
+            Consulta<PlanDelServicio> plan = Esperar2(m.PrevisualizarConexionAsync());
+            Check(plan.Valor is { HayCambios: true } && s.ConfEnviada == ConfVpn() && s.ArchivoEnviado == "proton-CL-12.conf", "la vista previa envía al servicio el texto exacto y el nombre del archivo");
+
+            s.Resultado = new ResultadoDeAccion(true, true, "Se abrió el aviso de aprobación (UAC).");
+            Esperar2(m.AplicarAsync(plan.Valor!.Token!, eraConexion: true));
+            Check(m.PuedeConectar, "si se abrió el aviso de UAC, el texto se conserva (todavía no se sabe si se aprobó)");
+            s.Resultado = new ResultadoDeAccion(true, false, "Túnel «proton-CL-12» instalado y en marcha.");
+            ResultadoDeAccion r = Esperar2(m.AplicarAsync(plan.Valor!.Token!, eraConexion: true));
+            Check(r.Exito && !m.PuedeConectar && f.Llamadas >= 1, "tras conectar, el texto se olvida y se vuelve a leer el estado");
+            Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn()), "proton-CL-12.conf"));
+            m.OlvidarArchivo();
+            Check(!m.PuedeConectar, "«olvidar» el archivo también olvida el texto");
+            Consulta<PlanDelServicio> des = Esperar2(m.PrevisualizarDesconexionAsync("proton-CL-12"));
+            Check(des.Valor is not null && s.TunelPedido == "proton-CL-12", "desconectar pide el plan con el nombre del túnel");
+            var sinServicio = new VpnModelo(f);
+            Esperar(sinServicio.RevisarArchivoAsync(Flujo(ConfVpn()), "proton-CL-12.conf"));
+            Check(Esperar2(sinServicio.PrevisualizarConexionAsync()).Error!.Contains("sin conexión con el servicio"), "sin servicio: lo dice (no finge conectar)");
+        }
+
+        private static T Esperar2<T>(Task<T> t) { Esperar(t); return t.Result; }
+
         private static void ProbarVentanaDeVpn(MainWindow w, VpnModelo m, LectorDeWireGuardFalso f, string? captura)
         {
             w.Pestanas.SelectedIndex = 10;
@@ -101,8 +154,10 @@ namespace Nexo.Desktop.Demo
             Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn(extra: "SaveConfig = true\n")), "malo.conf"));
             Dispatcher.UIThread.RunJobs();
             Check(w.TituloDeArchivoVpn.Text == "WireGuard rechazará «malo.conf»" && w.ListaDeErroresVpn.ItemCount == 1, "un archivo con errores se ve en la pestaña, con su lista de errores", w.TituloDeArchivoVpn.Text);
+            Check(!w.BotonConectarVpn.IsEnabled, "con un archivo con errores, «Conectar» está apagado en la pestaña");
             Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn(allowed: "0.0.0.0/0")), "proton-CL-12.conf"));
             Dispatcher.UIThread.RunJobs();
+            Check(w.BotonConectarVpn.IsEnabled, "con un archivo válido, «Conectar» se habilita en la pestaña");
             if (captura is not null)
             {
                 Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();

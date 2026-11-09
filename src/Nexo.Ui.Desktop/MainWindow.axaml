@@ -704,7 +704,7 @@
 
                         <HeaderedContentControl Header="Qué se revisa">
                             <TextBlock TextWrapping="Wrap" Foreground="#404040"
-                                       Text="Solo se lee: ninguna revisión cambia nada en el equipo. Cuentas: las cuentas locales, su política de contraseñas y el inicio de sesión automático; nunca se leen contraseñas ni hashes, y de la contraseña del inicio automático solo se mira si existe, no su valor. Wi-Fi: el tipo de seguridad de cada red guardada (abierta, WEP, TKIP) y de la conexión actual; nunca se pide la clave. Aplicaciones: usa winget, que consulta Internet, por eso solo se ejecuta cuando pulsas el botón; solo entiende winget en español, y solo conoce las aplicaciones que sabe identificar, así que no revisa todo el software instalado. Una versión más nueva no significa que la tuya sea vulnerable. Si algo no se puede revisar, se dice: nunca se muestra como «sin problemas»." />
+                                       Text="Solo se lee: ninguna revisión cambia nada en el equipo. Cuentas: las cuentas locales, su política de contraseñas y el inicio de sesión automático; nunca se leen contraseñas ni hashes, y de la contraseña del inicio automático solo se mira si existe, no su valor. Wi-Fi: el tipo de seguridad de cada red guardada (abierta, WEP, TKIP) y de la conexión actual; nunca se pide la clave. Aplicaciones: usa winget, que consulta Internet, por eso solo se ejecuta cuando pulsas el botón; solo entiende winget en español, y solo conoce las aplicaciones que sabe identificar, así que no revisa todo el software instalado. Una versión más nueva no significa que la tuya sea vulnerable. Accesos y cuentas: el servicio de Nexo lee los registros de Seguridad y de Sistema de Windows de los últimos 7 días (cuentas creadas o activadas, alguien añadido a Administradores, entradas por Escritorio remoto, contraseñas fallidas, servicios y tareas nuevas, y si alguien borró el registro); lo que Windows no audita no se puede ver, y se dice. Si algo no se puede revisar, se dice: nunca se muestra como «sin problemas»." />
                         </HeaderedContentControl>
                     </StackPanel>
                 </ScrollViewer>
@@ -1046,6 +1046,7 @@
                                                 <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
                                                 <TextBlock Text="{Binding Nombre}" FontWeight="Bold" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
                                                 <TextBlock Text="{Binding Estado}" />
+                                                <Button Content="Desconectar..." Tag="{Binding Nombre}" Click="DesconectarVpn" Padding="6,0" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -1060,6 +1061,8 @@
                                             Background="{Binding ArchivoColor}" BorderBrush="Black" BorderThickness="1" />
                                     <Button x:Name="BotonRevisarConf" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
                                             Content="Elegir archivo .conf..." Click="RevisarConf" />
+                                    <Button x:Name="BotonConectarVpn" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                            Content="Conectar con este archivo..." IsEnabled="{Binding PuedeConectar}" Click="ConectarVpn" />
                                     <StackPanel Spacing="2">
                                         <TextBlock x:Name="TituloDeArchivoVpn" Text="{Binding ArchivoTitulo}" FontWeight="Bold" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ArchivoDetalle}" TextWrapping="Wrap" />
@@ -1095,7 +1098,7 @@
 
                         <HeaderedContentControl Header="Qué hay que saber">
                             <TextBlock TextWrapping="Wrap" Foreground="#404040"
-                                       Text="Nexo es solo el cliente: para usar una VPN hace falta un proveedor (hay algunos con plan gratuito que entregan un archivo .conf de WireGuard). Una VPN no te hace anónimo: cambia en quién confías, porque el servidor de la VPN ve todo lo que pasa por ella. Por ahora esta pestaña solo lee: mira si WireGuard está instalado y qué túneles hay, y revisa archivos .conf con las mismas reglas que WireGuard (sin mostrar nunca tu clave privada). Conectar y desconectar desde Nexo llegará más adelante; mientras tanto se hace desde el propio WireGuard." />
+                                       Text="Nexo es solo el cliente: para usar una VPN hace falta un proveedor (hay algunos con plan gratuito que entregan un archivo .conf de WireGuard). Una VPN no te hace anónimo: cambia en quién confías, porque el servidor de la VPN ve todo lo que pasa por ella. Revisar un archivo solo lee (con las mismas reglas que WireGuard, sin mostrar nunca tu clave privada). Conectar y desconectar lo hace el servicio de Nexo con el WireGuard oficial, después de mostrarte qué va a hacer y con tu aprobación (aviso de UAC): guarda una copia del archivo en una carpeta que solo pueden leer SYSTEM y los administradores, no instala archivos con comandos ni servidores en listas de phishing, y solo desconecta los túneles que instaló Nexo (los demás, desde WireGuard)." />
                         </HeaderedContentControl>
                     </StackPanel>
                 </ScrollViewer>

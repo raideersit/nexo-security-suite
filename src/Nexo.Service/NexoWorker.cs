@@ -168,6 +168,10 @@ namespace Nexo.Service
             if (programado is not null) fuentes.Add(programado);
             // El rastro de la ventana (revisiones y boveda): la ventana avisa y el servicio escribe, con textos y topes propios.
             modulos.Add(new ModuloRastroDeVentana(reportes));
+            // VPN: conectar/desconectar tuneles de WireGuard con vista previa, token y aprobacion (como el firewall).
+            // Señales de intrusion en los registros de Seguridad y de Sistema (solo lectura; por eso aqui, como SYSTEM).
+            modulos.Add(new ModuloAlertas(LectorDeAlertasWindows.Leer, reportes));
+            modulos.Add(new ModuloVpn(new LectorDeWireGuardWindows(), new EjecutorDeWireGuardWindows(), reportes, politica));
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }
