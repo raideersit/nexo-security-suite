@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Nexo.Modules.Threats.Enlaces
 {
@@ -48,7 +49,14 @@ namespace Nexo.Modules.Threats.Enlaces
             => sitio == dominio || sitio.EndsWith("." + dominio, StringComparison.Ordinal);
     }
 
-    public sealed record Marca(string Nombre, IReadOnlyList<string> Fichas, IReadOnlyList<string> Oficiales);
+    /// <param name="Menciones">
+    /// Como se nombra en un mensaje que DICE venir de ella (sin tildes, minusculas, palabra entera). Vacio para las plataformas que se
+    /// nombran a diario en mensajes normales («escríbeme al WhatsApp», «búscalo en Google»): nombrarlas no es decir ser ellas.
+    /// </param>
+    public sealed record Marca(string Nombre, IReadOnlyList<string> Fichas, IReadOnlyList<string> Oficiales, IReadOnlyList<string>? Menciones = null)
+    {
+        public IReadOnlyList<string> Menciones { get; init; } = Menciones ?? Array.Empty<string>();
+    }
 
     public enum TipoDeImitacion
     {
@@ -75,38 +83,38 @@ namespace Nexo.Modules.Threats.Enlaces
     {
         public static readonly IReadOnlyList<Marca> Todas = new Marca[]
         {
-            new("BancoEstado", new[] { "bancoestado" }, new[] { "bancoestado.cl" }),
-            new("Banco de Chile", new[] { "bancochile", "bancodechile", "bancoedwards" }, new[] { "bancochile.cl", "bancoedwards.cl" }),
-            new("Santander", new[] { "santander" }, new[] { "santander.cl", "santander.com", "santanderconsumer.cl", "santander.es", "santander.com.mx", "santander.com.br", "santander.com.ar", "santander.co.uk" }),
-            new("BCI", new[] { "bci" }, new[] { "bci.cl" }),
-            new("Scotiabank", new[] { "scotiabank" }, new[] { "scotiabank.cl", "scotiabank.com", "scotiabankchile.cl" }),
-            new("Itaú", new[] { "itau" }, new[] { "itau.cl", "itau.com.br" }),
-            new("Falabella", new[] { "falabella" }, new[] { "falabella.com", "falabella.cl", "bancofalabella.cl" }),
+            new("BancoEstado", new[] { "bancoestado" }, new[] { "bancoestado.cl" }, new[] { "bancoestado", "banco estado", "cuentarut", "cuenta rut" }),
+            new("Banco de Chile", new[] { "bancochile", "bancodechile", "bancoedwards" }, new[] { "bancochile.cl", "bancoedwards.cl" }, new[] { "banco de chile", "bancochile", "banco chile", "banco edwards" }),
+            new("Santander", new[] { "santander" }, new[] { "santander.cl", "santander.com", "santanderconsumer.cl", "santander.es", "santander.com.mx", "santander.com.br", "santander.com.ar", "santander.co.uk" }, new[] { "santander", "banco santander" }),
+            new("BCI", new[] { "bci" }, new[] { "bci.cl" }, new[] { "bci", "banco bci", "mach" }),
+            new("Scotiabank", new[] { "scotiabank" }, new[] { "scotiabank.cl", "scotiabank.com", "scotiabankchile.cl" }, new[] { "scotiabank" }),
+            new("Itaú", new[] { "itau" }, new[] { "itau.cl", "itau.com.br" }, new[] { "itau", "banco itau" }),
+            new("Falabella", new[] { "falabella" }, new[] { "falabella.com", "falabella.cl", "bancofalabella.cl" }, new[] { "falabella", "banco falabella", "cmr" }),
             new("Mercado Libre / Mercado Pago", new[] { "mercadolibre", "mercadopago", "mercadolivre" },
-                new[] { "mercadolibre.cl", "mercadolibre.com", "mercadolibre.com.ar", "mercadolibre.com.mx", "mercadopago.cl", "mercadopago.com", "mercadopago.com.ar", "mercadopago.com.mx", "mercadolivre.com.br", "mlstatic.com" }),
-            new("Correos de Chile", new[] { "correoschile", "correos" }, new[] { "correos.cl" }),
-            new("Chilexpress", new[] { "chilexpress" }, new[] { "chilexpress.cl" }),
-            new("Starken", new[] { "starken" }, new[] { "starken.cl" }),
-            new("Servicio de Impuestos Internos (SII)", new[] { "sii" }, new[] { "sii.cl" }),
-            new("Registro Civil", new[] { "registrocivil" }, new[] { "registrocivil.cl" }),
-            new("ClaveÚnica", new[] { "claveunica" }, new[] { "claveunica.gob.cl" }),
-            new("Tesorería General (TGR)", new[] { "tgr" }, new[] { "tgr.cl" }),
-            new("PayPal", new[] { "paypal" }, new[] { "paypal.com", "paypal.me", "paypalobjects.com" }),
+                new[] { "mercadolibre.cl", "mercadolibre.com", "mercadolibre.com.ar", "mercadolibre.com.mx", "mercadopago.cl", "mercadopago.com", "mercadopago.com.ar", "mercadopago.com.mx", "mercadolivre.com.br", "mlstatic.com" }, new[] { "mercado libre", "mercadolibre", "mercado pago", "mercadopago" }),
+            new("Correos de Chile", new[] { "correoschile", "correos" }, new[] { "correos.cl" }, new[] { "correos de chile", "correoschile", "correos chile" }),
+            new("Chilexpress", new[] { "chilexpress" }, new[] { "chilexpress.cl" }, new[] { "chilexpress" }),
+            new("Starken", new[] { "starken" }, new[] { "starken.cl" }, new[] { "starken" }),
+            new("Servicio de Impuestos Internos (SII)", new[] { "sii" }, new[] { "sii.cl" }, new[] { "sii", "impuestos internos" }),
+            new("Registro Civil", new[] { "registrocivil" }, new[] { "registrocivil.cl" }, new[] { "registro civil", "registrocivil" }),
+            new("ClaveÚnica", new[] { "claveunica" }, new[] { "claveunica.gob.cl" }, new[] { "clave unica", "claveunica" }),
+            new("Tesorería General (TGR)", new[] { "tgr" }, new[] { "tgr.cl" }, new[] { "tgr", "tesoreria general" }),
+            new("PayPal", new[] { "paypal" }, new[] { "paypal.com", "paypal.me", "paypalobjects.com" }, new[] { "paypal" }),
             new("Microsoft", new[] { "microsoft", "office365", "outlook", "hotmail", "onedrive", "sharepoint" },
                 new[] { "microsoft.com", "live.com", "office.com", "office365.com", "microsoftonline.com", "outlook.com", "hotmail.com", "msn.com", "microsoft365.com",
-                        "sharepoint.com", "onedrive.com", "onedrive.live.com", "bing.com", "xbox.com", "skype.com", "windows.net", "azure.com" }),
-            new("Apple", new[] { "apple", "icloud", "appleid" }, new[] { "apple.com", "icloud.com", "me.com" }),
+                        "sharepoint.com", "onedrive.com", "onedrive.live.com", "bing.com", "xbox.com", "skype.com", "windows.net", "azure.com" }, new[] { "microsoft", "office 365", "cuenta microsoft" }),
+            new("Apple", new[] { "apple", "icloud", "appleid" }, new[] { "apple.com", "icloud.com", "me.com" }, new[] { "apple id", "icloud", "cuenta de apple" }),
             new("Google", new[] { "google", "gmail" },
                 new[] { "google.com", "google.cl", "gmail.com", "googleusercontent.com", "googleapis.com", "gstatic.com", "youtube.com", "goo.gl", "googlevideo.com", "withgoogle.com", "g.co", "google.com.ar", "google.com.mx", "google.es" }),
             new("WhatsApp", new[] { "whatsapp" }, new[] { "whatsapp.com", "whatsapp.net", "wa.me" }),
             new("Instagram", new[] { "instagram" }, new[] { "instagram.com", "cdninstagram.com" }),
             new("Facebook", new[] { "facebook" }, new[] { "facebook.com", "fb.com", "fb.me", "facebook.net", "fbcdn.net", "messenger.com", "meta.com" }),
-            new("Netflix", new[] { "netflix" }, new[] { "netflix.com", "netflix.net" }),
-            new("Steam", new[] { "steampowered", "steamcommunity" }, new[] { "steampowered.com", "steamcommunity.com", "steamstatic.com" }),
+            new("Netflix", new[] { "netflix" }, new[] { "netflix.com", "netflix.net" }, new[] { "netflix" }),
+            new("Steam", new[] { "steampowered", "steamcommunity" }, new[] { "steampowered.com", "steamcommunity.com", "steamstatic.com" }, new[] { "steam" }),
             new("Discord", new[] { "discord" }, new[] { "discord.com", "discord.gg", "discordapp.com", "discordapp.net", "discord.media" }),
             new("Riot Games", new[] { "riotgames", "leagueoflegends" }, new[] { "riotgames.com", "leagueoflegends.com" }),
             new("Roblox", new[] { "roblox" }, new[] { "roblox.com", "rbxcdn.com" }),
-            new("Amazon", new[] { "amazon" }, new[] { "amazon.com", "amazon.es", "amazon.com.mx", "amazon.com.br", "amazonaws.com", "media-amazon.com" }),
+            new("Amazon", new[] { "amazon" }, new[] { "amazon.com", "amazon.es", "amazon.com.mx", "amazon.com.br", "amazonaws.com", "media-amazon.com" }, new[] { "amazon" }),
         };
 
         /// <summary>
@@ -123,6 +131,32 @@ namespace Nexo.Modules.Threats.Enlaces
         {
             "top", "xyz", "icu", "buzz", "cyou", "sbs", "cfd", "bond", "click", "rest", "monster", "lol", "quest", "mom", "cam", "tk", "ml", "ga", "cf", "gq"
         };
+
+        /// <summary>Las marcas que el texto dice ser (por sus menciones, sin tildes, palabra entera). Las plataformas sin menciones no cuentan.</summary>
+        public static IReadOnlyList<Marca> Mencionadas(string? texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto)) return Array.Empty<Marca>();
+            string t = " " + Regex.Replace(AnalizadorDeMensajes.SinTildes(texto), "[^a-z0-9]+", " ") + " ";
+            return Todas.Where(m => m.Menciones.Any(f => t.Contains(" " + f + " ", StringComparison.Ordinal))).ToList();
+        }
+
+        /// <summary>Como se parece una palabra suelta (el nombre de un remitente de SMS) a una marca: igual, con numeros por letras o a una letra.</summary>
+        public static Imitacion? PalabraParecida(string palabra)
+        {
+            string p = Regex.Replace(AnalizadorDeMensajes.SinTildes(palabra ?? ""), "[^a-z0-9]", "");
+            if (p.Length < 3) return null;
+            foreach (Marca m in Todas)
+                foreach (string f in m.Fichas.Concat(m.Menciones.Select(x => x.Replace(" ", ""))))
+                    if (p == f) return new Imitacion(m, TipoDeImitacion.Nombre, p);
+            foreach (string v in VariantesSinNumeros(new[] { p }))
+                foreach (Marca m in Todas)
+                    foreach (string f in m.Fichas.Concat(m.Menciones.Select(x => x.Replace(" ", ""))))
+                        if (v == f) return new Imitacion(m, TipoDeImitacion.Numeros, p);
+            foreach (Marca m in Todas)
+                foreach (string f in m.Fichas.Concat(m.Menciones.Select(x => x.Replace(" ", ""))))
+                    if (f.Length >= LargoParaBuscarDentro && DistanciaDeUnaLetra(p, f)) return new Imitacion(m, TipoDeImitacion.UnaLetra, p);
+            return null;
+        }
 
         public static Marca? OficialDe(string sitio)
             => Todas.FirstOrDefault(m => m.Oficiales.Any(o => Dominios.EsODentroDe(sitio, o)));

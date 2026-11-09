@@ -919,10 +919,16 @@
                             <StackPanel Spacing="6">
                                 <TextBox x:Name="CajaDeMensaje" Text="{Binding Texto}" AcceptsReturn="True" TextWrapping="Wrap"
                                          MinHeight="90" MaxHeight="220" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,6,0" Text="Quién lo envía (opcional):" />
+                                    <TextBox x:Name="CajaDeRemitente" Text="{Binding Remitente}" Watermark="número o correo, p. ej. +56 9 1234 5678" />
+                                </DockPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Button x:Name="BotonRevisarEnlaces" Content="Revisar" IsEnabled="{Binding PuedeRevisar}" Click="RevisarEnlaces" />
                                     <Button x:Name="BotonBorrarMensaje" Content="Borrar" Click="BorrarMensaje" />
+                                    <Button x:Name="BotonRevisarQr" Content="Revisar un QR (imagen)..." Click="RevisarQr" />
                                 </StackPanel>
+                                <TextBlock x:Name="OrigenDelTexto" Text="{Binding OrigenDelTexto}" IsVisible="{Binding HayOrigen}" TextWrapping="Wrap" FontWeight="Bold" />
                             </StackPanel>
                         </HeaderedContentControl>
 
@@ -1012,7 +1018,7 @@
 
                         <HeaderedContentControl Header="Qué hay que saber">
                             <TextBlock TextWrapping="Wrap" Foreground="#404040"
-                                       Text="Nexo nunca abre el enlace ni pregunta a ningún servidor por él: lo compara en tu equipo con dos listas públicas de phishing (Phishing Army y OpenPhish, gratuitas) y con reglas propias (sitios que imitan a bancos y tiendas, letras de otro alfabeto, una «@» que esconde el sitio real, enlaces acortados, números en vez de nombre). El texto que pegas no se guarda ni sale del equipo. Solo «Actualizar listas» usa Internet, y solo para bajar las listas enteras. Límites: un sitio de phishing nuevo tarda horas o días en entrar en las listas, así que «sin señales» no significa «seguro»; las frases de estafa solo se reconocen en español; la lista de marcas es corta y no exhaustiva; y Nexo no analiza audio ni video (no detecta deepfakes ni llamadas falsas)." />
+                                       Text="Nexo nunca abre el enlace ni pregunta a ningún servidor por él: lo compara en tu equipo con dos listas públicas de phishing (Phishing Army y OpenPhish, gratuitas) y con reglas propias (sitios que imitan a bancos y tiendas, letras de otro alfabeto, una «@» que esconde el sitio real, enlaces acortados, números en vez de nombre, un enlace que no es de la empresa que dice escribir, y quién lo envía). Un código QR se lee de una imagen (una captura o una foto) en tu equipo, y su contenido pasa por las mismas reglas: Nexo no lo abre; además avisa si el QR une a una red Wi-Fi abierta, envía un SMS, llama a un número o pide un pago en criptomonedas. El remitente de un correo o el nombre de un SMS se pueden falsificar: Nexo no puede comprobarlos y nunca los da por buenos. El texto que pegas no se guarda ni sale del equipo. Solo «Actualizar listas» usa Internet, y solo para bajar las listas enteras. Límites: un sitio de phishing nuevo tarda horas o días en entrar en las listas, así que «sin señales» no significa «seguro»; las frases de estafa solo se reconocen en español; la lista de marcas es corta y no exhaustiva; y Nexo no analiza audio ni video (no detecta deepfakes ni llamadas falsas)." />
                         </HeaderedContentControl>
                     </StackPanel>
                 </ScrollViewer>

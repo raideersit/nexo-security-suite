@@ -15,7 +15,7 @@ using Nexo.Reports.Model;
 
 namespace Nexo.Enlaces.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
         private static readonly DateTimeOffset Ahora = new(2026, 11, 9, 15, 0, 0, TimeSpan.Zero);
@@ -36,6 +36,10 @@ namespace Nexo.Enlaces.Demo
             ProbarHonestidad();
             await ProbarAlmacenAsync();
             await ProbarHttpAsync();
+            ProbarMarcaDelMensaje();
+            ProbarRemitente();
+            ProbarQr();
+            ProbarAccionesDeQr();
             ProbarTextos();
 
             Console.WriteLine();
@@ -464,9 +468,97 @@ namespace Nexo.Enlaces.Demo
 
         // ---------- 12 ----------
 
+        private static RevisionDeMensaje AR(string texto, string? remitente, ListasDePhishing? l = null) => AnalizadorDeMensajes.Analizar(texto, l ?? Listas("phishing-de-prueba.com"), Ahora, remitente);
+
+        private static string Todo(RevisionDeMensaje r) => string.Join(",", r.Analisis.Hallazgos.Select(h => h.Id + ":" + h.Severidad));
+
+        private static void ProbarMarcaDelMensaje()
+        {
+            Console.WriteLine("12. El mensaje dice ser una marca y el enlace lleva a otro sitio");
+            Check(CatalogoDeMarcas.Mencionadas("BancoEstado: su CuentaRUT fue bloqueada").Single().Nombre == "BancoEstado", "«BancoEstado» y «CuentaRUT» son menciones de BancoEstado");
+            Check(CatalogoDeMarcas.Mencionadas("Correos de Chile informa").Single().Nombre == "Correos de Chile" && CatalogoDeMarcas.Mencionadas("te mandé los correos de ayer").Count == 0,
+                "«Correos de Chile» sí; «los correos de ayer» no");
+            Check(CatalogoDeMarcas.Mencionadas("escríbeme al WhatsApp o búscalo en Google o Instagram").Count == 0, "nombrar WhatsApp, Google o Instagram no es decir ser ellos");
+            Check(CatalogoDeMarcas.Mencionadas("Servicio de Impuestos Internos: devolución").Single().Nombre.Contains("SII") && CatalogoDeMarcas.Mencionadas("asi sii es").Single().Nombre.Contains("SII"),
+                "el SII por su nombre y por la sigla (palabra entera)");
+            Check(CatalogoDeMarcas.Mencionadas("hablé con Machuca, el de Sitgr, sobre la siiembra y el steamer").Count == 0,
+                "sin falsas menciones dentro de otras palabras («Machuca» no es MACH, «Sitgr» no es TGR, «steamer» no es Steam)");
+
+            RevisionDeMensaje nuevo = A("BancoEstado: su CuentaRUT fue bloqueada. Desbloquee en https://desbloqueo-cuentas.com/rut");
+            Check(nuevo.Enlaces[0].Hallazgos.Any(h => h.Id == "ENL-NO-ES-DE-LA-MARCA" && h.Severidad == Severidad.Media) && nuevo.Veredicto == Veredicto.Sospechoso,
+                "un sitio NUEVO (en ninguna lista ni con trucos) en un SMS que dice ser BancoEstado: Sospechoso (antes de esta regla, «sin señales»)", Todo(nuevo));
+            RevisionDeMensaje conClave = A("BancoEstado: su CuentaRUT fue bloqueada. Valide sus datos y su clave en https://desbloqueo-cuentas.com/rut");
+            Check(conClave.Veredicto == Veredicto.Peligroso, "si además pide claves o datos: Peligroso", Todo(conClave));
+            RevisionDeMensaje soloEso = A("BancoEstado: revisa tu estado de cuenta en https://desbloqueo-cuentas.com/rut");
+            Check(soloEso.Enlaces[0].Veredicto == Veredicto.Sospechoso, "sin otras señales, el enlace ajeno basta para «Sospechoso»", Todo(soloEso));
+            RevisionDeMensaje bueno = A("BancoEstado: revisa tu estado de cuenta en https://www.bancoestado.cl/personas");
+            Check(!bueno.Analisis.Hallazgos.Any(h => h.Id == "ENL-NO-ES-DE-LA-MARCA") && bueno.Veredicto == Veredicto.SinSenales, "con el enlace oficial no salta", Todo(bueno));
+            RevisionDeMensaje imita = A("BancoEstado: entra a bancoestado-seguro.top");
+            Check(imita.Analisis.Hallazgos.Count(h => h.Id is "ENL-NO-ES-DE-LA-MARCA" or "ENL-IMITA-MARCA") == 1, "si el enlace ya imita a la marca, no se repite con «lleva a otro sitio»", Todo(imita));
+            RevisionDeMensaje dosEnlaces = A("Mira https://www.bancoestado.cl y también https://municipalidad.cl");
+            Check(!dosEnlaces.Analisis.Hallazgos.Any(h => h.Id == "ENL-NO-ES-DE-LA-MARCA"), "un enlace a bancoestado.cl NO hace que el mensaje «diga ser» BancoEstado (los enlaces no cuentan como mención)", Todo(dosEnlaces));
+            RevisionDeMensaje otraMarca = A("Paga tu compra de Falabella con Mercado Pago: https://www.mercadopago.cl/checkout");
+            Check(!otraMarca.Analisis.Hallazgos.Any(h => h.Id == "ENL-NO-ES-DE-LA-MARCA"), "un enlace oficial de otra marca conocida no salta (las compras mezclan marcas)", Todo(otraMarca));
+            RevisionDeMensaje whatsapp = A("Escríbeme al WhatsApp, te paso el link https://municipalidad.cl/tramite");
+            Check(whatsapp.Analisis.Hallazgos.Count == 0, "un mensaje normal que nombra WhatsApp y trae un enlace: nada", Todo(whatsapp));
+        }
+
+        private static void ProbarRemitente()
+        {
+            Console.WriteLine("13. Quién envía el mensaje");
+            Remitente? Rm(string t) => AnalizadorDeRemitente.Interpretar(t, out _);
+            Check(Rm("+56 9 8765 4321")?.Tipo == TipoDeRemitente.CelularChileno && Rm("987654321")?.Tipo == TipoDeRemitente.CelularChileno && Rm("56987654321")?.Tipo == TipoDeRemitente.CelularChileno,
+                "un celular chileno con y sin +56, con espacios");
+            Check(Rm("+1 (415) 555-0100")?.Tipo == TipoDeRemitente.Extranjero && Rm("+62 812 3456 7890")?.Tipo == TipoDeRemitente.Extranjero, "números extranjeros");
+            Check(Rm("4321")?.Tipo == TipoDeRemitente.NumeroCorto && Rm("+56 2 2345 6789")?.Tipo == TipoDeRemitente.OtroNumero, "un número corto y un fijo chileno");
+            Remitente? c = Rm("BancoEstado <notificaciones@BancoEstado-Avisos.com>");
+            Check(c is { Tipo: TipoDeRemitente.Correo, Dominio: "bancoestado-avisos.com", NombreVisible: "BancoEstado" }, "un correo con nombre visible: se separan nombre y dominio (en minúsculas)", c?.Dominio + " / " + c?.NombreVisible);
+            Check(Rm("BancoEstado")?.Tipo == TipoDeRemitente.Nombre && Rm("CORREOS")?.Tipo == TipoDeRemitente.Nombre, "un nombre de SMS");
+            Remitente? malo = AnalizadorDeRemitente.Interpretar("x@y", out string? m);
+            Check(Rm("<<<>>>") is null && malo is null && m!.Contains("dominio"), "lo que no es número, correo ni nombre no se interpreta, con el motivo", m);
+
+            RevisionDeMensaje r = AR("Estimado cliente de BancoEstado, su clave vence hoy.", "soporte.bancoestado@gmail.com");
+            Check(H(r, "REM-CORREO-GRATUITO")?.Severidad == Severidad.Alta, "dice ser BancoEstado desde un gmail: Alta", Todo(r));
+            r = AR("Hola, ¿nos juntamos mañana?", "amiga.de.siempre@gmail.com");
+            Check(r.Analisis.Hallazgos.Count == 0, "un gmail que NO dice ser ninguna empresa: nada (un correo gratuito no es delito)", Todo(r));
+            r = AR("Aviso importante.", "BancoEstado <notificaciones@bancoestado-avisos.com>");
+            Check(H(r, "REM-CORREO-IMITA")?.Severidad == Severidad.Alta && H(r, "REM-CORREO-NO-OFICIAL") is null, "un dominio que imita a BancoEstado: Alta (y no se repite como «otro dominio»)", Todo(r));
+            r = AR("BancoEstado le informa un cargo.", "avisos@notificaciones-clientes.com");
+            Check(H(r, "REM-CORREO-NO-OFICIAL")?.Severidad == Severidad.Media, "dice ser BancoEstado desde otro dominio cualquiera: Media (hay envíos externos legítimos)", Todo(r));
+            r = AR("BancoEstado le informa un cargo.", "BancoEstado <avisos@bancoestado.cl>");
+            Check(H(r, "REM-CORREO-OFICIAL") is { Severidad: Severidad.Info } h && h.Detalle.Contains("falsificar") && r.Veredicto == Veredicto.SinSenales,
+                "desde el dominio oficial: solo una nota, que recuerda que el remitente se puede falsificar", Todo(r));
+            r = AR("Aviso.", "alerta@phishing-de-prueba.com");
+            Check(H(r, "REM-CORREO-EN-LISTA")?.Severidad == Severidad.Alta, "un correo desde un dominio de la lista de phishing: Alta", Todo(r));
+            r = AR("Aviso de Steam.", "soporte@steamcomunity.com");
+            Check(H(r, "REM-CORREO-PARECIDO")?.Severidad == Severidad.Media, "un dominio a una letra de Steam: Media", Todo(r));
+
+            r = AR("BancoEstado: su tarjeta fue bloqueada.", "+56 9 8765 4321");
+            Check(H(r, "REM-CELULAR")?.Severidad == Severidad.Media, "dice ser BancoEstado desde un celular común: Media", Todo(r));
+            r = AR("Hola, soy yo, cambié de número.", "+56 9 8765 4321");
+            Check(r.Analisis.Hallazgos.Count == 0, "un celular que no dice ser ninguna empresa: nada", Todo(r));
+            r = AR("Oferta de trabajo desde casa, gana 50 mil diarios.", "+62 812 3456 7890");
+            Check(H(r, "REM-EXTRANJERO")?.Severidad == Severidad.Baja, "un número extranjero cualquiera: Baja", Todo(r));
+            r = AR("Correos de Chile: su envío está retenido.", "+1 415 555 0100");
+            Check(H(r, "REM-EXTRANJERO")?.Severidad == Severidad.Media && H(r, "REM-EXTRANJERO")!.Titulo.Contains("Correos de Chile"), "dice ser Correos de Chile desde el extranjero: Media", Todo(r));
+
+            r = AR("Su cuenta fue bloqueada, ingrese a https://desbloqueo-cuentas.com", "BancoEstado");
+            Check(H(r, "REM-NOMBRE-FALSIFICABLE")?.Severidad == Severidad.Info && r.Enlaces[0].Hallazgos.Any(x => x.Id == "ENL-NO-ES-DE-LA-MARCA"),
+                "un SMS con nombre «BancoEstado»: nota de que se falsifica, y el remitente cuenta como «dice ser» para el enlace", Todo(r));
+            r = AR("Su cuenta fue bloqueada.", "BancoEstad0");
+            Check(H(r, "REM-NOMBRE-IMITA")?.Severidad == Severidad.Alta, "un nombre de remitente con un 0 por la o: Alta", Todo(r));
+            r = AR("Hola", "<<<>>>");
+            Check(!r.Analisis.Completo && r.Analisis.NoEvaluado.Single().Contains("No se reconoce el remitente"), "un remitente que no se entiende: se dice (no evaluado)");
+            r = AR("Hola", "   ");
+            Check(r.Analisis.Completo && r.Analisis.Hallazgos.Count == 0, "sin remitente (es opcional): nada que decir");
+            Check(AR("Aviso.", "alerta@phishing-de-prueba.com").Analisis.Hallazgos.All(x => x.Sujeto == "alerta@phishing-de-prueba.com"), "los hallazgos del remitente llevan el remitente como sujeto");
+        }
+
+        // ---------- 14 ----------
+
         private static void ProbarTextos()
         {
-            Console.WriteLine("12. Textos con tildes");
+            Console.WriteLine("14. Textos con tildes");
             var textos = new List<string>();
             ListasDePhishing listas = Listas("amiprotected.it");
             foreach (string t in new[]
@@ -482,6 +574,19 @@ namespace Nexo.Enlaces.Demo
                 textos.AddRange(r.Analisis.NoEvaluado);
             }
             textos.AddRange(AnalizadorDeMensajes.Analizar("https://x.cl", ListasDePhishing.Vacias, Ahora).Analisis.NoEvaluado);
+            foreach ((string t, string rem) in new[]
+            {
+                ("BancoEstado: clave", "soporte@gmail.com"), ("Aviso", "BancoEstado <a@bancoestado-avisos.com>"), ("BancoEstado avisa", "a@otro-dominio.com"),
+                ("BancoEstado avisa", "a@bancoestado.cl"), ("Steam", "a@steamcomunity.com"), ("BancoEstado: bloqueo https://desbloqueo.com", "+56 9 8765 4321"),
+                ("Correos de Chile", "+1 415 555 0100"), ("hola", "+62 812 3456 7890"), ("hola", "BancoEstad0"), ("hola", "BancoEstado"), ("hola", "<<<>>>"),
+                ("WIFI:S:Cafe;T:nopass;;", ""), ("WIFI:S:Casa;T:WEP;P:x;;", ""), ("WIFI:S:Casa;T:WPA;P:x;;", ""), ("SMSTO:3030:hola", ""), ("tel:+56223456789", ""),
+                ("bitcoin:bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", "")
+            })
+            {
+                RevisionDeMensaje rr = AnalizadorDeMensajes.Analizar(t, listas, Ahora, rem);
+                textos.AddRange(rr.Analisis.Hallazgos.SelectMany(h => new[] { h.Titulo, h.Detalle, h.Recomendacion }));
+                textos.AddRange(rr.Analisis.NoEvaluado);
+            }
             var sinTilde = new Regex(@"\b(numero|numeros|pagina|paginas|direccion|codigo|codigos|telefono|aplicacion|dias|segun|tambien|mas alla|mas grave|todavia|estafa ya|cirilica|cirilicas|griega|leelo|interpretacion|habitual|ingles|espanol|valido|pais|terminacion|clasico|comun|enganar|asi que)\b");
             string[] malas = textos.Where(t => sinTilde.Matches(t).Cast<Match>().Any(m => m.Value is not ("habitual" or "estafa ya" or "mas alla"))).ToArray();
             Check(textos.Count > 60 && malas.Length == 0, "ninguna palabra que lleva tilde aparece sin ella (" + textos.Count + " textos)", string.Join(" || ", malas.Take(3)));

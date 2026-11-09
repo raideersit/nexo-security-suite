@@ -190,6 +190,27 @@ namespace Nexo.Ui.Desktop
 
         private void BorrarMensaje(object? sender, RoutedEventArgs e) => Enlaces.Borrar();
 
+        private async void RevisarQr(object? sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<IStorageFile> elegidos = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Elige una imagen con un código QR",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("Imágenes") { Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp" } }, FilePickerFileTypes.All }
+            });
+            IStorageFile? archivo = elegidos.FirstOrDefault();
+            if (archivo is null) return;
+            try
+            {
+                await using System.IO.Stream s = await archivo.OpenReadAsync();
+                await Enlaces.RevisarQrAsync(s, archivo.Name);
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                await DialogoEnEspanol.InformarAsync(this, "No se pudo abrir la imagen (" + ex.GetType().Name + ").", "Revisar un QR", IconoDeDialogo.Advertencia);
+            }
+        }
+
         private async void ActualizarListas(object? sender, RoutedEventArgs e)
         {
             // Sale a Internet (solo para bajar las listas enteras): se avisa y se pide confirmar, por omision «No».

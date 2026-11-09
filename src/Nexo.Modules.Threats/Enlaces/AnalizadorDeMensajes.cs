@@ -40,11 +40,27 @@ namespace Nexo.Modules.Threats.Enlaces
             "tiny.cc", "buff.ly", "bit.do", "acortar.link", "n9.cl", "qrco.de", "short.gy", "lnkd.in", "tr.ee", "u.to", "clck.ru"
         };
 
-        public static RevisionDeMensaje Analizar(string? texto, ListasDePhishing listas, DateTimeOffset ahora)
+        /// <param name="remitente">Opcional: quien lo envia (numero o correo), tal como lo escribio el usuario.</param>
+        public static RevisionDeMensaje Analizar(string? texto, ListasDePhishing listas, DateTimeOffset ahora, string? remitente = null)
         {
             if (listas is null) throw new ArgumentNullException(nameof(listas));
             var noEvaluado = new List<string>();
             ExtraccionDeEnlaces ex = ExtractorDeEnlaces.Extraer(texto);
+
+            // Quien dice ser el mensaje: por su texto y, si el remitente es un nombre de SMS que coincide con una marca, tambien por el.
+            string recortado = texto is null ? "" : texto.Length > ExtractorDeEnlaces.MaximoDeCaracteres ? texto.Substring(0, ExtractorDeEnlaces.MaximoDeCaracteres) : texto;
+            // Sin los enlaces: que un enlace lleve a «bancoestado.cl» no es que el mensaje DIGA ser BancoEstado.
+            string sinEnlaces = recortado;
+            foreach (EnlaceEncontrado e in ex.Enlaces) sinEnlaces = sinEnlaces.Replace(e.Texto, " ", StringComparison.Ordinal);
+            var dice = CatalogoDeMarcas.Mencionadas(sinEnlaces).ToList();
+            Remitente? rem = null;
+            if (!string.IsNullOrWhiteSpace(remitente))
+            {
+                rem = AnalizadorDeRemitente.Interpretar(remitente, out string? porQue);
+                if (rem is null) noEvaluado.Add("No se reconoce el remitente «" + Recortar(remitente.Trim(), 60) + "»: " + porQue + ".");
+                else if (rem.Tipo == TipoDeRemitente.Nombre && CatalogoDeMarcas.PalabraParecida(rem.Original) is { Tipo: TipoDeImitacion.Nombre } exacta && !dice.Contains(exacta.Marca))
+                    dice.Add(exacta.Marca);
+            }
             if (ex.TextoRecortado)
                 noEvaluado.Add("El texto es muy largo: solo se revisaron los primeros " + ExtractorDeEnlaces.MaximoDeCaracteres.ToString("N0", CultureInfo.GetCultureInfo("es-CL")) + " caracteres.");
             if (ex.DemasiadosEnlaces)
@@ -61,7 +77,7 @@ namespace Nexo.Modules.Threats.Enlaces
                     noEvaluado.Add("No se pudo interpretar «" + Recortar(e.Texto, 80) + "»: " + motivo + ".");
                     continue;
                 }
-                enlaces.Add(RevisarEnlace(n, listas));
+                enlaces.Add(RevisarEnlace(n, listas, dice));
             }
 
             if (enlaces.Count > 0)
@@ -78,6 +94,8 @@ namespace Nexo.Modules.Threats.Enlaces
 
             var hallazgos = new List<HallazgoDeSistema>();
             foreach (EnlaceRevisado e in enlaces) hallazgos.AddRange(e.Hallazgos);
+            if (rem is not null) hallazgos.AddRange(AnalizadorDeRemitente.Analizar(rem, dice, listas));
+            hallazgos.AddRange(RevisarAcciones(recortado));
             hallazgos.AddRange(RevisarFrases(texto is null ? "" : texto.Length > ExtractorDeEnlaces.MaximoDeCaracteres ? texto.Substring(0, ExtractorDeEnlaces.MaximoDeCaracteres) : texto,
                                              enlaces.Count + ilegibles > 0, ilegibles == 0 && enlaces.Count > 0 && enlaces.All(e => e.MarcaOficial is not null)));
 
@@ -85,6 +103,58 @@ namespace Nexo.Modules.Threats.Enlaces
                 hallazgos.OrderByDescending(h => h.Severidad).ThenBy(h => h.Id, StringComparer.Ordinal).ThenBy(h => h.Sujeto, StringComparer.Ordinal).ToList(),
                 noEvaluado);
             return new RevisionDeMensaje(enlaces, r, VeredictoDe(r.Hallazgos), ilegibles);
+        }
+
+        // Lo que un QR (o un mensaje) puede hacer ademas de abrir un enlace: unirse a una red, enviar un SMS, llamar, pagar.
+        private static readonly Regex Wifi = R(@"(?i)\bWIFI:((?:[^;\\]|\\.)*;)+;?");
+        private static readonly Regex CampoWifi = R(@"(?i)(?<=[:;])(?<k>[STPH]):(?<v>(?:[^;\\]|\\.)*)");
+        private static readonly Regex Sms = R(@"(?i)\b(?:SMSTO|SMS):\+?(?<n>[0-9][0-9 ]{1,19})(?:[:?](?:body=)?(?<t>[^\r\n]{0,160}))?");
+        private static readonly Regex Llamada = R(@"(?i)\btel:(?<n>\+?[0-9][0-9 \-]{1,19})");
+        private static readonly Regex Cripto = R(@"(?i)\b(?<m>bitcoin|ethereum|litecoin|monero|dogecoin|tron|usdt|solana|bitcoincash):[A-Za-z0-9]{10,}");
+
+        private static IEnumerable<HallazgoDeSistema> RevisarAcciones(string texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto)) yield break;
+            foreach (Match w in Wifi.Matches(texto).Cast<Match>().Take(3))
+            {
+                string? red = null, tipo = null;
+                foreach (Match c in CampoWifi.Matches(w.Value))
+                {
+                    string v = Regex.Replace(c.Groups["v"].Value, @"\\(.)", "$1");
+                    if (c.Groups["k"].Value.Equals("S", StringComparison.OrdinalIgnoreCase)) red = v;
+                    else if (c.Groups["k"].Value.Equals("T", StringComparison.OrdinalIgnoreCase)) tipo = v.ToUpperInvariant();
+                }
+                // La contraseña (P:) jamas se muestra ni se guarda.
+                string nombre = "«" + Recortar(red ?? "(sin nombre)", 40) + "»";
+                bool abierta = string.IsNullOrEmpty(tipo) || tipo == "NOPASS";
+                if (abierta || tipo == "WEP")
+                    yield return new HallazgoDeSistema("MSJ-WIFI", Severidad.Media, "Conecta a una red Wi-Fi " + (abierta ? "abierta" : "con cifrado WEP (roto)") + " " + nombre,
+                        "Al escanearlo, el teléfono se une a esa red. En una red " + (abierta ? "sin contraseña" : "WEP") + " quien la controle puede ver o desviar lo que haces. Hay QR falsos pegados en cafés y aeropuertos para eso.",
+                        "Conéctate solo si es la red del lugar donde estás, y no entres a tu banco desde ella.", nombre);
+                else
+                    yield return new HallazgoDeSistema("MSJ-WIFI", Severidad.Info, "Conecta a la red Wi-Fi " + nombre,
+                        "Al escanearlo, el teléfono se une a esa red (" + (tipo ?? "") + ", con contraseña). Nexo no muestra la contraseña.",
+                        "Conéctate solo si es la red del lugar donde estás.", nombre);
+            }
+            foreach (Match m in Sms.Matches(texto).Cast<Match>().Take(3))
+            {
+                string n = m.Groups["n"].Value.Replace(" ", "");
+                yield return new HallazgoDeSistema("MSJ-SMS", Severidad.Media, "Envía un SMS al " + n,
+                    "Prepara un SMS al número " + n + (m.Groups["t"].Value.Trim().Length > 0 ? " con el texto «" + Recortar(m.Groups["t"].Value.Trim(), 60) + "»" : "") +
+                    ". Los SMS a números cortos o especiales pueden cobrarse o suscribirte a servicios de pago.",
+                    "No lo envíes si no sabes a quién va ni cuánto cuesta.", n);
+            }
+            foreach (Match m in Llamada.Matches(texto).Cast<Match>().Take(3))
+            {
+                string n = Regex.Replace(m.Groups["n"].Value, @"[ \-]", "");
+                yield return new HallazgoDeSistema("MSJ-LLAMADA", Severidad.Baja, "Llama al " + n,
+                    "Marca el número " + n + ". Hay estafas que dan un número falso del «banco» para que entregues tus datos por teléfono.",
+                    "Antes de llamar, comprueba el número en la web oficial de la empresa.", n);
+            }
+            foreach (Match m in Cripto.Matches(texto).Cast<Match>().Take(3))
+                yield return new HallazgoDeSistema("MSJ-CRIPTO", Severidad.Media, "Pide un pago en criptomonedas (" + m.Groups["m"].Value.ToLowerInvariant() + ")",
+                    "Contiene una dirección para pagar con criptomonedas. Un pago así no se puede anular ni reclamar: es el medio favorito de las estafas.",
+                    "No pagues si no tienes absoluta certeza de a quién le pagas.", m.Groups["m"].Value.ToLowerInvariant());
         }
 
         public static string NombreDe(FuenteDeLista f) => f == FuenteDeLista.PhishingArmy ? "Phishing Army" : "OpenPhish";
@@ -95,7 +165,8 @@ namespace Nexo.Modules.Threats.Enlaces
             return max >= Severidad.Alta ? Veredicto.Peligroso : max == Severidad.Media ? Veredicto.Sospechoso : Veredicto.SinSenales;
         }
 
-        public static EnlaceRevisado RevisarEnlace(EnlaceNormalizado n, ListasDePhishing listas)
+        /// <param name="dice">Las marcas que el mensaje dice ser: un enlace que no es de ninguna de ellas se marca.</param>
+        public static EnlaceRevisado RevisarEnlace(EnlaceNormalizado n, ListasDePhishing listas, IReadOnlyList<Marca>? dice = null)
         {
             var hs = new List<HallazgoDeSistema>();
             string sujeto = n.SitioLegible == n.Sitio ? n.Sitio : n.SitioLegible + " (" + n.Sitio + ")";
@@ -154,6 +225,16 @@ namespace Nexo.Modules.Threats.Enlaces
                 Add("ENL-DOMINIO-OFICIAL", Severidad.Info, "Es un dominio oficial de " + oficial.Nombre,
                     "«" + n.Sitio + "» es de " + oficial.Nombre + " según la lista de Nexo. Aun así, un mensaje puede mentir sobre quién lo envía.",
                     "Lo más seguro sigue siendo entrar escribiendo tú la dirección, no desde el mensaje.");
+            }
+
+            // El mensaje dice ser una marca y el enlace no es suyo (ni de ninguna marca conocida): lo mas comun en los SMS de estafa,
+            // y lo unico que delata a un sitio nuevo que aun no esta en ninguna lista. No se repite si ya se dijo que la imita.
+            if (dice is { Count: > 0 } && oficial is null && !hs.Any(h => h.Id is "ENL-IMITA-MARCA" or "ENL-PARECIDO-A-MARCA"))
+            {
+                string nombres = string.Join(" o ", dice.Select(m => m.Nombre).Distinct());
+                Add("ENL-NO-ES-DE-LA-MARCA", Severidad.Media, "El mensaje dice ser " + nombres + ", pero el enlace lleva a otro sitio",
+                    "El enlace lleva a «" + n.Sitio + "», que no es un dominio de " + nombres + " que Nexo conozca. Así son la mayoría de los SMS de estafa: el nombre de la empresa en el texto y un sitio ajeno en el enlace.",
+                    "No lo abras. Entra tú mismo a la aplicación o web oficial de " + nombres + ".");
             }
 
             // Letras de alfabetos distintos en una misma parte del nombre.

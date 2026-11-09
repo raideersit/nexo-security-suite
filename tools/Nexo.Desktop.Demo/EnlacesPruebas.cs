@@ -111,8 +111,20 @@ namespace Nexo.Desktop.Demo
                 Esperar(m.RevisarAsync());
                 Check(m.Titulo == "No se encontró ningún enlace" && m.Explicacion.Contains("Tampoco frases") && m.Indicador == Indicador.SinDatos, "sin enlaces ni frases: lo dice, en gris", m.Explicacion);
 
+                // El remitente (opcional).
+                m.Texto = "BancoEstado: su clave vence hoy.";
+                m.Remitente = "soporte.bancoestado@gmail.com";
+                Esperar(m.RevisarAsync());
+                Check(m.Titulo.StartsWith("Peligroso") && m.HallazgosDelMensaje.Any(h => h.Titulo.Contains("correo gratuito")),
+                    "con remitente: «dice ser BancoEstado desde un gmail» sale entre los hallazgos del mensaje", m.Titulo + " / " + string.Join(" | ", m.HallazgosDelMensaje.Select(h => h.Titulo)));
+                m.Remitente = "soporte.bancoestado@gmail.co";
+                Check(m.Titulo == "Sin revisar" && !m.HayHallazgosDelMensaje, "cambiar el remitente también borra el resultado anterior");
+                m.Remitente = "<<<>>>";
+                Esperar(m.RevisarAsync());
+                Check(m.NoEvaluado.Any(n => n.Contains("No se reconoce el remitente")), "un remitente que no se entiende se dice abajo, en «no se pudo comprobar»");
+
                 m.Borrar();
-                Check(m.Texto == "" && m.Titulo == "Sin revisar" && !m.PuedeRevisar, "«Borrar» vacía el texto y el resultado");
+                Check(m.Texto == "" && m.Remitente == "" && m.Titulo == "Sin revisar" && !m.PuedeRevisar, "«Borrar» vacía el texto, el remitente y el resultado");
 
                 // Una nueva ventana (otro modelo sobre la misma carpeta) lee las listas guardadas.
                 var d2 = new DescargaDeListasFalsa();
@@ -148,7 +160,9 @@ namespace Nexo.Desktop.Demo
 
             w.CajaDeMensaje.Text = "BancoEstado: su cuenta sera bloqueada. Ingrese a bаncoestado.cl/clave para validar sus datos.";
             Dispatcher.UIThread.RunJobs();
-            Check(m.Texto.StartsWith("BancoEstado") && w.BotonRevisarEnlaces.IsEnabled, "lo escrito en la caja llega al modelo y habilita «Revisar»");
+            w.CajaDeRemitente.Text = "+56 9 8765 4321";
+            Dispatcher.UIThread.RunJobs();
+            Check(m.Texto.StartsWith("BancoEstado") && m.Remitente == "+56 9 8765 4321" && w.BotonRevisarEnlaces.IsEnabled, "lo escrito en las dos cajas llega al modelo y habilita «Revisar»");
             Pulsar(w.BotonRevisarEnlaces);
             for (int i = 0; i < 500 && w.TituloDeEnlaces.Text is "Revisando..." or "Sin revisar"; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(5); }
             Check(w.TituloDeEnlaces.Text!.StartsWith("Peligroso") && w.ListaDeEnlaces.ItemCount == 1,
@@ -163,7 +177,7 @@ namespace Nexo.Desktop.Demo
             }
 
             Pulsar(w.BotonBorrarMensaje);
-            Check(string.IsNullOrEmpty(w.CajaDeMensaje.Text) && w.TituloDeEnlaces.Text == "Sin revisar", "«Borrar» vacía la caja y el resultado", w.CajaDeMensaje.Text);
+            Check(string.IsNullOrEmpty(w.CajaDeMensaje.Text) && string.IsNullOrEmpty(w.CajaDeRemitente.Text) && w.TituloDeEnlaces.Text == "Sin revisar", "«Borrar» vacía las dos cajas y el resultado", w.CajaDeMensaje.Text);
         }
     }
 }

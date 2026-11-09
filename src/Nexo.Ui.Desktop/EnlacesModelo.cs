@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,11 +39,16 @@ namespace Nexo.Ui.Desktop
         private IReadOnlyList<string> _avisosDeCarga = Array.Empty<string>();
         private RevisionDeMensaje? _revision;
         private string _texto = "";
+        private string _remitente = "";
+        private string? _origen;
+        private readonly Func<Stream, LecturaDeQr> _lectorDeImagen;
         private bool _actualizando;
         private bool _revisando;
 
-        public EnlacesModelo(AlmacenDeListas almacen, Func<IDescargaDeListas> descarga, Func<DateTimeOffset>? reloj = null)
+        /// <param name="lectorDeImagen">Lee los QR de una imagen. Por omision, <see cref="ImagenDeQr.Leer"/> (SkiaSharp + ZXing, local).</param>
+        public EnlacesModelo(AlmacenDeListas almacen, Func<IDescargaDeListas> descarga, Func<DateTimeOffset>? reloj = null, Func<Stream, LecturaDeQr>? lectorDeImagen = null)
         {
+            _lectorDeImagen = lectorDeImagen ?? ImagenDeQr.Leer;
             _almacen = almacen;
             _descarga = descarga;
             _reloj = reloj ?? (() => DateTimeOffset.UtcNow);
@@ -72,7 +78,23 @@ namespace Nexo.Ui.Desktop
                 string v = value ?? "";
                 if (v == _texto) return;
                 _texto = v;
+                // Si el usuario edita el texto, ya no es «lo que decia el QR».
+                _origen = null;
                 // El resultado era de OTRO texto: fuera.
+                _revision = null;
+                Calcular();
+            }
+        }
+
+        /// <summary>Opcional: quien lo envia (numero o correo). Cambiarlo tambien borra el resultado anterior.</summary>
+        public string Remitente
+        {
+            get => _remitente;
+            set
+            {
+                string v = value ?? "";
+                if (v == _remitente) return;
+                _remitente = v;
                 _revision = null;
                 Calcular();
             }
@@ -119,6 +141,7 @@ namespace Nexo.Ui.Desktop
             if (_revisando || string.IsNullOrWhiteSpace(_texto)) return;
             _revisando = true;
             string texto = _texto;
+            string remitente = _remitente;
             _revision = null;
             Calcular();
             try
@@ -126,9 +149,9 @@ namespace Nexo.Ui.Desktop
                 await CargarSiHaceFaltaAsync().ConfigureAwait(true);
                 ListasDePhishing listas = _listas;
                 DateTimeOffset ahora = _reloj();
-                RevisionDeMensaje r = await Task.Run(() => AnalizadorDeMensajes.Analizar(texto, listas, ahora)).ConfigureAwait(true);
+                RevisionDeMensaje r = await Task.Run(() => AnalizadorDeMensajes.Analizar(texto, listas, ahora, remitente)).ConfigureAwait(true);
                 // Si el texto cambio mientras se revisaba, este resultado ya no corresponde a lo que se ve.
-                if (texto == _texto)
+                if (texto == _texto && remitente == _remitente)
                 {
                     _revision = r;
                     AvisarRastro(r);
@@ -184,9 +207,44 @@ namespace Nexo.Ui.Desktop
             }
         }
 
+        /// <summary>De donde salio el texto (un QR) o por que no se pudo leer la imagen. Null si el texto lo escribio el usuario.</summary>
+        public string? OrigenDelTexto => _origen;
+        public bool HayOrigen => _origen is not null;
+
+        /// <summary>
+        /// Lee los codigos QR de una imagen, pone su contenido como texto del mensaje y lo revisa con las mismas reglas. Nexo NUNCA abre lo que
+        /// dice el QR. Si no hay QR, el texto que habia no se toca y se dice por que.
+        /// </summary>
+        public async Task RevisarQrAsync(Stream imagen, string nombre)
+        {
+            if (_revisando) return;
+            LecturaDeQr l;
+            try { l = await Task.Run(() => _lectorDeImagen(imagen)).ConfigureAwait(true); }
+            catch (Exception e) { l = LecturaDeQr.Mal("no se pudo leer la imagen (" + e.GetType().Name + ")"); }
+            string archivo = "«" + (nombre.Length > 60 ? nombre.Substring(0, 60) + "…" : nombre) + "»";
+            if (l.Contenidos.Count == 0)
+            {
+                _origen = archivo + ": " + l.Motivo + ".";
+                Calcular();
+                return;
+            }
+            _texto = string.Join("\n", l.Contenidos);
+            _remitente = "";
+            _revision = null;
+            _origen = l.Contenidos.Count == 1
+                ? "Arriba está lo que contiene el código QR de " + archivo + " (Nexo no lo abrió)."
+                : "La imagen " + archivo + " tiene " + l.Contenidos.Count + " códigos QR; arriba están todos y se revisan todos (Nexo no abrió ninguno).";
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Texto)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Remitente)));
+            await RevisarAsync().ConfigureAwait(true);
+        }
+
         public void Borrar()
         {
+            _origen = null;
             _texto = "";
+            _remitente = "";
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Remitente)));
             _revision = null;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Texto)));
             Calcular();
@@ -217,7 +275,7 @@ namespace Nexo.Ui.Desktop
                     e.SitioLegible == e.Sitio ? e.Sitio : e.SitioLegible + "  (nombre real: " + e.Sitio + ")",
                     e.Original, e.Original != e.Sitio,
                     e.Hallazgos.Select(Vista).ToList())).ToList();
-                HallazgosDelMensaje = r.Analisis.Hallazgos.Where(h => h.Id.StartsWith("MSJ-", StringComparison.Ordinal)).Select(Vista).ToList();
+                HallazgosDelMensaje = r.Analisis.Hallazgos.Where(h => h.Id.StartsWith("MSJ-", StringComparison.Ordinal) || h.Id.StartsWith("REM-", StringComparison.Ordinal)).Select(Vista).ToList();
                 NoEvaluado = r.Analisis.NoEvaluado;
             }
             else
@@ -233,7 +291,7 @@ namespace Nexo.Ui.Desktop
 
             foreach (string p in new[] { nameof(Titulo), nameof(Explicacion), nameof(Color), nameof(Indicador), nameof(Enlaces), nameof(HallazgosDelMensaje), nameof(NoEvaluado),
                                          nameof(HayEnlaces), nameof(HayHallazgosDelMensaje), nameof(HayNoEvaluado), nameof(PuedeRevisar), nameof(PuedeActualizar),
-                                         nameof(EstadoDeListas), nameof(MensajeDeActualizacion), nameof(HayMensajeDeActualizacion) })
+                                         nameof(EstadoDeListas), nameof(MensajeDeActualizacion), nameof(HayMensajeDeActualizacion), nameof(OrigenDelTexto), nameof(HayOrigen) })
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
         }
 

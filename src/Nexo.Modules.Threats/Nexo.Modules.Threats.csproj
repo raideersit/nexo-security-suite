@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lector de codigos QR (Apache-2.0, gratuito, sin dependencias). Solo recibe pixeles: abrir la imagen lo hace quien lo usa. -->
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexo.Reports\Nexo.Reports.csproj" />
   </ItemGroup>
 
