@@ -25,6 +25,7 @@ namespace Nexo.Ui.Desktop
         private const int PestanaCuarentena = 6;
         private const int PestanaSeguridad = 7;
         private const int PestanaContrasenas = 8;
+        private const int PestanaEnlaces = 9;
 
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
@@ -52,7 +53,7 @@ namespace Nexo.Ui.Desktop
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
-                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas)
+                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -81,6 +82,9 @@ namespace Nexo.Ui.Desktop
             // «Seguridad» NO revisa sola al entrar en la pestaña: la de aplicaciones consulta Internet (winget), asi que solo corre cuando el usuario lo pide.
             PanelDeSeguridad.DataContext = seguridad;
             PanelDeContrasenas.DataContext = contrasenas;
+            // Sin modelo dado (previsualizador, pruebas antiguas): el real, que no lee nada hasta entrar en la pestaña ni descarga nada sin su boton.
+            Enlaces = enlaces ?? EnlacesModelo.PorOmision();
+            PanelDeEnlaces.DataContext = Enlaces;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, e) =>
             {
@@ -95,6 +99,8 @@ namespace Nexo.Ui.Desktop
                 else if (Pestanas.SelectedIndex == PestanaDisco) await Disco.ActualizarAsync();
                 // Solo mira si existe el archivo de la boveda: abrirla exige la contraseña maestra.
                 else if (Pestanas.SelectedIndex == PestanaContrasenas) Contrasenas.Refrescar();
+                // Solo lee las listas guardadas en el disco; descargarlas exige su boton.
+                else if (Pestanas.SelectedIndex == PestanaEnlaces) await Enlaces.CargarSiHaceFaltaAsync();
                 // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
@@ -177,6 +183,19 @@ namespace Nexo.Ui.Desktop
         public DiscoModelo Disco { get; }
         public SeguridadModelo Seguridad { get; }
         public ContrasenasModelo Contrasenas { get; }
+        public EnlacesModelo Enlaces { get; }
+
+        // ------------------------------------------------------------ Enlaces (anti-phishing; corre aqui, con el usuario, y nunca abre el enlace)
+        private async void RevisarEnlaces(object? sender, RoutedEventArgs e) => await Enlaces.RevisarAsync();
+
+        private void BorrarMensaje(object? sender, RoutedEventArgs e) => Enlaces.Borrar();
+
+        private async void ActualizarListas(object? sender, RoutedEventArgs e)
+        {
+            // Sale a Internet (solo para bajar las listas enteras): se avisa y se pide confirmar, por omision «No».
+            if (!await DialogoEnEspanol.PreguntarAsync(this, EnlacesModelo.TextoDeAvisoDeDescarga, "Actualizar listas de phishing", IconoDeDialogo.Pregunta)) return;
+            await Enlaces.ActualizarListasAsync();
+        }
 
         // ------------------------------------------------------------ Contraseñas (la boveda corre aqui, con el usuario; nunca por el servicio)
         private async void CrearBoveda(object? sender, RoutedEventArgs e)

@@ -104,7 +104,7 @@ namespace Nexo.Service.Demo
             foreach (string clave in ModuloRastroDeVentana.Claves)
             {
                 Avanza(5);
-                string json = clave.StartsWith("seguridad.") ? "{\"tipo\":\"" + clave + "\",\"hallazgos\":0,\"completa\":true}" : "{\"tipo\":\"" + clave + "\"}";
+                string json = clave.StartsWith("seguridad.") || clave.StartsWith("enlaces.") ?"{\"tipo\":\"" + clave + "\",\"hallazgos\":0,\"completa\":true}" : "{\"tipo\":\"" + clave + "\"}";
                 Check((await Pedir(m2, json)).Ok, "«" + clave + "» se registra");
             }
             Check(w2.Eventos.Count == ModuloRastroDeVentana.Claves.Count && w2.Eventos.All(e => e.Titulo.EndsWith("(desde la ventana)") && e.Cuerpo!.Contains("nunca nombres")), "todos los eventos llevan el texto del servicio y el aviso de privacidad");

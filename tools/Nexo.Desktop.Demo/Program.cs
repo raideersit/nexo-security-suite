@@ -49,6 +49,7 @@ namespace Nexo.Desktop.Demo
             ProbarRastroDeLaVentana();
             ProbarTotpEnLaVentana();
             ProbarContrasenas();
+            ProbarEnlaces();
             ProbarDialogos(captura);
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
@@ -1268,17 +1269,23 @@ namespace Nexo.Desktop.Demo
             var controlesDeVentana = new Controles();
             var cmod = new ContrasenasModelo(System.IO.Path.Combine(dirContrasenas, "boveda.nxv"), Rapidos, true, () => new RangosFalsos(), portapapeles,
                                              () => controlesDeVentana.Ahora, null, null, controlesDeVentana.Espera);
+            // La pestaña Enlaces: listas ya guardadas en una carpeta temporal, y una descarga falsa que cuenta las llamadas.
+            string dirEnlaces = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexo-ventana-enlaces-" + Guid.NewGuid().ToString("N"));
+            var descargaDeVentana = new DescargaDeListasFalsa();
+            Esperar(new Nexo.Modules.Threats.Enlaces.AlmacenDeListas(dirEnlaces).ActualizarAsync(descargaDeVentana, Nexo.Modules.Threats.Enlaces.ListasDePhishing.Vacias, AhoraEnlaces));
+            descargaDeVentana.Llamadas = 0;
+            EnlacesModelo emod = ModeloDeEnlaces(dirEnlaces, descargaDeVentana);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod);
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod, emod);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
                 Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
-                Check(w.Pestanas.ItemCount == 9 && w.Pestanas.SelectedIndex == 0, "9 pestañas y se abre en «Estado»");
+                Check(w.Pestanas.ItemCount == 10 && w.Pestanas.SelectedIndex == 0, "10 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),
                     "los 5 botones de la barra tienen icono grande (24) y pequeño (16)");
@@ -1402,6 +1409,8 @@ namespace Nexo.Desktop.Demo
                     Console.WriteLine("           captura: " + tercera);
                 }
 
+                ProbarVentanaDeEnlaces(w, emod, descargaDeVentana, captura);
+
                 // La pestaña Contraseñas va la ULTIMA: su prueba cierra la ventana (para comprobar que al cerrar se borra el portapapeles).
                 ProbarVentanaDeContrasenas(w, cmod, portapapeles, captura);
             }
@@ -1412,6 +1421,7 @@ namespace Nexo.Desktop.Demo
             finally
             {
                 w?.Close();
+                try { System.IO.Directory.Delete(dirEnlaces, true); } catch (System.IO.IOException) { }
             }
         }
     }

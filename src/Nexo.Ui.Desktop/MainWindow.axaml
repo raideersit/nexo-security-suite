@@ -911,6 +911,112 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Enlaces">
+                <ScrollViewer x:Name="PanelDeEnlaces" x:DataType="local:EnlacesModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="¿Es una estafa? Pega el mensaje o el enlace">
+                            <StackPanel Spacing="6">
+                                <TextBox x:Name="CajaDeMensaje" Text="{Binding Texto}" AcceptsReturn="True" TextWrapping="Wrap"
+                                         MinHeight="90" MaxHeight="220" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="BotonRevisarEnlaces" Content="Revisar" IsEnabled="{Binding PuedeRevisar}" Click="RevisarEnlaces" />
+                                    <Button x:Name="BotonBorrarMensaje" Content="Borrar" Click="BorrarMensaje" />
+                                </StackPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Resultado">
+                            <StackPanel Spacing="6">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeEnlaces" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <ItemsControl ItemsSource="{Binding HallazgosDelMensaje}" IsVisible="{Binding HayHallazgosDelMensaje}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FilaDeHallazgoVista">
+                                            <StackPanel Margin="34,2,0,4" Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                    <TextBlock Text="{Binding Gravedad}" FontWeight="Bold" />
+                                                    <TextBlock Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Margin="16,0,0,0" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="16,0,0,0" Text="{Binding Recomendacion, StringFormat='Qué hacer: {0}'}" TextWrapping="Wrap" Foreground="#404040" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <ItemsControl x:Name="ListaDeEnlaces" ItemsSource="{Binding Enlaces}" IsVisible="{Binding HayEnlaces}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FilaDeEnlaceVista">
+                                            <Border Background="White" BorderBrush="#808080" BorderThickness="1" Margin="34,2,0,6">
+                                                <StackPanel Margin="6,4,6,6" Spacing="2">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <Border Width="12" Height="12" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                        <TextBlock Text="{Binding Veredicto}" FontWeight="Bold" />
+                                                        <TextBlock Text="{Binding Sitio}" FontFamily="Courier New,DejaVu Sans Mono,monospace" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                    <TextBlock Margin="18,0,0,0" Text="{Binding Original, StringFormat='Enlace: {0}'}" Foreground="#404040" TextWrapping="Wrap"
+                                                               FontFamily="Courier New,DejaVu Sans Mono,monospace" IsVisible="{Binding MostrarOriginal}" />
+                                                    <ItemsControl ItemsSource="{Binding Hallazgos}" IsVisible="{Binding HayHallazgos}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="local:FilaDeHallazgoVista">
+                                                                <StackPanel Margin="18,4,0,0" Spacing="2">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                                        <TextBlock Text="{Binding Gravedad}" FontWeight="Bold" />
+                                                                        <TextBlock Text="{Binding Titulo}" TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                    <TextBlock Margin="16,0,0,0" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                                    <TextBlock Margin="16,0,0,0" Text="{Binding Recomendacion, StringFormat='Qué hacer: {0}'}" TextWrapping="Wrap" Foreground="#404040" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Margin="34,2,0,0" Spacing="2" IsVisible="{Binding HayNoEvaluado}">
+                                    <TextBlock Text="No se pudo comprobar todo (esto NO significa que esté bien):" Foreground="#800000" FontWeight="Bold" TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding NoEvaluado}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Foreground="#800000" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Listas de phishing">
+                            <DockPanel>
+                                <Button x:Name="BotonActualizarListas" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                        Content="Actualizar listas" IsEnabled="{Binding PuedeActualizar}" Click="ActualizarListas" />
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="EstadoDeListas" Text="{Binding EstadoDeListas}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding MensajeDeActualizacion}" TextWrapping="Wrap" Foreground="#404040" IsVisible="{Binding HayMensajeDeActualizacion}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Qué hay que saber">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="Nexo nunca abre el enlace ni pregunta a ningún servidor por él: lo compara en tu equipo con dos listas públicas de phishing (Phishing Army y OpenPhish, gratuitas) y con reglas propias (sitios que imitan a bancos y tiendas, letras de otro alfabeto, una «@» que esconde el sitio real, enlaces acortados, números en vez de nombre). El texto que pegas no se guarda ni sale del equipo. Solo «Actualizar listas» usa Internet, y solo para bajar las listas enteras. Límites: un sitio de phishing nuevo tarda horas o días en entrar en las listas, así que «sin señales» no significa «seguro»; las frases de estafa solo se reconocen en español; la lista de marcas es corta y no exhaustiva; y Nexo no analiza audio ni video (no detecta deepfakes ni llamadas falsas)." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </classic:ClassicWindow>

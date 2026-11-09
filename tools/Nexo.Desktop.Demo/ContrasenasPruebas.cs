@@ -492,7 +492,7 @@ namespace Nexo.Desktop.Demo
             Console.WriteLine("Pestaña Contraseñas: la ventana");
             w.Pestanas.SelectedIndex = 8;
             Dispatcher.UIThread.RunJobs();
-            Check(w.Pestanas.ItemCount == 9 && w.TituloDeContrasenas.Text == "Todavía no tienes una bóveda", "pestaña Contraseñas: sin archivo, «Todavía no tienes una bóveda»", w.TituloDeContrasenas.Text);
+            Check(w.Pestanas.ItemCount == 10 && w.TituloDeContrasenas.Text == "Todavía no tienes una bóveda", "pestaña Contraseñas: sin archivo, «Todavía no tienes una bóveda»", w.TituloDeContrasenas.Text);
             Check(w.PanelSinBoveda.IsVisible && !w.PanelBloqueada.IsVisible && !w.PanelAbierta.IsVisible, "solo se ve el panel de crear");
             Check(w.PanelDeRestauracion.IsVisible && w.BotonRestaurarCopia.IsEnabled, "y debajo, el panel «Restaurar desde una copia» (se puede restaurar sin tener bóveda)");
             if (captura is not null) Foto(w, captura, "contrasenas-crear");

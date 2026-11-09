@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes del anti-phishing (portable): extraer enlaces de un mensaje, reglas locales, listas de phishing, almacen.
+         Con el argumento «real» (dotnet run, dos guiones, dos guiones real) descarga las listas reales (sale a Internet) y las valida. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Enlaces.Demo</RootNamespace>
+    <AssemblyName>nexo-enlaces-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Feed REAL de OpenPhish descargado el 2026-11-09 (300 direcciones): los datos de prueba no se inventan. -->
+    <EmbeddedResource Include="Datos\openphish-2026-11-09.txt" LogicalName="openphish-2026-11-09.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
+</Project>

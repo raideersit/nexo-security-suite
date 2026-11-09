@@ -24,6 +24,7 @@ namespace Nexo.Reports.Model
         public const string ConexionVpn = "conexion-vpn";
         public const string AccesoDispositivo = "acceso-dispositivo";
         public const string SitioBloqueado = "sitio-bloqueado";
+        public const string MensajeRevisado = "mensaje-revisado";
 
         // --- Modulo de identidad (Prompt 3) ---
         public const string AlertaIdentidad = "alerta-identidad";

@@ -47,7 +47,9 @@ namespace Nexo.Ui.Desktop
                     new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)),
                     new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)) { Rastro = Rastro ?? RastroNulo.Instancia },
                     // La boveda vive en el perfil del usuario y corre en este proceso; el portapapeles real se enlaza a la ventana al crearla.
-                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia });
+                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia },
+                    // El anti-phishing tambien corre aqui, con el usuario: las listas viven en su perfil y el enlace nunca sale del equipo.
+                    EnlacesModelo.PorOmision(Rastro));
             base.OnFrameworkInitializationCompleted();
         }
     }
