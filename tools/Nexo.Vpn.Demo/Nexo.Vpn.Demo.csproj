@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de la VPN (portable): leer y revisar archivos de WireGuard con las mismas reglas que WireGuard para Windows. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Vpn.Demo</RootNamespace>
+    <AssemblyName>nexo-vpn-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -63,6 +63,9 @@ namespace Nexo.Ui.Desktop
 
         public IRastroDeVentana Rastro { get; set; } = RastroNulo.Instancia;
 
+        /// <summary>Las listas de phishing que hay ahora en memoria (las usa tambien la pestaña «VPN» para cruzar el servidor).</summary>
+        public ListasDePhishing ListasActuales => _listas;
+
         public const string TextoDeAvisoDeDescarga =
             "Se descargarán dos listas públicas y gratuitas de sitios de phishing (unos 3 MB):\n\n" +
             "• Phishing Army (phishing.army), gratis para uso personal.\n" +

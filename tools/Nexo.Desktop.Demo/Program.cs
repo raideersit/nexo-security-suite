@@ -51,6 +51,7 @@ namespace Nexo.Desktop.Demo
             ProbarContrasenas();
             ProbarEnlaces();
             ProbarQrEnLaVentana();
+            ProbarVpn();
             ProbarDialogos(captura);
             ProbarFuentePorDefecto();
             ProbarVentana(captura);
@@ -1276,17 +1277,19 @@ namespace Nexo.Desktop.Demo
             Esperar(new Nexo.Modules.Threats.Enlaces.AlmacenDeListas(dirEnlaces).ActualizarAsync(descargaDeVentana, Nexo.Modules.Threats.Enlaces.ListasDePhishing.Vacias, AhoraEnlaces));
             descargaDeVentana.Llamadas = 0;
             EnlacesModelo emod = ModeloDeEnlaces(dirEnlaces, descargaDeVentana);
+            var lectorWgDeVentana = new LectorDeWireGuardFalso();
+            var vpnmod = new VpnModelo(lectorWgDeVentana);
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod, emod);
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod, emod, vpnmod);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
                 Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
-                Check(w.Pestanas.ItemCount == 10 && w.Pestanas.SelectedIndex == 0, "10 pestañas y se abre en «Estado»");
+                Check(w.Pestanas.ItemCount == 11 && w.Pestanas.SelectedIndex == 0, "11 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),
                     "los 5 botones de la barra tienen icono grande (24) y pequeño (16)");
@@ -1411,6 +1414,7 @@ namespace Nexo.Desktop.Demo
                 }
 
                 ProbarVentanaDeEnlaces(w, emod, descargaDeVentana, captura);
+                ProbarVentanaDeVpn(w, vpnmod, lectorWgDeVentana, captura);
 
                 // La pestaña Contraseñas va la ULTIMA: su prueba cierra la ventana (para comprobar que al cerrar se borra el portapapeles).
                 ProbarVentanaDeContrasenas(w, cmod, portapapeles, captura);

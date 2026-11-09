@@ -154,7 +154,7 @@ namespace Nexo.Desktop.Demo
             Dispatcher.UIThread.RunJobs();
             Esperar(m.CargarSiHaceFaltaAsync());
             Dispatcher.UIThread.RunJobs();
-            Check(w.Pestanas.ItemCount == 10 && d.Llamadas == 0 && w.EstadoDeListas.Text!.Contains("1.201 sitios"),
+            Check(w.Pestanas.ItemCount == 11 && d.Llamadas == 0 && w.EstadoDeListas.Text!.Contains("1.201 sitios"),
                 "pestaña Enlaces: al entrar lee las listas guardadas y no descarga nada", w.EstadoDeListas.Text);
             Check(!w.BotonRevisarEnlaces.IsEnabled && w.TituloDeEnlaces.Text == "Sin revisar", "sin texto, «Revisar» está apagado");
 

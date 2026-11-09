@@ -34,6 +34,7 @@ namespace Nexo.Service
             ["seguridad.aplicaciones"] = new(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, "Revisión de aplicaciones desactualizadas (desde la ventana)", Revision: true),
             ["seguridad.dispositivos"] = new(ModuloOrigen.Privacidad, TipoEvento.AccesoDispositivo, "Revisión de uso de cámara y micrófono (desde la ventana)", Revision: true),
             ["seguridad.fallos_conocidos"] = new(ModuloOrigen.Amenazas, TipoEvento.VulnerabilidadDetectada, "Consulta de fallos conocidos en NVD (desde la ventana)", Revision: true),
+            ["vpn.revision"] = new(ModuloOrigen.Privacidad, TipoEvento.ConfiguracionVpnRevisada, "Revisión de un archivo de VPN (desde la ventana)", Revision: true),
             ["enlaces.revision"] = new(ModuloOrigen.Privacidad, TipoEvento.MensajeRevisado, "Revisión de un mensaje o enlace contra phishing (desde la ventana)", Revision: true),
             ["boveda.creada"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaCreada, "Bóveda de contraseñas creada (desde la ventana)", Revision: false),
             ["boveda.desbloqueada"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaDesbloqueada, "Bóveda de contraseñas desbloqueada (desde la ventana)", Revision: false, Entradas: true),

@@ -22,6 +22,7 @@ namespace Nexo.Reports.Model
 
         // --- Modulo de privacidad (Prompt 2) ---
         public const string ConexionVpn = "conexion-vpn";
+        public const string ConfiguracionVpnRevisada = "configuracion-vpn-revisada";
         public const string AccesoDispositivo = "acceso-dispositivo";
         public const string SitioBloqueado = "sitio-bloqueado";
         public const string MensajeRevisado = "mensaje-revisado";

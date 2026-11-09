@@ -1023,6 +1023,83 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="VPN">
+                <ScrollViewer x:Name="PanelDeVpn" x:DataType="local:VpnModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="WireGuard en este equipo">
+                            <StackPanel Spacing="6">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding EstadoColor}" BorderBrush="Black" BorderThickness="1" />
+                                    <Button x:Name="BotonActualizarVpn" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                            Content="Actualizar" IsEnabled="{Binding PuedeActualizar}" Click="ActualizarVpn" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeVpn" Text="{Binding EstadoTitulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding EstadoDetalle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <ItemsControl x:Name="ListaDeTuneles" ItemsSource="{Binding Tuneles}" IsVisible="{Binding HayTuneles}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FilaDeTunel">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="34,2,0,0">
+                                                <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                <TextBlock Text="{Binding Nombre}" FontWeight="Bold" FontFamily="Courier New,DejaVu Sans Mono,monospace" />
+                                                <TextBlock Text="{Binding Estado}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Revisar un archivo de VPN (.conf)">
+                            <StackPanel Spacing="6">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding ArchivoColor}" BorderBrush="Black" BorderThickness="1" />
+                                    <Button x:Name="BotonRevisarConf" DockPanel.Dock="Right" VerticalAlignment="Top" Margin="10,0,0,0"
+                                            Content="Elegir archivo .conf..." Click="RevisarConf" />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeArchivoVpn" Text="{Binding ArchivoTitulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ArchivoDetalle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <StackPanel Margin="34,2,0,0" Spacing="2" IsVisible="{Binding HayErrores}">
+                                    <TextBlock Text="Errores (WireGuard no aceptará el archivo así):" Foreground="#800000" FontWeight="Bold" TextWrapping="Wrap" />
+                                    <ItemsControl x:Name="ListaDeErroresVpn" ItemsSource="{Binding Errores}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Foreground="#800000" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                                <ItemsControl x:Name="ListaDeHallazgosVpn" ItemsSource="{Binding Hallazgos}" IsVisible="{Binding HayHallazgos}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FilaDeHallazgoVista">
+                                            <StackPanel Margin="34,2,0,4" Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                    <TextBlock Text="{Binding Gravedad}" FontWeight="Bold" />
+                                                    <TextBlock Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Margin="16,0,0,0" Text="{Binding Detalle}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="16,0,0,0" Text="{Binding Recomendacion, StringFormat='Qué hacer: {0}'}" TextWrapping="Wrap" Foreground="#404040" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Qué hay que saber">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="Nexo es solo el cliente: para usar una VPN hace falta un proveedor (hay algunos con plan gratuito que entregan un archivo .conf de WireGuard). Una VPN no te hace anónimo: cambia en quién confías, porque el servidor de la VPN ve todo lo que pasa por ella. Por ahora esta pestaña solo lee: mira si WireGuard está instalado y qué túneles hay, y revisa archivos .conf con las mismas reglas que WireGuard (sin mostrar nunca tu clave privada). Conectar y desconectar desde Nexo llegará más adelante; mientras tanto se hace desde el propio WireGuard." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </classic:ClassicWindow>

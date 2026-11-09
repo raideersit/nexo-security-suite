@@ -26,6 +26,7 @@ namespace Nexo.Ui.Desktop
         private const int PestanaSeguridad = 7;
         private const int PestanaContrasenas = 8;
         private const int PestanaEnlaces = 9;
+        private const int PestanaVpn = 10;
 
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
@@ -53,7 +54,7 @@ namespace Nexo.Ui.Desktop
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
-                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null)
+                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null, VpnModelo? vpn = null)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -85,6 +86,9 @@ namespace Nexo.Ui.Desktop
             // Sin modelo dado (previsualizador, pruebas antiguas): el real, que no lee nada hasta entrar en la pestaña ni descarga nada sin su boton.
             Enlaces = enlaces ?? EnlacesModelo.PorOmision();
             PanelDeEnlaces.DataContext = Enlaces;
+            // Solo lectura (servicios de Windows y archivos que elige el usuario); cruza el servidor con las listas que ya tenga «Enlaces».
+            Vpn = vpn ?? VpnModelo.PorOmision(() => Enlaces.ListasActuales, Enlaces.Rastro);
+            PanelDeVpn.DataContext = Vpn;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, e) =>
             {
@@ -101,6 +105,8 @@ namespace Nexo.Ui.Desktop
                 else if (Pestanas.SelectedIndex == PestanaContrasenas) Contrasenas.Refrescar();
                 // Solo lee las listas guardadas en el disco; descargarlas exige su boton.
                 else if (Pestanas.SelectedIndex == PestanaEnlaces) await Enlaces.CargarSiHaceFaltaAsync();
+                // Mirar el estado de WireGuard es solo lectura y rapido: se hace al entrar.
+                else if (Pestanas.SelectedIndex == PestanaVpn) await Vpn.ActualizarAsync();
                 // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
@@ -184,6 +190,31 @@ namespace Nexo.Ui.Desktop
         public SeguridadModelo Seguridad { get; }
         public ContrasenasModelo Contrasenas { get; }
         public EnlacesModelo Enlaces { get; }
+        public VpnModelo Vpn { get; }
+
+        // ------------------------------------------------------------ VPN (solo lectura en este paso)
+        private async void ActualizarVpn(object? sender, RoutedEventArgs e) => await Vpn.ActualizarAsync();
+
+        private async void RevisarConf(object? sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<IStorageFile> elegidos = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Elige el archivo de WireGuard (.conf)",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("Configuración de WireGuard") { Patterns = new[] { "*.conf" } }, FilePickerFileTypes.All }
+            });
+            IStorageFile? archivo = elegidos.FirstOrDefault();
+            if (archivo is null) return;
+            try
+            {
+                await using System.IO.Stream s = await archivo.OpenReadAsync();
+                await Vpn.RevisarArchivoAsync(s, archivo.Name);
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                await DialogoEnEspanol.InformarAsync(this, "No se pudo abrir el archivo (" + ex.GetType().Name + ").", "Revisar un archivo de VPN", IconoDeDialogo.Advertencia);
+            }
+        }
 
         // ------------------------------------------------------------ Enlaces (anti-phishing; corre aqui, con el usuario, y nunca abre el enlace)
         private async void RevisarEnlaces(object? sender, RoutedEventArgs e) => await Enlaces.RevisarAsync();
