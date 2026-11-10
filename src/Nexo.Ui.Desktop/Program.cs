@@ -20,6 +20,7 @@ namespace Nexo.Ui.Desktop
             App.Seguridad = Fuentes.SeguridadPorDefecto(pipe);
             App.Rastro = Fuentes.RastroPorDefecto(pipe);
             App.Vpn = Fuentes.VpnPorDefecto(pipe);
+            App.Copia = Fuentes.CopiaPorDefecto(pipe);
             App.Contrasenas = Argumento(args, "--boveda");
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }

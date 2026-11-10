@@ -23,6 +23,9 @@ namespace Nexo.Reports.Model
         public const string ProteccionRansomwareCambiada = "proteccion-ransomware-cambiada";
         public const string SenuelosPuestos = "senuelos-puestos";
         public const string SenueloTocado = "senuelo-tocado";
+        public const string CopiaHecha = "copia-hecha";
+        public const string CopiaSospechosa = "copia-sospechosa";
+        public const string CopiaFallida = "copia-fallida";
 
         // --- Modulo de privacidad (Prompt 2) ---
         public const string ConexionVpn = "conexion-vpn";

@@ -1129,6 +1129,63 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Copias">
+                <ScrollViewer x:Name="PanelDeCopias" x:DataType="local:CopiaModelo" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="10" Spacing="10">
+
+                        <HeaderedContentControl Header="Copia de seguridad">
+                            <StackPanel Spacing="4">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Top"
+                                            Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top" Margin="10,0,0,0">
+                                        <Button x:Name="BotonCopiarAhora" Content="Copiar ahora" IsEnabled="{Binding PuedeCopiar}" Click="CopiarAhora" />
+                                        <Button Content="Actualizar" Click="ActualizarCopias" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock x:Name="TituloDeCopias" Text="{Binding Titulo}" FontWeight="Bold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Explicacion}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="{Binding Resumen}" TextWrapping="Wrap" Margin="34,4,0,0" Foreground="#404040" />
+                                <TextBlock Text="{Binding Aviso}" TextWrapping="Wrap" Margin="34,0,0,0" Foreground="#800000"
+                                           IsVisible="{Binding Aviso, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock x:Name="MensajeDeCopias" Text="{Binding Mensaje}" TextWrapping="Wrap" Margin="34,0,0,0" Foreground="#800000"
+                                           IsVisible="{Binding Mensaje, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Versiones guardadas">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,8,0,0" HorizontalAlignment="Right">
+                                    <Button x:Name="BotonDescartarSospecha" Content="Descartar la sospecha..." IsEnabled="{Binding PuedeDescartar}" Click="DescartarSospecha" />
+                                    <Button x:Name="BotonVerificarCopias" Content="Comprobar copias" IsEnabled="{Binding PuedeVerificar}" Click="VerificarCopias" />
+                                    <Button x:Name="BotonRestaurarVersion" Content="Restaurar a una carpeta nueva..." IsEnabled="{Binding PuedeRestaurar}" Click="RestaurarVersion" />
+                                </StackPanel>
+                                <Border Background="White" BorderBrush="#808080" BorderThickness="1" MinHeight="90">
+                                    <ListBox x:Name="ListaDeVersiones" ItemsSource="{Binding Versiones}" SelectedItem="{Binding FilaSeleccionada}"
+                                             BorderThickness="0" Background="White" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FilaDeVersion">
+                                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,1">
+                                                    <Border Width="10" Height="10" VerticalAlignment="Center" Background="{Binding Color}" BorderBrush="Black" BorderThickness="1" />
+                                                    <TextBlock Text="{Binding Texto}" FontWeight="Bold" />
+                                                    <TextBlock Text="{Binding Detalle}" Foreground="#404040" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </DockPanel>
+                        </HeaderedContentControl>
+
+                        <HeaderedContentControl Header="Qué hay que saber">
+                            <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                       Text="Nexo guarda varias versiones de tus carpetas (Documentos, Escritorio e Imágenes) en un disco que tú eliges; un archivo que no cambió no se copia otra vez. Restaurar siempre va a una carpeta nueva o vacía: nunca pisa nada, y cada archivo se comprueba antes de entregarlo. Si de golpe cambian muchos archivos (lo que haría un ransomware) la copia se marca como sospechosa y Nexo NO borra las versiones viejas. Limitaciones: la copia no está cifrada (quien lea el disco lee tus archivos) y no protege el disco de un ransomware que pueda escribir en él: lo ideal es un disco externo que solo se conecta para copiar. Se activa en el archivo appsettings.json del servicio (Nexo:Copia)." />
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </classic:ClassicWindow>

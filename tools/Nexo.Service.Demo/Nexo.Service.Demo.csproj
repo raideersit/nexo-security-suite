@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nexo.Service\Nexo.Service.csproj" />
+    <ProjectReference Include="..\..\src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj" />
   </ItemGroup>
 
 </Project>

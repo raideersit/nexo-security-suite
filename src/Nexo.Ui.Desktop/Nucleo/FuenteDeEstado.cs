@@ -144,6 +144,15 @@ namespace Nexo.Ui.Desktop.Nucleo
 #endif
         }
 
+        public static IServicioDeCopia CopiaPorDefecto(string pipe)
+        {
+#if WINDOWS
+            return new ServicioDeCopiaPorPipe(pipe, Espera);
+#else
+            return new ServicioDeCopiaNoDisponible(SinServicio);
+#endif
+        }
+
         public static IServicioDeDisco DiscoPorDefecto(string pipe)
         {
 #if WINDOWS

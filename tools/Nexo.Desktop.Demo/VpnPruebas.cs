@@ -149,7 +149,7 @@ namespace Nexo.Desktop.Demo
             Dispatcher.UIThread.RunJobs();
             Esperar(m.ActualizarAsync());
             Dispatcher.UIThread.RunJobs();
-            Check(w.Pestanas.ItemCount == 11 && f.Llamadas >= 1 && w.TituloDeVpn.Text == "WireGuard no está instalado", "pestaña VPN: al entrar lee el estado (solo lectura)", w.TituloDeVpn.Text);
+            Check(w.Pestanas.ItemCount == 12 && f.Llamadas >= 1 && w.TituloDeVpn.Text == "WireGuard no está instalado", "pestaña VPN: al entrar lee el estado (solo lectura)", w.TituloDeVpn.Text);
             Check(w.BotonRevisarConf.IsEnabled && w.BotonActualizarVpn.IsEnabled && w.TituloDeArchivoVpn.Text == "Ningún archivo revisado", "los dos botones y el título del archivo");
             Esperar(m.RevisarArchivoAsync(Flujo(ConfVpn(extra: "SaveConfig = true\n")), "malo.conf"));
             Dispatcher.UIThread.RunJobs();

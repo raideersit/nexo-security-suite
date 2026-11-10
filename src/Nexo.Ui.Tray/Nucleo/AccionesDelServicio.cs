@@ -90,6 +90,23 @@ namespace Nexo.Ui.Tray.Nucleo
                 e.TryGetProperty("token", out JsonElement t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null, Array.Empty<string>());
         }
 
+        /// <summary>El globo cuando aparece una copia sospechosa. Sin interfaz: se prueba en Nexo.Tray.Demo.</summary>
+        public static (string Titulo, string Texto) AvisoDeCopia(int sospechosas)
+            => ("Nexo: copia de seguridad sospechosa",
+                (sospechosas == 1 ? "Entre dos copias cambiaron muchísimos archivos de golpe." : sospechosas + " copias tienen cambios masivos.")
+                + " Podría ser un cifrado. Nexo no borra las versiones buenas. Pulsa para saber qué hacer.");
+
+        /// <summary>Qué decirle a la persona (y qué NO hacer) cuando hay copias sospechosas guardadas.</summary>
+        public static string TextoDeCopiaSospechosa(int sospechosas)
+            => (sospechosas == 1 ? "Una de tus copias de seguridad guardó muchísimos archivos cambiados de golpe respecto a la anterior."
+                                 : sospechosas + " de tus copias de seguridad guardaron muchísimos archivos cambiados de golpe.")
+               + "\n\nPuede ser algo normal (una limpieza grande, mover carpetas) o un programa cifrando tus archivos.\n\n"
+               + "Qué hacer:\n"
+               + "  • Si no esperabas ese cambio: desconecta el equipo de la red y el disco de copias, y busca qué programa está en marcha.\n"
+               + "  • No borres ni sobrescribas nada del disco de copias: Nexo conserva esas copias y la última buena anterior.\n"
+               + "  • Abre la ventana de Nexo, pestaña «Copias», y restaura la última copia buena a una carpeta nueva.\n\n"
+               + "Nexo no puede saber cuál fue la causa: solo ve que cambiaron muchos archivos.";
+
         /// <summary>El texto del aviso de señuelos tocados, para la bandeja. Sin interfaz: se prueba en Nexo.Tray.Demo.</summary>
         public static (string Titulo, string Texto) AvisoDeSenuelos(IReadOnlyList<SenueloTocadoVista> nuevos, bool rafaga)
         {

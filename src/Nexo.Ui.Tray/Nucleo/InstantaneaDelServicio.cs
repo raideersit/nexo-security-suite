@@ -37,7 +37,9 @@ namespace Nexo.Ui.Tray.Nucleo
         long DesbordesDeFuente = 0,
         IReadOnlyList<SenueloTocadoVista>? SenuelosTocados = null,
         bool SenuelosEnRafaga = false,
-        string? SenuelosError = null)
+        string? SenuelosError = null,
+        int CopiaSospechosas = 0,
+        bool CopiaFallida = false)
     {
         /// <summary>Señuelos tocados según el servicio (vacío si están apagados o si no se pudo saber: ver <see cref="SenuelosError"/>).</summary>
         public IReadOnlyList<SenueloTocadoVista> Tocados => SenuelosTocados ?? Array.Empty<SenueloTocadoVista>();

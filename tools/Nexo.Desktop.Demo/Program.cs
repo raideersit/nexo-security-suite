@@ -43,6 +43,7 @@ namespace Nexo.Desktop.Demo
             ProbarLimpieza();
             ProbarTiempoReal();
             ProbarDisco();
+            ProbarCopiaEnLaVentana();
             ProbarSeguridad();
             ProbarSeguridadFallosConocidos();
             ProbarActivarCarpetasProtegidas();
@@ -1297,7 +1298,7 @@ namespace Nexo.Desktop.Demo
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
                 Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
-                Check(w.Pestanas.ItemCount == 11 && w.Pestanas.SelectedIndex == 0, "11 pestañas y se abre en «Estado»");
+                Check(w.Pestanas.ItemCount == 12 && w.Pestanas.SelectedIndex == 0, "12 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),
                     "los 5 botones de la barra tienen icono grande (24) y pequeño (16)");

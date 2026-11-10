@@ -28,6 +28,7 @@ namespace Nexo.Ui.Tray.Nucleo
         private readonly HashSet<string> _notificadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _revisadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _senuelosAvisados = new HashSet<string>(StringComparer.Ordinal);
+        private int _copiaAvisadas;      // cuántas copias sospechosas se avisaron ya con globo
         private InstantaneaDelServicio _ultima = InstantaneaDelServicio.SinConexion("sin consultar todavia");
 
         public EstadoDeBandeja Estado { get; private set; } = EstadoDeBandeja.Desconectado;
@@ -43,6 +44,8 @@ namespace Nexo.Ui.Tray.Nucleo
         /// marcan como revisados: la bandeja sigue en rojo hasta que se reponen, porque pueden ser la señal de un cifrado en marcha.
         /// </summary>
         public IReadOnlyList<SenueloTocadoVista> SenuelosNuevos { get; private set; } = Array.Empty<SenueloTocadoVista>();
+        /// <summary>Hay una copia sospechosa guardada que todavía no se avisó con globo (una sola vez por cada una nueva).</summary>
+        public bool CopiaSospechosaNueva { get; private set; }
         public InstantaneaDelServicio Ultima => _ultima;
 
         /// <summary>
@@ -72,6 +75,13 @@ namespace Nexo.Ui.Tray.Nucleo
                     if (_senuelosAvisados.Add(t.Clave)) senuelos.Add(t);
             }
             SenuelosNuevos = senuelos;
+            // Copia de seguridad: si no se pudo hablar con el servicio se conserva lo avisado (no se repite el globo al volver).
+            CopiaSospechosaNueva = false;
+            if (i.Conectado)
+            {
+                CopiaSospechosaNueva = i.CopiaSospechosas > _copiaAvisadas;
+                _copiaAvisadas = i.CopiaSospechosas;
+            }
 
             Calcular();
             return nuevas;
@@ -102,6 +112,12 @@ namespace Nexo.Ui.Tray.Nucleo
                 Texto = Recortar(i.SenuelosEnRafaga ? "Nexo: POSIBLE RANSOMWARE (" + n + " señuelos tocados)"
                                : n == 1 ? "Nexo: señuelo contra ransomware tocado" : "Nexo: " + n + " señuelos contra ransomware tocados");
             }
+            else if (i.CopiaSospechosas > 0)
+            {
+                // Muchos archivos cambiaron de golpe entre dos copias: puede ser un cifrado. Nexo conserva las versiones buenas.
+                Estado = EstadoDeBandeja.Alerta;
+                Texto = Recortar(i.CopiaSospechosas == 1 ? "Nexo: copia de seguridad sospechosa" : "Nexo: " + i.CopiaSospechosas + " copias sospechosas");
+            }
             else if (sinRevisar > 0)
             {
                 Estado = EstadoDeBandeja.Alerta;
@@ -124,6 +140,11 @@ namespace Nexo.Ui.Tray.Nucleo
                 int n = i.CarpetasPorRevisar.Count;
                 Texto = Recortar(n == 0 ? "Nexo: cobertura incompleta"
                                         : "Nexo: cobertura incompleta (" + n + (n == 1 ? " carpeta" : " carpetas") + " por revisar)");
+            }
+            else if (i.CopiaFallida)
+            {
+                Estado = EstadoDeBandeja.Atencion;
+                Texto = Recortar("Nexo: la última copia de seguridad falló");
             }
             else if (i.SenuelosError is not null)
             {

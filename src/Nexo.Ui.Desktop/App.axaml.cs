@@ -27,6 +27,8 @@ namespace Nexo.Ui.Desktop
 
         internal static IServicioDeVpn? Vpn { get; set; }
 
+        internal static IServicioDeCopia? Copia { get; set; }
+
         /// <summary>Por donde la ventana avisa al servicio de lo que hizo (para el vault de reportes). Sin servicio, no deja rastro.</summary>
         internal static IRastroDeVentana? Rastro { get; set; }
 
@@ -59,7 +61,8 @@ namespace Nexo.Ui.Desktop
                     contrasenas,
                     enlaces, vpn,
                     // El autocompletado del navegador atiende la bóveda de ESTA ventana (§2ao).
-                    AutocompletadoModelo.PorOmision(contrasenas, rutaDeLaBoveda, a => Dispatcher.UIThread.Post(a)));
+                    AutocompletadoModelo.PorOmision(contrasenas, rutaDeLaBoveda, a => Dispatcher.UIThread.Post(a)),
+                    new CopiaModelo(Copia ?? new ServicioDeCopiaNoDisponible(sinFuente)));
             }
             base.OnFrameworkInitializationCompleted();
         }

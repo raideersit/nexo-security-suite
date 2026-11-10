@@ -27,6 +27,7 @@ namespace Nexo.Ui.Desktop
         private const int PestanaContrasenas = 8;
         private const int PestanaEnlaces = 9;
         private const int PestanaVpn = 10;
+        private const int PestanaCopias = 11;
 
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
@@ -56,7 +57,7 @@ namespace Nexo.Ui.Desktop
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
                           DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null, VpnModelo? vpn = null,
-                          AutocompletadoModelo? autocompletado = null)
+                          AutocompletadoModelo? autocompletado = null, CopiaModelo? copias = null)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -107,6 +108,9 @@ namespace Nexo.Ui.Desktop
             // Solo lectura (servicios de Windows y archivos que elige el usuario); cruza el servidor con las listas que ya tenga «Enlaces».
             Vpn = vpn ?? VpnModelo.PorOmision(() => Enlaces.ListasActuales, Enlaces.Rastro);
             PanelDeVpn.DataContext = Vpn;
+            // La copia versionada: el servicio copia; esta ventana lista, comprueba y restaura (con los permisos de la persona).
+            Copias = copias ?? new CopiaModelo(new ServicioDeCopiaNoDisponible("la ventana se abrió sin conexión configurada"));
+            PanelDeCopias.DataContext = Copias;
             // La lista de cuarentena se lee al abrir, al entrar en su pestaña, con «Actualizar» y tras cada accion.
             Pestanas.SelectionChanged += async (_, e) =>
             {
@@ -125,6 +129,8 @@ namespace Nexo.Ui.Desktop
                 else if (Pestanas.SelectedIndex == PestanaEnlaces) await Enlaces.CargarSiHaceFaltaAsync();
                 // Mirar el estado de WireGuard es solo lectura y rapido: se hace al entrar.
                 else if (Pestanas.SelectedIndex == PestanaVpn) await Vpn.ActualizarAsync();
+                // Consultar el estado y leer las listas del disco de copias es solo lectura.
+                else if (Pestanas.SelectedIndex == PestanaCopias) await Copias.ActualizarAsync();
                 // El catalogo se lee una vez; la vista previa solo cuando el usuario la pide (recorre el perfil).
                 else if (Pestanas.SelectedIndex == PestanaLimpieza) await Limpieza.CargarReglasAsync();
             };
@@ -219,6 +225,7 @@ namespace Nexo.Ui.Desktop
         public AutocompletadoModelo? Autocompletado { get; }
         public EnlacesModelo Enlaces { get; }
         public VpnModelo Vpn { get; }
+        public CopiaModelo Copias { get; }
 
         // ------------------------------------------------------------ VPN (solo lectura en este paso)
         private async void ActualizarVpn(object? sender, RoutedEventArgs e) => await Vpn.ActualizarAsync();
@@ -447,6 +454,40 @@ namespace Nexo.Ui.Desktop
             => await DialogoEnEspanol.InformarAsync(this,
                 "Nexo Security Suite\n\nSuite de higiene y monitoreo de seguridad. Complementa a Microsoft Defender; no lo reemplaza.\n\nLicencia MIT. Sin garantía de ningún tipo.",
                 "Acerca de Nexo");
+
+        // ------------------------------------------------------------ Copias
+        private async void ActualizarCopias(object? sender, RoutedEventArgs e) => await Copias.ActualizarAsync();
+
+        private async void CopiarAhora(object? sender, RoutedEventArgs e) => await Copias.HacerAhoraAsync();
+
+        private async void VerificarCopias(object? sender, RoutedEventArgs e) => await Copias.VerificarAsync();
+
+        private async void DescartarSospecha(object? sender, RoutedEventArgs e)
+        {
+            if (Copias.FilaSeleccionada is not { Sospechosa: true } fila) return;
+            string fecha = fila.Texto.Replace("  ¡SOSPECHOSA!", "");
+            if (!await DialogoEnEspanol.PreguntarAsync(this,
+                    "Vas a dar por buena la copia del " + fecha + ", que Nexo marcó como sospechosa porque habían cambiado muchísimos archivos de golpe.\n\n" +
+                    "Hazlo solo si ya comprobaste que fue un cambio normal (por ejemplo, una limpieza grande) y NO un cifrado: restáurala a una carpeta nueva y mira si los archivos se abren.\n\n" +
+                    "Consecuencia: Nexo dejará de protegerla, y con el tiempo podrá borrarla junto con la última copia buena anterior. No se toca el contenido de las copias, solo la marca.\n\n¿Descartar la sospecha?",
+                    "Descartar la sospecha", IconoDeDialogo.Pregunta)) return;
+            await Copias.DescartarSospechaAsync();
+        }
+
+        private async void RestaurarVersion(object? sender, RoutedEventArgs e)
+        {
+            if (Copias.FilaSeleccionada is not FilaDeVersion fila) return;
+            string fecha = fila.Texto.Replace("  ¡SOSPECHOSA!", "");
+            IReadOnlyList<IStorageFolder> elegidas = await StorageProvider.OpenFolderPickerAsync(
+                new FolderPickerOpenOptions { Title = "Elige una carpeta VACÍA (o crea una nueva) donde dejar la copia del " + fecha, AllowMultiple = false });
+            string? ruta = elegidas.FirstOrDefault()?.TryGetLocalPath();
+            if (ruta is null) return;
+            if (!await DialogoEnEspanol.PreguntarAsync(this,
+                    "Se van a restaurar los archivos de la copia del " + fecha + " en:\n\n" + ruta + "\n\nNexo no pisa nada: si la carpeta ya tiene cosas, se negará. Tus originales no se tocan." +
+                    (fila.Sospechosa ? "\n\nOJO: esta copia está marcada como SOSPECHOSA (muchos archivos habían cambiado de golpe): puede traer archivos ya cifrados." : "") + "\n\n¿Restaurar?",
+                    "Restaurar una copia", IconoDeDialogo.Pregunta)) return;
+            await Copias.RestaurarAsync(ruta);
+        }
 
         // ------------------------------------------------------------ Escaneo
         private async void IniciarEscaneo(object? sender, RoutedEventArgs e) => await Escaneo.IniciarAsync();

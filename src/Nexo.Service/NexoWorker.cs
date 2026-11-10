@@ -177,6 +177,8 @@ namespace Nexo.Service
             modulos.Add(new ModuloCarpetasProtegidas(new LectorDeEstadoDeCfaWindows(), new EjecutorDeCfaWindows(), reportes, politica));
             // Señuelos contra ransomware (apagados por omisión; ver CrearSenuelos).
             modulos.Add(CrearSenuelos(reportes, politica));
+            // Copia versionada (apagada por omisión; ver CrearCopia).
+            modulos.Add(CrearCopia(reportes));
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }
@@ -203,6 +205,25 @@ namespace Nexo.Service
             var vigilante = new VigilanteDeSenuelos(_servicios.GetService<IAccesoASenuelos>() ?? new AccesoASenuelosWindows(ocultos),
                                                     new AlmacenDeSenuelosJson(registro), reportes);
             var modulo = new ModuloSenuelos(vigilante, () => CarpetasDeSenuelos(fijas), cada, politica);
+            modulo.Iniciar();
+            return modulo;
+        }
+
+        /// <summary>
+        /// Copia versionada: APAGADA por omisión. Se activa en appsettings.json con Nexo:Copia:Activo y Nexo:Copia:Destino (ruta local
+        /// con letra de unidad, p. ej. «E:\»). Nexo:Copia:Versiones (7), Nexo:Copia:CadaHoras (0 = solo a mano) y Nexo:Copia:Carpetas
+        /// (separadas por «;»; si falta, Documentos, Escritorio e Imágenes de cada perfil).
+        /// </summary>
+        private IModuloDelServicio CrearCopia(IReportWriter reportes)
+        {
+            if (!bool.TryParse(_config["Nexo:Copia:Activo"], out bool activo) || !activo) return new ModuloCopiaApagado();
+            string destino = _config["Nexo:Copia:Destino"] ?? "";
+            if (!CarpetasParaSenuelos.EsRutaLocal(destino)) return new ModuloCopiaApagado(); // sin destino válido no se copia a ningún sitio
+            int versiones = int.TryParse(_config["Nexo:Copia:Versiones"], out int v) && v >= 1 ? v : 7;
+            TimeSpan? cada = double.TryParse(_config["Nexo:Copia:CadaHoras"], System.Globalization.NumberStyles.Float,
+                                             System.Globalization.CultureInfo.InvariantCulture, out double h) && h > 0 ? TimeSpan.FromHours(h) : null;
+            string? fijas = _config["Nexo:Copia:Carpetas"] is { Length: > 0 } f ? f : null;
+            var modulo = new ModuloCopia(() => CarpetasDeSenuelos(fijas), destino, versiones, cada, reportes);
             modulo.Iniciar();
             return modulo;
         }

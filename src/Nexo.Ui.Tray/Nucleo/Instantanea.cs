@@ -27,6 +27,8 @@ namespace Nexo.Ui.Tray.Nucleo
 
                 // Los señuelos son aparte: un servicio antiguo (sin el método) o un fallo NO tumba el resto, pero se anota.
                 (IReadOnlyList<SenueloTocadoVista>? tocados, bool rafaga, string? errorSenuelos) = await SenuelosAsync(c, ct).ConfigureAwait(false);
+                // La copia de seguridad es opcional: un servicio sin ella o apagada no cambia nada (no hay copia que vigilar).
+                (int copiaSospechosas, bool copiaFallida) = await CopiaAsync(c, ct).ConfigureAwait(false);
 
                 JsonElement e = estado.Resultado!.Value;
                 var lista = new List<DeteccionVista>();
@@ -52,13 +54,45 @@ namespace Nexo.Ui.Tray.Nucleo
                     DesbordesDeFuente: e.TryGetProperty("desbordes_de_fuente", out JsonElement de) ? de.GetInt64() : 0,
                     SenuelosTocados: tocados,
                     SenuelosEnRafaga: rafaga,
-                    SenuelosError: errorSenuelos);
+                    SenuelosError: errorSenuelos,
+                    CopiaSospechosas: copiaSospechosas,
+                    CopiaFallida: copiaFallida);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
                                        || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
             {
                 // Sin servicio no se aparenta nada: la bandeja lo muestra como desconectado.
                 return InstantaneaDelServicio.SinConexion(ex is TimeoutException ? "el servicio no esta en marcha" : ex.GetType().Name);
+            }
+        }
+
+        private static async Task<(int, bool)> CopiaAsync(ClienteDePipe c, CancellationToken ct)
+        {
+            Respuesta r = await c.LlamarAsync("copia.estado", ct: ct).ConfigureAwait(false);
+            return r.Exito && r.Resultado is { } e ? LeerCopia(e) : (0, false);
+        }
+
+        /// <summary>
+        /// De «copia.estado»: cuántas copias sospechosas hay guardadas (o 1 si la última lo es) y si la última copia falló. Apagada, sin
+        /// datos o con otra forma: (0, false); la bandeja no afirma nada de una copia que no puede leer.
+        /// </summary>
+        public static (int Sospechosas, bool Fallida) LeerCopia(JsonElement e)
+        {
+            try
+            {
+                if (!e.GetProperty("activo").GetBoolean()) return (0, false);
+                int guardadas = e.TryGetProperty("sospechosas_guardadas", out JsonElement g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : 0;
+                bool ultimaSospechosa = false, fallida = false;
+                if (e.TryGetProperty("ultimo", out JsonElement u) && u.ValueKind == JsonValueKind.Object)
+                {
+                    ultimaSospechosa = u.GetProperty("sospechosa").GetBoolean();
+                    fallida = !u.GetProperty("correcto").GetBoolean();
+                }
+                return (Math.Max(guardadas, ultimaSospechosa ? 1 : 0), fallida);
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or FormatException)
+            {
+                return (0, false);
             }
         }
 

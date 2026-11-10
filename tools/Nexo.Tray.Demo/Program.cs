@@ -36,6 +36,7 @@ namespace Nexo.Tray.Demo
                 ProbarResumenDeAcciones();
                 await ProbarExitoQueDevuelveElServicio().ConfigureAwait(false);
                 await ProbarSenuelosEnLaBandeja().ConfigureAwait(false);
+                await ProbarCopiaEnLaBandeja().ConfigureAwait(false);
                 ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);
             }

@@ -27,6 +27,8 @@ namespace Nexo.Ui.Tray
         private readonly ToolStripMenuItem _detecciones = new ToolStripMenuItem();
         private readonly ToolStripMenuItem _revisar = new ToolStripMenuItem();
         private readonly ToolStripMenuItem _senuelos = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem _copia = new ToolStripMenuItem();
+        private bool _globoDeCopia;      // el ultimo globo era de la copia: pulsarlo explica que hacer
         private bool _globoDeSenuelos;   // el ultimo globo era de señuelos: pulsarlo abre los señuelos, no las detecciones
         private bool _revisando;    // hay una revision en marcha: no se lanza otra
         private readonly Dictionary<EstadoDeBandeja, Icon> _iconos;
@@ -49,16 +51,22 @@ namespace Nexo.Ui.Tray
             _detecciones.Click += async (_, _) => await RevisarDeteccionesAsync();
             _revisar.Click += async (_, _) => await RevisarLoNoVistoAsync();
             _senuelos.Click += async (_, _) => await VerSenuelosAsync();
+            _copia.Click += (_, _) => VerCopiaSospechosa();
             var limpieza = new ToolStripMenuItem("Limpiar archivos basura…");
             limpieza.Click += async (_, _) => await LimpiarAsync();
             var salir = new ToolStripMenuItem("Salir de la bandeja");
             salir.Click += (_, _) => { _icono!.Visible = false; Application.ExitThread(); };
 
             var menu = new ContextMenuStrip();
-            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _senuelos, _detecciones, _revisar, limpieza, new ToolStripSeparator(), salir });
+            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _senuelos, _copia, _detecciones, _revisar, limpieza, new ToolStripSeparator(), salir });
 
             _icono = new NotifyIcon { Icon = _iconos[EstadoDeBandeja.Desconectado], Text = _modelo.Texto, ContextMenuStrip = menu, Visible = true };
-            _icono.BalloonTipClicked += async (_, _) => { if (_globoDeSenuelos) await VerSenuelosAsync(); else await RevisarDeteccionesAsync(); };
+            _icono.BalloonTipClicked += async (_, _) =>
+            {
+                if (_globoDeSenuelos) await VerSenuelosAsync();
+                else if (_globoDeCopia) VerCopiaSospechosa();
+                else await RevisarDeteccionesAsync();
+            };
             _icono.DoubleClick += async (_, _) => await RevisarDeteccionesAsync();
 
             _reloj = new System.Windows.Forms.Timer { Interval = (int)Sondeo.TotalMilliseconds };
@@ -79,6 +87,7 @@ namespace Nexo.Ui.Tray
                 foreach (DeteccionVista d in _modelo.Actualizar(i))
                 {
                     _globoDeSenuelos = false;
+                    _globoDeCopia = false;
                     _icono.ShowBalloonTip(8000, "Nexo: amenaza detectada",
                         d.Firma + " en " + System.IO.Path.GetFileName(d.Ruta) + ". Pulsa para revisarla.", ToolTipIcon.Warning);
                 }
@@ -87,7 +96,16 @@ namespace Nexo.Ui.Tray
                 {
                     (string titulo, string texto) = AccionesDelServicio.AvisoDeSenuelos(_modelo.SenuelosNuevos, i.SenuelosEnRafaga);
                     _globoDeSenuelos = true;
+                    _globoDeCopia = false;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Error);
+                }
+                // La copia sospechosa, solo si no hay un globo de señuelos (lo más urgente) en este mismo ciclo.
+                else if (_modelo.CopiaSospechosaNueva)
+                {
+                    (string titulo, string texto) = AccionesDelServicio.AvisoDeCopia(i.CopiaSospechosas);
+                    _globoDeSenuelos = false;
+                    _globoDeCopia = true;
+                    _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
                 }
                 Pintar();
             }
@@ -106,6 +124,9 @@ namespace Nexo.Ui.Tray
             _senuelos.Text = t == 0 ? "Señuelos contra ransomware: ninguno tocado" : "Señuelos tocados (" + t + ")…";
             _senuelos.Enabled = t > 0;
             _senuelos.Visible = _modelo.Ultima.Conectado && _modelo.Ultima.SenuelosError is null;
+            int cs = _modelo.Ultima.CopiaSospechosas;
+            _copia.Text = "Copia de seguridad sospechosa" + (cs > 1 ? " (" + cs + ")" : "") + "…";
+            _copia.Visible = _modelo.Ultima.Conectado && cs > 0;
             int r = _modelo.Ultima.CarpetasPorRevisar.Count;
             _revisar.Text = _revisando ? "Revisando lo que no se vio…" : r == 0 ? "Nada por revisar" : "Revisar lo que no se vio (" + r + (r == 1 ? " carpeta" : " carpetas") + ")…";
             _revisar.Enabled = r > 0 && !_revisando;
@@ -162,6 +183,14 @@ namespace Nexo.Ui.Tray
                                       ToolTipIcon.Info);
             }
             finally { _revisando = false; await ConsultarAsync(); }
+        }
+
+        /// <summary>Explica qué significa y qué hacer con una copia sospechosa. No cambia nada: restaurar se hace en la ventana de Nexo.</summary>
+        private void VerCopiaSospechosa()
+        {
+            int n = _modelo.Ultima.CopiaSospechosas;
+            if (n == 0) return;
+            Dialogo.Mostrar(AccionesDelServicio.TextoDeCopiaSospechosa(n), "Nexo — copia de seguridad sospechosa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         /// <summary>
