@@ -907,6 +907,29 @@
                             </Expander>
                         </StackPanel>
 
+                        <!-- Autocompletado en el navegador (§2ao). Se ve con la bóveda cerrada o abierta: emparejar no necesita abrirla. -->
+                        <HeaderedContentControl x:Name="PanelDeAutocompletado" Header="Autocompletar en el navegador" x:DataType="local:AutocompletadoModelo">
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="EstadoDeAutocompletado" Text="{Binding Estado}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="AvisoDeAutocompletado" Text="{Binding Aviso}" TextWrapping="Wrap" Foreground="#800000"
+                                           IsVisible="{Binding Aviso, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="Navegadores emparejados:" />
+                                <ListBox x:Name="ListaDeNavegadores" ItemsSource="{Binding Navegadores}" SelectedItem="{Binding Seleccionado, Mode=TwoWay}"
+                                         MaxHeight="100" Background="White" IsVisible="{Binding HayNavegadores}" />
+                                <TextBlock Text="{Binding SinNavegadores}" Foreground="#404040" IsVisible="{Binding !HayNavegadores}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="BotonEmparejarNavegador" Content="Emparejar un navegador..." IsEnabled="{Binding PuedeArmar}" Click="EmparejarNavegador" />
+                                    <Button x:Name="BotonCancelarEmparejamiento" Content="Cancelar" IsVisible="{Binding Armado}" Click="CancelarEmparejamiento" />
+                                    <Button x:Name="BotonOlvidarNavegador" Content="Quitar el seleccionado" IsEnabled="{Binding HaySeleccionado}" Click="OlvidarNavegador" />
+                                </StackPanel>
+                                <TextBlock x:Name="TextoDeEmparejamiento" Text="{Binding TextoDeEmparejamiento}" TextWrapping="Wrap" FontWeight="Bold" IsVisible="{Binding Armado}" />
+                                <TextBlock x:Name="UltimaActividadDeAutocompletado" Text="{Binding UltimaActividad}" TextWrapping="Wrap" Foreground="#404040"
+                                           IsVisible="{Binding UltimaActividad, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock TextWrapping="Wrap" Foreground="#404040"
+                                           Text="Para usarlo: 1) registra el puente una vez con «nexo-autocompletar --instalar» (solo tu usuario, sin administrador). 2) En Brave o Edge carga la extensión de Nexo (brave://extensions → Modo de desarrollador → Cargar descomprimida). 3) Pulsa aquí «Emparejar un navegador...» y, en el navegador, el botón de Nexo → «Emparejar con Nexo»; acepta solo si los dos códigos coinciden. Nexo rellena solo con la bóveda abierta, solo en el sitio de la entrada (nunca en una página parecida) y solo cuando tú lo pides en el navegador." />
+                            </StackPanel>
+                        </HeaderedContentControl>
+
                         <HeaderedContentControl Header="Qué hay que saber">
                             <TextBlock TextWrapping="Wrap" Foreground="#404040"
                                        Text="La bóveda es un archivo cifrado en tu perfil de usuario (AES-256-GCM, con la clave derivada de tu contraseña maestra con Argon2id). Todo ocurre en este equipo, con tu usuario: no pasa por el servicio de Nexo. Se bloquea sola tras 5 minutos sin usarla y al cerrar la ventana. «Comprobar filtraciones» consulta Pwned Passwords (gratuito, sin cuenta) y solo envía los 5 primeros caracteres del hash de cada contraseña, nunca la contraseña; que una contraseña no aparezca no significa que sea fuerte. Limitación: los textos en memoria de un programa .NET no se pueden borrar a voluntad, así que lo que sí se borra al bloquear es la clave de cifrado." />

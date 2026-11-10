@@ -109,6 +109,19 @@ namespace Nexo.Service.Demo
             }
             Check(w2.Eventos.Count == ModuloRastroDeVentana.Claves.Count && w2.Eventos.All(e => e.Titulo.EndsWith("(desde la ventana)") && e.Cuerpo!.Contains("nunca nombres")), "todos los eventos llevan el texto del servicio y el aviso de privacidad");
 
+            // Autocompletado: sin campos (ni navegador ni sitio), y «no solicitado» con gravedad Media.
+            var autos = w2.Eventos.Where(e => e.Tipo.StartsWith("autocompletado-")).ToList();
+            Check(autos.Count == 5 && autos.Single(e => e.Tipo == TipoEvento.AutocompletadoNoSolicitado).Severidad == Severidad.Media
+                  && autos.Where(e => e.Tipo != TipoEvento.AutocompletadoNoSolicitado).All(e => e.Severidad == Severidad.Info) && autos.All(e => e.Modulo == ModuloOrigen.Identidad),
+                "autocompletado: 5 eventos de Identidad; «un programa pidió emparejarse sin que lo pidieras» es Media, el resto Info");
+            foreach (string campo in new[] { "\"navegador\":\"brave-3f9a\"", "\"sitio\":\"github.com\"", "\"motivo\":\"manual\"" })
+            {
+                bool rechazado = false;
+                try { await m2.ManejarAsync(ModuloRastroDeVentana.Registrar, JsonDocument.Parse("{\"tipo\":\"autocompletado.rellenado\"," + campo + "}").RootElement, CancellationToken.None); }
+                catch (ErrorDeComando e) { rechazado = e.Codigo == CodigoDeError.ParametrosInvalidos; }
+                Check(rechazado, "autocompletado.rellenado con " + campo + ": se rechaza (no admite campos)");
+            }
+
             // Topes de frecuencia.
             var w3 = new EscritorFalso();
             var m3 = new ModuloRastroDeVentana(w3, () => ahora);

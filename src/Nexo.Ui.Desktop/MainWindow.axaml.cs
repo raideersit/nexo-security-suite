@@ -31,6 +31,7 @@ namespace Nexo.Ui.Desktop
         private readonly DispatcherTimer _temporizador;
         private readonly DispatcherTimer _temporizadorDeEscaneo;
         private readonly DispatcherTimer _temporizadorDeBoveda;
+        private readonly DispatcherTimer _temporizadorDeAutocompletado;
 #if WINDOWS
         private readonly Nexo.Ui.Desktop.Nucleo.VigilanteDeSesionWindows? _vigilante;
 #endif
@@ -54,7 +55,8 @@ namespace Nexo.Ui.Desktop
 
         public MainWindow(VentanaPrincipalModelo modelo, EscaneoModelo escaneo, CuarentenaModelo cuarentena, FirewallModelo firewall,
                           LimpiezaModelo limpieza, TiempoRealModelo tiempoReal,
-                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null, VpnModelo? vpn = null)
+                          DiscoModelo disco, SeguridadModelo seguridad, ContrasenasModelo contrasenas, EnlacesModelo? enlaces = null, VpnModelo? vpn = null,
+                          AutocompletadoModelo? autocompletado = null)
         {
             InitializeComponent();
             Iconos.Poner(BotonEscanear, "IconoEscanear");
@@ -83,6 +85,22 @@ namespace Nexo.Ui.Desktop
             // «Seguridad» NO revisa sola al entrar en la pestaña: la de aplicaciones consulta Internet (winget), asi que solo corre cuando el usuario lo pide.
             PanelDeSeguridad.DataContext = seguridad;
             PanelDeContrasenas.DataContext = contrasenas;
+            // El autocompletado del navegador (§2ao): sin modelo (previsualizador, pruebas antiguas) el panel no se enseña y no se abre ningún canal.
+            Autocompletado = autocompletado;
+            PanelDeAutocompletado.IsVisible = autocompletado is not null;
+            if (autocompletado is not null)
+            {
+                PanelDeAutocompletado.DataContext = autocompletado;
+                autocompletado.Preguntar = async (navegador, codigo, ct) =>
+                {
+                    // La pregunta tiene que verse: se trae la ventana al frente y se va a «Contraseñas» (donde se pidió emparejar).
+                    if (WindowState == Avalonia.Controls.WindowState.Minimized) WindowState = Avalonia.Controls.WindowState.Normal;
+                    Activate();
+                    Pestanas.SelectedIndex = PestanaContrasenas;
+                    return await DialogoEnEspanol.PreguntarAsync(this, AutocompletadoModelo.TextoDePregunta(navegador, codigo),
+                                                                 "Emparejar un navegador con Nexo", IconoDeDialogo.Pregunta, ct);
+                };
+            }
             // Sin modelo dado (previsualizador, pruebas antiguas): el real, que no lee nada hasta entrar en la pestaña ni descarga nada sin su boton.
             Enlaces = enlaces ?? EnlacesModelo.PorOmision();
             PanelDeEnlaces.DataContext = Enlaces;
@@ -128,6 +146,8 @@ namespace Nexo.Ui.Desktop
             // La boveda se bloquea sola tras un rato sin tocar la ventana: cada tecla o movimiento cuenta como actividad.
             _temporizadorDeBoveda = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             _temporizadorDeBoveda.Tick += (_, _) => Contrasenas.ComprobarInactividad();
+            _temporizadorDeAutocompletado = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _temporizadorDeAutocompletado.Tick += (_, _) => Autocompletado?.Tic();
             AddHandler(KeyDownEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(PointerPressedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(PointerMovedEvent, (_, _) => Contrasenas.Actividad(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -144,6 +164,9 @@ namespace Nexo.Ui.Desktop
 
             Opened += async (_, _) =>
             {
+                // El autocompletado NO depende del servicio: se arranca primero. (Hallazgo del paso 5 con Brave real: arrancaba detrás de las
+                // consultas al servicio y, sin servicio, el navegador recibía «Nexo no está abierto» durante varios segundos.)
+                System.Threading.Tasks.Task autocompletado = Autocompletado?.IniciarAsync() ?? System.Threading.Tasks.Task.CompletedTask;
                 await Modelo.ActualizarAsync();
                 await Cuarentena.ActualizarAsync();
                 await Firewall.ActualizarAsync();
@@ -151,6 +174,8 @@ namespace Nexo.Ui.Desktop
                 _temporizador.Start();
                 _temporizadorDeEscaneo.Start();
                 _temporizadorDeBoveda.Start();
+                _temporizadorDeAutocompletado.Start();
+                await autocompletado;
             };
 
             // Al cerrar: la boveda se bloquea (clave a ceros). Si Nexo dejo una contraseña en el portapapeles, se espera a borrarla ANTES de cerrar de verdad.
@@ -173,6 +198,8 @@ namespace Nexo.Ui.Desktop
                 _temporizador.Stop();
                 _temporizadorDeEscaneo.Stop();
                 _temporizadorDeBoveda.Stop();
+                _temporizadorDeAutocompletado.Stop();
+                if (Autocompletado is not null) _ = Autocompletado.DisposeAsync().AsTask();
             };
             KeyDown += (_, e) =>
             {
@@ -189,6 +216,7 @@ namespace Nexo.Ui.Desktop
         public DiscoModelo Disco { get; }
         public SeguridadModelo Seguridad { get; }
         public ContrasenasModelo Contrasenas { get; }
+        public AutocompletadoModelo? Autocompletado { get; }
         public EnlacesModelo Enlaces { get; }
         public VpnModelo Vpn { get; }
 
@@ -287,6 +315,9 @@ namespace Nexo.Ui.Desktop
         }
 
         private void BloquearBoveda(object? sender, RoutedEventArgs e) => Contrasenas.Bloquear();
+        private void EmparejarNavegador(object? sender, RoutedEventArgs e) => Autocompletado?.ArmarEmparejamiento();
+        private void CancelarEmparejamiento(object? sender, RoutedEventArgs e) => Autocompletado?.CancelarEmparejamiento();
+        private void OlvidarNavegador(object? sender, RoutedEventArgs e) => Autocompletado?.OlvidarSeleccionado();
         private void NuevaEntrada(object? sender, RoutedEventArgs e) => Contrasenas.NuevaEntrada();
         private void EditarEntrada(object? sender, RoutedEventArgs e) => Contrasenas.EditarSeleccionada();
         private void CancelarEntrada(object? sender, RoutedEventArgs e) => Contrasenas.CancelarEdicion();

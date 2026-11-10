@@ -25,7 +25,8 @@ namespace Nexo.Service
         public static readonly TimeSpan MinimoEntreIguales = TimeSpan.FromSeconds(2);
         public const int MaximoPorHora = 120;
 
-        private sealed record Definicion(ModuloOrigen Modulo, string Tipo, string Titulo, bool Revision, bool Bloqueo = false, bool Entradas = false, bool Auditoria = false);
+        private sealed record Definicion(ModuloOrigen Modulo, string Tipo, string Titulo, bool Revision, bool Bloqueo = false, bool Entradas = false, bool Auditoria = false,
+                                         Severidad Severidad = Severidad.Info);
 
         private static readonly Dictionary<string, Definicion> Catalogo = new(StringComparer.Ordinal)
         {
@@ -43,7 +44,13 @@ namespace Nexo.Service
             ["boveda.fallo_de_desbloqueo"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaFalloDeDesbloqueo, "Intento fallido de abrir la bóveda (desde la ventana)", Revision: false),
             ["boveda.copia_guardada"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaCopiaGuardada, "Copia de seguridad de la bóveda guardada (desde la ventana)", Revision: false),
             ["boveda.restaurada"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaRestaurada, "Bóveda restaurada desde una copia (desde la ventana)", Revision: false),
-            ["boveda.auditoria"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaAuditada, "Comprobación de filtraciones de la bóveda (desde la ventana)", Revision: false, Auditoria: true)
+            ["boveda.auditoria"] = new(ModuloOrigen.Identidad, TipoEvento.BovedaAuditada, "Comprobación de filtraciones de la bóveda (desde la ventana)", Revision: false, Auditoria: true),
+            // Autocompletado en el navegador (§2ao). Sin nombre del navegador ni sitio: solo que pasó.
+            ["autocompletado.emparejado"] = new(ModuloOrigen.Identidad, TipoEvento.AutocompletadoEmparejado, "Un navegador se emparejó con la bóveda para autocompletar (desde la ventana)", Revision: false),
+            ["autocompletado.rechazado"] = new(ModuloOrigen.Identidad, TipoEvento.AutocompletadoRechazado, "Se rechazó emparejar un navegador con la bóveda (desde la ventana)", Revision: false),
+            ["autocompletado.no_solicitado"] = new(ModuloOrigen.Identidad, TipoEvento.AutocompletadoNoSolicitado, "Un programa pidió emparejarse con la bóveda sin que lo pidieras en Nexo (desde la ventana)", Revision: false, Severidad: Severidad.Media),
+            ["autocompletado.olvidado"] = new(ModuloOrigen.Identidad, TipoEvento.AutocompletadoOlvidado, "Se quitó un navegador emparejado con la bóveda (desde la ventana)", Revision: false),
+            ["autocompletado.rellenado"] = new(ModuloOrigen.Identidad, TipoEvento.AutocompletadoRellenado, "La bóveda entregó una contraseña al navegador para rellenar (desde la ventana)", Revision: false)
         };
 
         public static readonly IReadOnlyList<string> Claves = new List<string>(Catalogo.Keys);
@@ -82,7 +89,7 @@ namespace Nexo.Service
             foreach (JsonProperty prop in o.EnumerateObject())
                 if (!permitidos.Contains(prop.Name)) throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "parametro no admitido: " + prop.Name);
 
-            Severidad sev = Severidad.Info;
+            Severidad sev = d.Severidad;
             var campos = new Dictionary<string, object?>(StringComparer.Ordinal) { ["origen"] = "ventana" };
             var cuerpo = new System.Text.StringBuilder();
 

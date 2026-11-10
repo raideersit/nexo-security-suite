@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Pruebas de rellenar.js</title>
+<style>input { width: 160px; height: 22px; } .oculto { display: none; } .invisible { visibility: hidden; } .transparente { opacity: 0; } .cero { width: 0; height: 0; border: 0; padding: 0; }</style>
+</head>
+<body>
+<div id="zona"></div>
+<pre id="resultados">SIN EJECUTAR</pre>
+<script src="rellenar.js"></script>
+<script>
+// Se sirve por https en 127.0.0.1 (rellenar.js se niega a rellenar fuera de https). Cada caso: HTML, datos, resultado esperado y valores esperados.
+const H = location.hostname;
+const D = (extra) => Object.assign({ usuario: 'ana', contrasena: 'clave-secreta', host: H }, extra || {});
+const casos = [
+  { n: 'login normal: usuario + contraseña', html: '<form><input id="u" type="text"><input id="p" type="password"></form>', d: D(), r: 'relleno', v: { u: 'ana', p: 'clave-secreta' } },
+  { n: 'usuario de tipo email', html: '<form><input id="u" type="email"><input id="p" type="password"></form>', d: D(), r: 'relleno', v: { u: 'ana', p: 'clave-secreta' } },
+  { n: 'input sin atributo type cuenta como texto', html: '<form><input id="u"><input id="p" type="password"></form>', d: D(), r: 'relleno', v: { u: 'ana', p: 'clave-secreta' } },
+  { n: 'sin campo de usuario: solo la contraseña', html: '<form><input id="p" type="password"></form>', d: D(), r: 'relleno_solo_clave', v: { p: 'clave-secreta' } },
+  { n: 'contraseña señuelo oculta (display:none) antes de la real: se rellena la visible', html: '<form><input id="u" type="text"><input id="x" class="oculto" type="password"><input id="p" type="password"></form>', d: D(), r: 'relleno', v: { u: 'ana', p: 'clave-secreta', x: '' } },
+  { n: 'campos trampa de usuario invisibles, transparentes o de 0×0 entre medio: se saltan', html: '<form><input id="u" type="text"><input id="t1" class="invisible" type="text"><input id="t2" class="transparente" type="text"><input id="t3" class="cero" type="text"><input id="p" type="password"></form>', d: D(), r: 'relleno', v: { u: 'ana', t1: '', t2: '', t3: '', p: 'clave-secreta' } },
+  { n: 'un buscador en OTRO formulario antes del login no se toca', html: '<form><input id="b" type="text"></form><form><input id="p" type="password"></form>', d: D(), r: 'relleno_solo_clave', v: { b: '', p: 'clave-secreta' } },
+  { n: 'sin formulario: el usuario más cercano antes de la contraseña', html: '<input id="b" type="text"><input id="u" type="email"><input id="p" type="password">', d: D(), r: 'relleno', v: { b: '', u: 'ana', p: 'clave-secreta' } },
+  { n: 'formulario de registro (solo «new-password»): no se rellena nada', html: '<form><input id="u" type="text"><input id="p" type="password" autocomplete="new-password"><input id="p2" type="password" autocomplete="new-password"></form>', d: D(), r: 'registro', v: { u: '', p: '', p2: '' } },
+  { n: 'cambiar contraseña: se rellena la actual, no las nuevas', html: '<form><input id="a" type="password" autocomplete="current-password"><input id="p" type="password" autocomplete="new-password"></form>', d: D(), r: 'relleno_solo_clave', v: { a: 'clave-secreta', p: '' } },
+  { n: 'página que pide primero el usuario (autocomplete=username)', html: '<form><input id="u" type="text" autocomplete="username"></form>', d: D(), r: 'relleno_solo_usuario', v: { u: 'ana' } },
+  { n: 'solo un cuadro de búsqueda: nada que rellenar', html: '<form><input id="b" type="text"></form>', d: D(), r: 'sin_campos', v: { b: '' } },
+  { n: 'contraseña desactivada o de solo lectura: no cuenta', html: '<form><input id="u" type="text"><input id="p" type="password" disabled><input id="q" type="password" readonly></form>', d: D(), r: 'sin_campos', v: { u: '', p: '', q: '' } },
+  { n: 'la página ya no es la que comprobó Nexo: no se rellena nada', html: '<form><input id="u" type="text"><input id="p" type="password"></form>', d: D({ host: 'github.com' }), r: 'la_pagina_cambio', v: { u: '', p: '' } },
+  { n: 'usuario vacío en la entrada: solo la contraseña, el usuario no se toca', html: '<form><input id="u" type="text" value="ya-escrito"><input id="p" type="password"></form>', d: D({ usuario: '' }), r: 'relleno_solo_clave', v: { u: 'ya-escrito', p: 'clave-secreta' } },
+  { n: 'un usuario con «<b>» se escribe tal cual (no es HTML)', html: '<form><input id="u" type="text"><input id="p" type="password"></form>', d: D({ usuario: '<b>ana</b>' }), r: 'relleno', v: { u: '<b>ana</b>', p: 'clave-secreta' } },
+];
+
+const salida = [];
+for (const c of casos) {
+  const zona = document.getElementById('zona');
+  zona.innerHTML = c.html;
+  let r;
+  try { r = nexoRellenar(c.d); } catch (e) { r = 'EXCEPCIÓN ' + e.message; }
+  const malos = [];
+  if (r !== c.r) malos.push('resultado ' + r + ' (esperado ' + c.r + ')');
+  for (const [id, esperado] of Object.entries(c.v)) {
+    const v = document.getElementById(id).value;
+    if (v !== esperado) malos.push(id + '=«' + v + '» (esperado «' + esperado + '»)');
+  }
+  salida.push({ n: c.n, ok: malos.length === 0, detalle: malos.join('; ') });
+}
+
+// Eventos y formularios «tipo React» (que vigilan el valor con su propio setter en el elemento).
+{
+  const zona = document.getElementById('zona');
+  zona.innerHTML = '<form><input id="u" type="text"><input id="p" type="password"></form>';
+  const p = document.getElementById('p');
+  const vistos = [];
+  p.addEventListener('input', (e) => vistos.push('input:' + e.bubbles));
+  p.addEventListener('change', (e) => vistos.push('change:' + e.bubbles));
+  let setterPropio = false;
+  Object.defineProperty(p, 'value', { configurable: true, get() { return 'x'; }, set() { setterPropio = true; } });
+  const r = nexoRellenar(D());
+  delete p.value;
+  const real = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').get.call(p);
+  salida.push({ n: 'dispara input y change (que burbujean) para que la página se entere', ok: r === 'relleno' && vistos.join(',') === 'input:true,change:true', detalle: r + ' / ' + vistos.join(',') });
+  salida.push({ n: 'usa el setter NATIVO: el valor llega aunque la página haya tapado «value» (React)', ok: !setterPropio && real === 'clave-secreta', detalle: setterPropio + ' / ' + real });
+}
+
+document.getElementById('zona').innerHTML = '';
+document.getElementById('resultados').textContent = 'RESULTADOS:' + JSON.stringify(salida);
+</script>
+</body>
+</html>

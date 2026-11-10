@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes REAL del host nativo: lanza nexo-autocompletar.exe como lo lanza el navegador (stdin/stdout binarios) y usa el
+         registro real de HKCU, pero SIEMPRE bajo una clave de pruebas (Software\NexoPruebas-...): no toca Brave, Chrome ni Edge. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Autocompletado.Windows.Demo</RootNamespace>
+    <AssemblyName>nexo-autocompletado-windows-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Autocompletado.Host\Nexo.Autocompletado.Host.csproj" />
+  </ItemGroup>
+
+</Project>

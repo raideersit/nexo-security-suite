@@ -41,6 +41,11 @@ namespace Nexo.Reports.Model
         public const string BovedaCopiaGuardada = "boveda-copia-guardada";
         public const string BovedaRestaurada = "boveda-restaurada";
         public const string BovedaAuditada = "boveda-auditada";
+        public const string AutocompletadoEmparejado = "autocompletado-emparejado";
+        public const string AutocompletadoRechazado = "autocompletado-rechazado";
+        public const string AutocompletadoNoSolicitado = "autocompletado-no-solicitado";
+        public const string AutocompletadoOlvidado = "autocompletado-olvidado";
+        public const string AutocompletadoRellenado = "autocompletado-rellenado";
 
         // --- Modulo de limpieza (Prompt 4) ---
         public const string SesionLimpieza = "sesion-limpieza";

@@ -302,6 +302,17 @@ namespace Nexo.Ui.Desktop
         /// <summary>La ventana la llama con cada tecla o movimiento del raton.</summary>
         public void Actividad() => _ultimaActividad = _reloj();
 
+        /// <summary>
+        /// Las entradas para el autocompletado del navegador: la lista si la bóveda está ABIERTA, null si no. Se llama desde el hilo del pipe, sin
+        /// cerrojo: <c>_todas</c> nunca se modifica, solo se reemplaza entera, y al bloquear se vacía antes de cambiar la fase. Una petición del
+        /// navegador NO cuenta como actividad (no impide que la bóveda se bloquee sola).
+        /// </summary>
+        public IReadOnlyList<EntradaDeBoveda>? EntradasParaAutocompletar()
+        {
+            List<EntradaDeBoveda> l = Volatile.Read(ref _todas);
+            return _fase == FaseDeBoveda.Abierta ? l : null;
+        }
+
         /// <summary>true si bloqueo por inactividad. La ventana la llama cada pocos segundos.</summary>
         public bool ComprobarInactividad()
         {

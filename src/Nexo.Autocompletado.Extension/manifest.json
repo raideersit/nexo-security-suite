@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Nexo: autocompletado",
+  "version": "0.1.0",
+  "description": "Rellena usuario y contraseña desde la bóveda de Nexo, solo en el sitio correcto y solo cuando lo pides.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv/kt+/gQsfEe4iBoM0D3qEqbkmzS6z3U6gN7IsCdDkaOJ8HbnZdPs1yMTuYXlH7flHhi+P7q3A92dkHzKoJ/wVSOrLTiJQ1Be27hcTUnmihg9QRAiLyYNY6bceRnRAXOHD3kLVwfWIyAKCOjeTnV7bpVH1jPPmQaDEDItBTf3U4y+8TREDDEV1M84TiyMRYdJoI0hr/0oCyCBh84PM1KF0toyibqwFB5BBRaZA7SxIqOcH6e+CZExlQ5k5Rh8fQF7lE6g2lLrqPLseP7WyzSjjZLai8WZ/L4i2x5a6SIh/mj7Y4r+/A2nQbpH29uKeETB7MvAIHiHKOnjiEOIi2uxQIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
+  "background": { "service_worker": "fondo.js", "type": "module" },
+  "action": { "default_popup": "ventana.html", "default_title": "Nexo: rellenar usuario y contraseña" },
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Alt+Shift+N" }, "description": "Abrir Nexo para rellenar" }
+  },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}

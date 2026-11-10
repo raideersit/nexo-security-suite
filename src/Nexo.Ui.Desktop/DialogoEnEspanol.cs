@@ -32,6 +32,21 @@ namespace Nexo.Ui.Desktop
             return await v.ShowDialog<bool>(duenio);
         }
 
+        /// <summary>
+        /// La misma pregunta, pero se cierra sola como «No» si <paramref name="ct"/> se cancela (p. ej. el navegador que pidió emparejar dejó de
+        /// esperar): una pregunta que ya no sirve no se queda abierta para que alguien la acepte después.
+        /// </summary>
+        public static async Task<bool> PreguntarAsync(Window duenio, string texto, string titulo, IconoDeDialogo icono, System.Threading.CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested) return false;
+            var v = new VentanaDeDialogo(texto, titulo, icono, pregunta: true);
+            using (ct.Register(() => Avalonia.Threading.Dispatcher.UIThread.Post(() => v.Close(false))))
+            {
+                bool si = await v.ShowDialog<bool>(duenio);
+                return si && !ct.IsCancellationRequested;
+            }
+        }
+
         public static async Task InformarAsync(Window duenio, string texto, string titulo, IconoDeDialogo icono = IconoDeDialogo.Informacion)
         {
             var v = new VentanaDeDialogo(texto, titulo, icono, pregunta: false);

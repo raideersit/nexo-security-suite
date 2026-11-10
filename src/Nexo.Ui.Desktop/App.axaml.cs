@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Nexo.Ui.Desktop.Nucleo;
 
 namespace Nexo.Ui.Desktop
@@ -41,6 +42,8 @@ namespace Nexo.Ui.Desktop
             {
                 // El anti-phishing corre aqui, con el usuario; la VPN reutiliza sus listas para cruzar el servidor.
                 EnlacesModelo enlaces = EnlacesModelo.PorOmision(Rastro);
+                string rutaDeLaBoveda = Contrasenas ?? ContrasenasModelo.RutaPorOmision();
+                var contrasenas = new ContrasenasModelo(rutaDeLaBoveda, portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia };
                 VpnModelo vpn = VpnModelo.PorOmision(() => enlaces.ListasActuales, Rastro, Vpn ?? new ServicioDeVpnNoDisponible(sinFuente));
                 escritorio.MainWindow = new MainWindow(
                     new VentanaPrincipalModelo(Fuente ?? new FuenteNoDisponible(sinFuente)),
@@ -53,8 +56,10 @@ namespace Nexo.Ui.Desktop
                     new DiscoModelo(Disco ?? new ServicioDeDiscoNoDisponible(sinFuente)),
                     new SeguridadModelo(Seguridad ?? new ServicioDeSeguridadNoDisponible(sinFuente)) { Rastro = Rastro ?? RastroNulo.Instancia },
                     // La boveda vive en el perfil del usuario y corre en este proceso; el portapapeles real se enlaza a la ventana al crearla.
-                    new ContrasenasModelo(Contrasenas ?? ContrasenasModelo.RutaPorOmision(), portapapeles: new PortapapelesDeAvalonia()) { Rastro = Rastro ?? RastroNulo.Instancia },
-                    enlaces, vpn);
+                    contrasenas,
+                    enlaces, vpn,
+                    // El autocompletado del navegador atiende la bóveda de ESTA ventana (§2ao).
+                    AutocompletadoModelo.PorOmision(contrasenas, rutaDeLaBoveda, a => Dispatcher.UIThread.Post(a)));
             }
             base.OnFrameworkInitializationCompleted();
         }

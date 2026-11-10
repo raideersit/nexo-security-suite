@@ -60,6 +60,11 @@ namespace Nexo.Identity.Demo
                 await ProbarFiltraciones().ConfigureAwait(false);
                 await ProbarHttp().ConfigureAwait(false);
                 await ProbarAuditoria(dir).ConfigureAwait(false);
+                ProbarSitiosDeEntrada();
+                ProbarMensajeNativo();
+                await ProbarPuente(dir).ConfigureAwait(false);
+                await ProbarCanal().ConfigureAwait(false);
+                ProbarInstaladorDeHost(dir);
                 // Solo con --real: habla con Internet (envia unicamente el prefijo de 5 caracteres de una contrasena de prueba publica).
                 if (args.Contains("--real")) await ProbarServicioReal().ConfigureAwait(false);
             }

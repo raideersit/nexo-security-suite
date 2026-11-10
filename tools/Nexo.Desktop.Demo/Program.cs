@@ -51,6 +51,7 @@ namespace Nexo.Desktop.Demo
             ProbarRastroDeLaVentana();
             ProbarTotpEnLaVentana();
             ProbarContrasenas();
+            ProbarAutocompletadoDelModelo();
             ProbarEnlaces();
             ProbarQrEnLaVentana();
             ProbarVpn();
@@ -1283,10 +1284,13 @@ namespace Nexo.Desktop.Demo
             EnlacesModelo emod = ModeloDeEnlaces(dirEnlaces, descargaDeVentana);
             var lectorWgDeVentana = new LectorDeWireGuardFalso();
             var vpnmod = new VpnModelo(lectorWgDeVentana);
+            string pipeAuto = PipeDePrueba();
+            var automod = new AutocompletadoModelo(cmod.EntradasParaAutocompletar, new EmparejadosDePrueba(), pipeAuto, a => Dispatcher.UIThread.Post(a));
             MainWindow? w = null;
             try
             {
-                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod, emod, vpnmod);
+                Check(!new MainWindow().PanelDeAutocompletado.IsVisible, "sin modelo de autocompletado (previsualizador) el panel no se enseña");
+                w = new MainWindow(vm, em, cm, fm, lm, tm, dm, sm, cmod, emod, vpnmod, automod);
                 Check(true, "el XAML de la ventana carga (tema Classic incluido)");
                 w.Show();
                 Dispatcher.UIThread.RunJobs();
@@ -1419,6 +1423,8 @@ namespace Nexo.Desktop.Demo
 
                 ProbarVentanaDeEnlaces(w, emod, descargaDeVentana, captura);
                 ProbarVentanaDeVpn(w, vpnmod, lectorWgDeVentana, captura);
+
+                ProbarVentanaDeAutocompletado(w, automod, pipeAuto);
 
                 // La pestaña Contraseñas va la ULTIMA: su prueba cierra la ventana (para comprobar que al cerrar se borra el portapapeles).
                 ProbarVentanaDeContrasenas(w, cmod, portapapeles, captura);

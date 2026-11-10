@@ -1,0 +1,19 @@
+:root { color-scheme: light dark; --fondo: #ffffff; --texto: #1d1d1f; --suave: #6b6b70; --borde: #d0d0d5; --ok: #1f7a3d; --aviso: #8a5a00; --error: #b3261e; --boton: #f2f2f5; }
+@media (prefers-color-scheme: dark) {
+  :root { --fondo: #1e1e22; --texto: #ececf0; --suave: #a0a0a8; --borde: #3a3a42; --ok: #6fcf8f; --aviso: #f0b85a; --error: #ff8a80; --boton: #2a2a30; }
+}
+body { margin: 0; padding: 12px 14px; width: 320px; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; background: var(--fondo); color: var(--texto); }
+header { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+header span { font-weight: 400; color: var(--suave); }
+#estado { margin: 0 0 10px; }
+.ok { color: var(--ok); } .aviso { color: var(--aviso); } .error { color: var(--error); }
+button { font: inherit; color: inherit; background: var(--boton); border: 1px solid var(--borde); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+ul { list-style: none; margin: 0; padding: 0; }
+li + li { margin-top: 6px; }
+button.entrada { width: 100%; text-align: left; display: flex; flex-direction: column; }
+button.entrada span { color: var(--suave); font-size: 12px; overflow-wrap: anywhere; }
+.codigo strong { display: block; font-size: 28px; letter-spacing: 2px; text-align: center; margin: 6px 0; }
+.nota { color: var(--suave); font-size: 12px; }
+footer { margin-top: 12px; }
+button.enlace { background: none; border: none; padding: 0; color: var(--suave); text-decoration: underline; font-size: 12px; }

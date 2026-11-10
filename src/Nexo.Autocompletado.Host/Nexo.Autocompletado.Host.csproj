@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Host nativo del autocompletado: lo lanza el navegador (Brave/Edge/Chrome) y reenvia por un pipe a la ventana de Nexo.
+         Consola a proposito: el protocolo va por stdin/stdout (el navegador lo lanza oculto). net8.0-windows por el registro. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Autocompletado.Host</RootNamespace>
+    <AssemblyName>nexo-autocompletar</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Modules.Identity\Nexo.Modules.Identity.csproj" />
+  </ItemGroup>
+
+</Project>
