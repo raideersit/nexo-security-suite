@@ -53,6 +53,9 @@ namespace Nexo.Vuln.Demo
             ProbarAlertas();
             ProbarRansomware();
             ProbarPlanDeRansomware();
+            ProbarSenuelos();
+            ProbarSenuelosCasos();
+            ProbarCarpetasDeSenuelos();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

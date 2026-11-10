@@ -12,7 +12,7 @@ namespace Nexo.Ui.Tray.Nucleo
         Normal,
         /// <summary>Hay algo que atender, pero no una amenaza: tiempo real apagado, cobertura incompleta o motor caido.</summary>
         Atencion,
-        /// <summary>Hay detecciones sin revisar.</summary>
+        /// <summary>Hay detecciones sin revisar, o un señuelo contra ransomware tocado.</summary>
         Alerta
     }
 
@@ -27,6 +27,7 @@ namespace Nexo.Ui.Tray.Nucleo
 
         private readonly HashSet<string> _notificadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _revisadas = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _senuelosAvisados = new HashSet<string>(StringComparer.Ordinal);
         private InstantaneaDelServicio _ultima = InstantaneaDelServicio.SinConexion("sin consultar todavia");
 
         public EstadoDeBandeja Estado { get; private set; } = EstadoDeBandeja.Desconectado;
@@ -36,6 +37,12 @@ namespace Nexo.Ui.Tray.Nucleo
         public IReadOnlyList<DeteccionVista> SinRevisar => _ultima.Detecciones.Where(d => !_revisadas.Contains(d.Clave)).ToList();
 
         public IReadOnlyList<DeteccionVista> Todas => _ultima.Detecciones;
+
+        /// <summary>
+        /// Señuelos que se tocaron desde la consulta anterior (para avisar con una notificación, una sola vez cada uno). Los tocados NO se
+        /// marcan como revisados: la bandeja sigue en rojo hasta que se reponen, porque pueden ser la señal de un cifrado en marcha.
+        /// </summary>
+        public IReadOnlyList<SenueloTocadoVista> SenuelosNuevos { get; private set; } = Array.Empty<SenueloTocadoVista>();
         public InstantaneaDelServicio Ultima => _ultima;
 
         /// <summary>
@@ -55,6 +62,16 @@ namespace Nexo.Ui.Tray.Nucleo
             if (i.Conectado)
                 foreach (DeteccionVista d in i.Detecciones)
                     if (_notificadas.Add(d.Clave)) nuevas.Add(d);
+
+            // Señuelos: si no se pudo saber (SenuelosTocados null) se conserva lo avisado, para no repetir el aviso cuando vuelva.
+            var senuelos = new List<SenueloTocadoVista>();
+            if (i.Conectado && i.SenuelosTocados is { } tocados)
+            {
+                _senuelosAvisados.IntersectWith(tocados.Select(t => t.Clave));
+                foreach (SenueloTocadoVista t in tocados)
+                    if (_senuelosAvisados.Add(t.Clave)) senuelos.Add(t);
+            }
+            SenuelosNuevos = senuelos;
 
             Calcular();
             return nuevas;
@@ -76,6 +93,14 @@ namespace Nexo.Ui.Tray.Nucleo
             {
                 Estado = EstadoDeBandeja.Desconectado;
                 Texto = Recortar("Nexo: sin conexion con el servicio");
+            }
+            else if (i.Tocados.Count > 0)
+            {
+                // Lo más urgente: puede ser un cifrado en marcha. Va antes que las detecciones.
+                int n = i.Tocados.Count;
+                Estado = EstadoDeBandeja.Alerta;
+                Texto = Recortar(i.SenuelosEnRafaga ? "Nexo: POSIBLE RANSOMWARE (" + n + " señuelos tocados)"
+                               : n == 1 ? "Nexo: señuelo contra ransomware tocado" : "Nexo: " + n + " señuelos contra ransomware tocados");
             }
             else if (sinRevisar > 0)
             {
@@ -99,6 +124,12 @@ namespace Nexo.Ui.Tray.Nucleo
                 int n = i.CarpetasPorRevisar.Count;
                 Texto = Recortar(n == 0 ? "Nexo: cobertura incompleta"
                                         : "Nexo: cobertura incompleta (" + n + (n == 1 ? " carpeta" : " carpetas") + " por revisar)");
+            }
+            else if (i.SenuelosError is not null)
+            {
+                // No poder leer los señuelos no es «ninguno tocado»: nunca verde sin saberlo.
+                Estado = EstadoDeBandeja.Atencion;
+                Texto = Recortar("Nexo: no se pudo leer el estado de los señuelos");
             }
             else if (i.Detecciones.Count > 0)
             {

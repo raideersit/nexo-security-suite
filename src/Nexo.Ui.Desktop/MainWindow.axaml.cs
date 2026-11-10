@@ -374,7 +374,15 @@ namespace Nexo.Ui.Desktop
 
         private async void AccionDeSeccion(object? sender, RoutedEventArgs e)
         {
-            // Hoy la unica accion es activar las carpetas protegidas. Siempre: plan del servicio -> confirmar (por omision «No») -> aplicar.
+            // Dos acciones: activar las carpetas protegidas y reponer los señuelos. Siempre: plan del servicio -> confirmar (por omision «No») -> aplicar.
+            if (sender is Avalonia.Controls.Control { Tag: SeccionDeSeguridad.Senuelos })
+            {
+                const string TituloS = "Reponer los señuelos contra ransomware";
+                string? tokenS = await ConfirmarPlanAsync(await Seguridad.PrevisualizarReponerSenuelosAsync(), TituloS, "¿Reponer los señuelos?");
+                if (tokenS is null) return;
+                await MostrarResultadoAsync(TituloS, await Seguridad.ReponerSenuelosAsync(tokenS));
+                return;
+            }
             if (sender is not Avalonia.Controls.Control { Tag: SeccionDeSeguridad.Ransomware }) return;
             const string Titulo = "Proteger tus carpetas contra ransomware";
             string? token = await ConfirmarPlanAsync(await Seguridad.PrevisualizarActivarCarpetasAsync(), Titulo, "¿Activar la protección?");

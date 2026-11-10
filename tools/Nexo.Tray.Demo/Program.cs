@@ -19,7 +19,7 @@ using Nexo.Ui.Tray.Nucleo;
 
 namespace Nexo.Tray.Demo
 {
-    internal static class Program
+    internal static partial class Program
     {
         private static int _fallos;
         private static readonly byte[] Marca = Encoding.ASCII.GetBytes("NEXO-MARCADOR-PRUEBA-BANDEJA");
@@ -35,6 +35,7 @@ namespace Nexo.Tray.Demo
                 ProbarModelo();
                 ProbarResumenDeAcciones();
                 await ProbarExitoQueDevuelveElServicio().ConfigureAwait(false);
+                await ProbarSenuelosEnLaBandeja().ConfigureAwait(false);
                 ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);
             }

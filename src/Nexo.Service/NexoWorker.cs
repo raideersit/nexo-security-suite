@@ -19,6 +19,7 @@ using Nexo.Modules.Cleanup.Windows;
 using Nexo.Modules.Threats.Cuarentena;
 using Nexo.Modules.Threats.Escaner;
 using Nexo.Modules.Threats.Firewall;
+using Nexo.Modules.Threats.Ransomware;
 using Nexo.Modules.Threats.TiempoReal;
 using Nexo.Modules.Threats.Windows;
 using Nexo.Reports;
@@ -174,8 +175,51 @@ namespace Nexo.Service
             modulos.Add(new ModuloVpn(new LectorDeWireGuardWindows(), new EjecutorDeWireGuardWindows(), reportes, politica));
             // Activar las carpetas protegidas contra ransomware de Defender (plan + token + aprobacion; nunca las apaga).
             modulos.Add(new ModuloCarpetasProtegidas(new LectorDeEstadoDeCfaWindows(), new EjecutorDeCfaWindows(), reportes, politica));
+            // Señuelos contra ransomware (apagados por omisión; ver CrearSenuelos).
+            modulos.Add(CrearSenuelos(reportes, politica));
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
+        }
+
+        /// <summary>
+        /// Señuelos contra ransomware: APAGADOS por omisión (ponen archivos ocultos en Documentos, Escritorio e Imágenes de cada
+        /// perfil). Se activan solo en appsettings.json (Nexo:Senuelos:Activo); Nexo:Senuelos:Carpetas (separadas por «;») sustituye
+        /// a las carpetas de los perfiles; Nexo:Senuelos:SegundosEntreRevisiones (30 por omisión, mínimo 5); Nexo:Senuelos:Ocultos.
+        /// </summary>
+        private IModuloDelServicio CrearSenuelos(IReportWriter reportes, PoliticaDeAprobacion politica)
+        {
+            if (!bool.TryParse(_config["Nexo:Senuelos:Activo"], out bool activo) || !activo) return new ModuloSenuelosApagado();
+
+            string registro = _config["Nexo:Senuelos:Registro"] is { Length: > 0 } reg
+                ? reg
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "senuelos.json");
+            TimeSpan? cada = double.TryParse(_config["Nexo:Senuelos:SegundosEntreRevisiones"], System.Globalization.NumberStyles.Float,
+                                             System.Globalization.CultureInfo.InvariantCulture, out double seg) && seg > 0
+                ? TimeSpan.FromSeconds(seg) : null;
+            string? fijas = _config["Nexo:Senuelos:Carpetas"] is { Length: > 0 } f ? f : null;
+
+            // Nexo:Senuelos:Ocultos (true por omisión): ver AccesoASenuelosWindows sobre lo que se pierde al ocultarlos.
+            bool ocultos = !(bool.TryParse(_config["Nexo:Senuelos:Ocultos"], out bool oc) && !oc);
+            var vigilante = new VigilanteDeSenuelos(_servicios.GetService<IAccesoASenuelos>() ?? new AccesoASenuelosWindows(ocultos),
+                                                    new AlmacenDeSenuelosJson(registro), reportes);
+            var modulo = new ModuloSenuelos(vigilante, () => CarpetasDeSenuelos(fijas), cada, politica);
+            modulo.Iniciar();
+            return modulo;
+        }
+
+        /// <summary>Las carpetas fijadas en la configuración o, si no hay, Documentos/Escritorio/Imágenes de cada perfil.</summary>
+        internal static (IReadOnlyList<string>, IReadOnlyList<CarpetaSinSenuelo>) CarpetasDeSenuelos(string? fijas)
+        {
+            if (fijas is not null)
+            {
+                var lista = fijas.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                var malas = lista.Where(c => !CarpetasParaSenuelos.EsRutaLocal(c))
+                                 .Select(c => new CarpetaSinSenuelo(c, "no es una ruta local con letra de unidad")).ToList();
+                return (lista.Where(CarpetasParaSenuelos.EsRutaLocal).ToList(), malas);
+            }
+            var perfiles = LectorDePerfilesWindows.Leer(out IReadOnlyList<string> problemas);
+            IReadOnlyList<string> carpetas = CarpetasParaSenuelos.Elegir(perfiles, out IReadOnlyList<CarpetaSinSenuelo> descartadas);
+            return (carpetas, descartadas.Concat(problemas.Select(x => new CarpetaSinSenuelo("(perfiles)", x))).ToList());
         }
 
         /// <summary>

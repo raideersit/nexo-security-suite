@@ -12,7 +12,8 @@ namespace Nexo.Ui.Tray
         /// <summary>--aplicar &lt;tipo&gt; &lt;token&gt;: aplica un plan y muestra el resultado. Corre elevado.</summary>
         public static int Aplicar(string[] args, int i, string pipe)
         {
-            if (i + 2 >= args.Length || !Enum.TryParse(args[i + 1], ignoreCase: true, out TipoDeAccion tipo)
+            // Enum.TryParse acepta números («99»): sin IsDefined, un tipo inexistente llegaba hasta MetodoDeAplicar y lanzaba.
+            if (i + 2 >= args.Length || !Enum.TryParse(args[i + 1], ignoreCase: true, out TipoDeAccion tipo) || !Enum.IsDefined(tipo)
                 || !AccionesDelServicio.EsTokenValido(args[i + 2]))
             {
                 Dialogo.Mostrar("Argumentos no validos.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Error);

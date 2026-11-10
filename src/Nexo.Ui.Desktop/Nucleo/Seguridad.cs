@@ -30,7 +30,12 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// La proteccion contra ransomware de Windows (acceso controlado a carpetas de Defender): si esta activada y que bloqueo. Solo lectura,
         /// local, sin red y sin administrador (la lista de programas con permiso no se ve sin el, y se dice).
         /// </summary>
-        Ransomware
+        Ransomware,
+        /// <summary>
+        /// Los señuelos contra ransomware de Nexo (§2am): los pone y vigila el SERVICIO; la ventana solo lee «senuelos.estado». Reponer los
+        /// tocados es la unica accion, con plan, token y aprobacion.
+        /// </summary>
+        Senuelos
     }
 
     /// <summary>
@@ -65,6 +70,14 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// <summary>Aplica el plan de ese token (con UAC si la politica lo exige).</summary>
         Task<ResultadoDeAccion> AplicarCarpetasProtegidasAsync(string token, CancellationToken ct)
             => Task.FromResult(new ResultadoDeAccion(false, false, "hace falta el servicio de Nexo para cambiar la configuración de Defender"));
+
+        /// <summary>Pide al SERVICIO el plan para reponer los señuelos tocados. No cambia nada.</summary>
+        Task<Consulta<PlanDelServicio>> PrevisualizarReponerSenuelosAsync(CancellationToken ct)
+            => Task.FromResult(Consulta<PlanDelServicio>.Mal(LectorDeSenuelosDelServicio.SinServicio));
+
+        /// <summary>Repone los señuelos del plan de ese token (con UAC si la politica lo exige).</summary>
+        Task<ResultadoDeAccion> ReponerSenuelosAsync(string token, CancellationToken ct)
+            => Task.FromResult(new ResultadoDeAccion(false, false, LectorDeSenuelosDelServicio.SinServicio));
     }
 
     public sealed class ServicioDeSeguridadNoDisponible : IServicioDeSeguridad
@@ -99,6 +112,17 @@ namespace Nexo.Ui.Desktop.Nucleo
                 ? Task.FromResult(new ResultadoDeAccion(false, false, "hace falta el servicio de Nexo para cambiar la configuración de Defender"))
                 : LlamadaPorPipe.AplicarAsync(_pipe, TimeSpan.FromSeconds(10), TipoDeAccion.CarpetasProtegidas, token, _lanzador ?? new LanzadorPorBandeja(_pipe), ct);
 
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarReponerSenuelosAsync(CancellationToken ct)
+        {
+            if (_pipe is null) return Consulta<PlanDelServicio>.Mal(LectorDeSenuelosDelServicio.SinServicio);
+            return LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(5), "senuelos.previsualizar", null, ct).ConfigureAwait(false));
+        }
+
+        public Task<ResultadoDeAccion> ReponerSenuelosAsync(string token, CancellationToken ct)
+            => _pipe is null
+                ? Task.FromResult(new ResultadoDeAccion(false, false, LectorDeSenuelosDelServicio.SinServicio))
+                : LlamadaPorPipe.AplicarAsync(_pipe, TimeSpan.FromSeconds(10), TipoDeAccion.Senuelos, token, _lanzador ?? new LanzadorPorBandeja(_pipe), ct);
+
         /// <param name="pipe">El canal del servicio, para la sección «Accesos» (el registro de Seguridad exige administrador). Sin él, esa sección lo dice.</param>
         public ServicioDeSeguridadLocal(Func<DateTimeOffset>? reloj = null, string? pipe = null, ILanzadorElevado? lanzador = null)
         {
@@ -132,6 +156,14 @@ namespace Nexo.Ui.Desktop.Nucleo
                         Consulta<RevisionDeAlertas> c = LectorDeAlertasDelServicio.Leer(r);
                         return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
                             : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), Elementos: c.Valor.Eventos));
+                    }
+                    case SeccionDeSeguridad.Senuelos:
+                    {
+                        if (_pipe is null) return Consulta<RevisionDeSeccion>.Mal(LectorDeSenuelosDelServicio.SinServicio);
+                        RespuestaCruda r = await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(3), "senuelos.estado", null, ct).ConfigureAwait(false);
+                        Consulta<RevisionDeSenuelos> c = LectorDeSenuelosDelServicio.Leer(r);
+                        return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
+                            : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), c.Valor.Nota, c.Valor.Nota is null ? c.Valor.Senuelos : null));
                     }
                     case SeccionDeSeguridad.Dispositivos:
                     {

@@ -26,6 +26,8 @@ namespace Nexo.Ui.Tray
         private readonly ToolStripMenuItem _estado = new ToolStripMenuItem { Enabled = false };
         private readonly ToolStripMenuItem _detecciones = new ToolStripMenuItem();
         private readonly ToolStripMenuItem _revisar = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem _senuelos = new ToolStripMenuItem();
+        private bool _globoDeSenuelos;   // el ultimo globo era de señuelos: pulsarlo abre los señuelos, no las detecciones
         private bool _revisando;    // hay una revision en marcha: no se lanza otra
         private readonly Dictionary<EstadoDeBandeja, Icon> _iconos;
         private readonly ILanzadorElevado _lanzador;
@@ -46,16 +48,17 @@ namespace Nexo.Ui.Tray
 
             _detecciones.Click += async (_, _) => await RevisarDeteccionesAsync();
             _revisar.Click += async (_, _) => await RevisarLoNoVistoAsync();
+            _senuelos.Click += async (_, _) => await VerSenuelosAsync();
             var limpieza = new ToolStripMenuItem("Limpiar archivos basura…");
             limpieza.Click += async (_, _) => await LimpiarAsync();
             var salir = new ToolStripMenuItem("Salir de la bandeja");
             salir.Click += (_, _) => { _icono!.Visible = false; Application.ExitThread(); };
 
             var menu = new ContextMenuStrip();
-            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _detecciones, _revisar, limpieza, new ToolStripSeparator(), salir });
+            menu.Items.AddRange(new ToolStripItem[] { _estado, new ToolStripSeparator(), _senuelos, _detecciones, _revisar, limpieza, new ToolStripSeparator(), salir });
 
             _icono = new NotifyIcon { Icon = _iconos[EstadoDeBandeja.Desconectado], Text = _modelo.Texto, ContextMenuStrip = menu, Visible = true };
-            _icono.BalloonTipClicked += async (_, _) => await RevisarDeteccionesAsync();
+            _icono.BalloonTipClicked += async (_, _) => { if (_globoDeSenuelos) await VerSenuelosAsync(); else await RevisarDeteccionesAsync(); };
             _icono.DoubleClick += async (_, _) => await RevisarDeteccionesAsync();
 
             _reloj = new System.Windows.Forms.Timer { Interval = (int)Sondeo.TotalMilliseconds };
@@ -74,8 +77,18 @@ namespace Nexo.Ui.Tray
             {
                 InstantaneaDelServicio i = await ConsultorDelServicio.ConsultarAsync(_pipe, Espera);
                 foreach (DeteccionVista d in _modelo.Actualizar(i))
+                {
+                    _globoDeSenuelos = false;
                     _icono.ShowBalloonTip(8000, "Nexo: amenaza detectada",
                         d.Firma + " en " + System.IO.Path.GetFileName(d.Ruta) + ". Pulsa para revisarla.", ToolTipIcon.Warning);
+                }
+                // Los señuelos van despues: si coinciden, el ultimo globo (el que queda a la vista) es el de los señuelos, lo mas urgente.
+                if (_modelo.SenuelosNuevos.Count > 0)
+                {
+                    (string titulo, string texto) = AccionesDelServicio.AvisoDeSenuelos(_modelo.SenuelosNuevos, i.SenuelosEnRafaga);
+                    _globoDeSenuelos = true;
+                    _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Error);
+                }
                 Pintar();
             }
             finally { _consultando = false; }
@@ -89,6 +102,10 @@ namespace Nexo.Ui.Tray
             int n = _modelo.Todas.Count;
             _detecciones.Text = n == 0 ? "Detecciones (ninguna)" : "Revisar detecciones (" + n + ")…";
             _detecciones.Enabled = n > 0;
+            int t = _modelo.Ultima.Tocados.Count;
+            _senuelos.Text = t == 0 ? "Señuelos contra ransomware: ninguno tocado" : "Señuelos tocados (" + t + ")…";
+            _senuelos.Enabled = t > 0;
+            _senuelos.Visible = _modelo.Ultima.Conectado && _modelo.Ultima.SenuelosError is null;
             int r = _modelo.Ultima.CarpetasPorRevisar.Count;
             _revisar.Text = _revisando ? "Revisando lo que no se vio…" : r == 0 ? "Nada por revisar" : "Revisar lo que no se vio (" + r + (r == 1 ? " carpeta" : " carpetas") + ")…";
             _revisar.Enabled = r > 0 && !_revisando;
@@ -145,6 +162,38 @@ namespace Nexo.Ui.Tray
                                       ToolTipIcon.Info);
             }
             finally { _revisando = false; await ConsultarAsync(); }
+        }
+
+        /// <summary>
+        /// Muestra los señuelos tocados y ofrece reponerlos (plan del servicio, confirmar, aprobar). Reponer NO borra el tocado y da el aviso
+        /// por visto: por eso se explica qué hacer antes si no fue el usuario.
+        /// </summary>
+        private async Task VerSenuelosAsync()
+        {
+            IReadOnlyList<SenueloTocadoVista> tocados = _modelo.Ultima.Tocados;
+            if (_ocupado || tocados.Count == 0) return;
+            _ocupado = true;
+            try
+            {
+                var sb = new StringBuilder(_modelo.Ultima.SenuelosEnRafaga
+                    ? "VARIOS archivos cebo de Nexo cambiaron en pocos minutos: puede haber un programa cifrando tus archivos.\n\n"
+                    : "Nadie debería tocar estos archivos: los puso Nexo como cebo contra ransomware.\n\n");
+                foreach (SenueloTocadoVista s in tocados.Take(8))
+                    sb.Append("  • ").Append(s.Ruta).Append("\n    ").Append(s.Detalle).Append(" (").Append(s.Cuando.ToLocalTime().ToString("dd/MM HH:mm")).Append(")\n");
+                if (tocados.Count > 8) sb.Append("  … y ").Append(tocados.Count - 8).Append(" más\n");
+                sb.Append("\nSi NO fuiste tú: desconecta el equipo de la red y de los discos externos, y busca qué programa está en marcha. ")
+                  .Append("Nexo no sabe qué programa fue ni puede detenerlo.\n\n")
+                  .Append("¿Reponer los señuelos ahora? (verás el plan antes; los archivos tocados no se borran)");
+
+                if (Dialogo.Mostrar(sb.ToString(), "Nexo — señuelos tocados", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                PlanPropuesto plan = await AccionesDelServicio.PrevisualizarSenuelosAsync(_pipe, Espera);
+                await ConfirmarYAplicarAsync("Reponer señuelos", plan, TipoDeAccion.Senuelos);
+            }
+            catch (Exception ex) when (ex is TimeoutException || ex is System.IO.IOException)
+            {
+                Dialogo.Mostrar("No se pudo hablar con el servicio.", "Nexo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally { _ocupado = false; await ConsultarAsync(); }
         }
 
         // ------------------------------------------------------------

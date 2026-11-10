@@ -19,7 +19,9 @@ namespace Nexo.Ui.Tray.Nucleo
         Firewall,
         Vpn,
         /// <summary>Activar las carpetas protegidas contra ransomware de Defender.</summary>
-        CarpetasProtegidas
+        CarpetasProtegidas,
+        /// <summary>Reponer los señuelos contra ransomware tocados (pone uno nuevo; el tocado no se borra).</summary>
+        Senuelos
     }
 
     public sealed record PlanPropuesto(string Descripcion, bool HayCambios, string? Token, IReadOnlyList<string> Avisos);
@@ -59,6 +61,7 @@ namespace Nexo.Ui.Tray.Nucleo
             TipoDeAccion.Firewall => "firewall.aplicar",
             TipoDeAccion.Vpn => "vpn.aplicar",
             TipoDeAccion.CarpetasProtegidas => "cfa.aplicar",
+            TipoDeAccion.Senuelos => "senuelos.reponer",
             _ => throw new ArgumentOutOfRangeException(nameof(t))
         };
 
@@ -74,6 +77,30 @@ namespace Nexo.Ui.Tray.Nucleo
                 e.GetProperty("descripcion").GetString() ?? "", e.GetProperty("hay_cambios").GetBoolean(),
                 e.TryGetProperty("token", out JsonElement t) ? t.GetString() : null,
                 e.TryGetProperty("avisos", out JsonElement a) ? a.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : new List<string>());
+        }
+
+        /// <summary>Plan para reponer los señuelos tocados (no cambia nada).</summary>
+        public static async Task<PlanPropuesto> PrevisualizarSenuelosAsync(string pipe, TimeSpan espera, CancellationToken ct = default)
+        {
+            await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
+            Respuesta r = await c.LlamarAsync("senuelos.previsualizar", ct: ct).ConfigureAwait(false);
+            if (!r.Exito) return new PlanPropuesto("No se pudo preparar: " + r.Error!.Mensaje, false, null, Array.Empty<string>());
+            JsonElement e = r.Resultado!.Value;
+            return new PlanPropuesto(e.GetProperty("descripcion").GetString() ?? "", e.GetProperty("hay_cambios").GetBoolean(),
+                e.TryGetProperty("token", out JsonElement t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null, Array.Empty<string>());
+        }
+
+        /// <summary>El texto del aviso de señuelos tocados, para la bandeja. Sin interfaz: se prueba en Nexo.Tray.Demo.</summary>
+        public static (string Titulo, string Texto) AvisoDeSenuelos(IReadOnlyList<SenueloTocadoVista> nuevos, bool rafaga)
+        {
+            string titulo = rafaga ? "Nexo: ¡posible ransomware en marcha!" : "Nexo: señuelo contra ransomware tocado";
+            SenueloTocadoVista p = nuevos[0];
+            string donde = System.IO.Path.GetDirectoryName(p.Ruta) ?? p.Ruta;
+            string que = p.Tipo switch { "modificado" => "se modificó", "renombrado" => "se renombró", "borrado" => "se borró", _ => "desapareció" };
+            string texto = (nuevos.Count == 1 ? "Un archivo cebo de Nexo en " + donde + " " + que + "." : nuevos.Count + " archivos cebo de Nexo cambiaron (" + donde + "...).")
+                         + (p.Severidad == "Media" && nuevos.Count == 1 ? " Se envió a la papelera: si fuiste tú, repónlo." : " Si no fuiste tú, desconecta el equipo de la red.")
+                         + " Pulsa para ver.";
+            return (titulo, texto);
         }
 
         public static async Task<PlanPropuesto> PrevisualizarLimpiezaAsync(string pipe, TimeSpan espera, CancellationToken ct = default)
@@ -108,8 +135,8 @@ namespace Nexo.Ui.Tray.Nucleo
             await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
             Respuesta r = await c.LlamarAsync(MetodoDeAplicar(tipo), new { token }, ct).ConfigureAwait(false);
 
-            // En la VPN y en las carpetas protegidas la llamada puede ir bien y Windows no aplicar el cambio: manda el «exito» que devuelve el servicio.
-            if (r.Exito) return new ResultadoDeAplicar(tipo is not (TipoDeAccion.Vpn or TipoDeAccion.CarpetasProtegidas) || r.Resultado!.Value.GetProperty("exito").GetBoolean(), false, Resumir(tipo, r.Resultado!.Value));
+            // En la VPN, las carpetas protegidas y los señuelos la llamada puede ir bien y el cambio no hacerse (o no entero): manda el «exito» del servicio.
+            if (r.Exito) return new ResultadoDeAplicar(tipo is not (TipoDeAccion.Vpn or TipoDeAccion.CarpetasProtegidas or TipoDeAccion.Senuelos) || r.Resultado!.Value.GetProperty("exito").GetBoolean(), false, Resumir(tipo, r.Resultado!.Value));
             if (r.Error!.Codigo == AprobacionRequerida) return new ResultadoDeAplicar(false, true, r.Error.Mensaje);
             return new ResultadoDeAplicar(false, false, r.Error.Mensaje);
         }
@@ -171,6 +198,14 @@ namespace Nexo.Ui.Tray.Nucleo
                     if (e.TryGetProperty("modo", out JsonElement modo) && modo.GetString() == "simulado")
                         return "SIMULACION: " + n + (n == 1 ? " archivo se habria limpiado" : " archivos se habrian limpiado") + " (" + peso + "). No se borro nada. " + Omitidos(e);
                     return n + (n == 1 ? " archivo limpiado" : " archivos limpiados") + " (" + peso + "). " + Omitidos(e);
+                }
+                case TipoDeAccion.Senuelos:
+                {
+                    int n = e.GetProperty("repuestos").GetInt32();
+                    List<string> p = e.GetProperty("problemas").EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+                    string texto = n == 0 ? "No se repuso ningún señuelo." : n == 1 ? "1 señuelo repuesto." : n + " señuelos repuestos.";
+                    if (p.Count > 0) texto += " " + (p.Count == 1 ? "Problema: " : "Problemas (" + p.Count + "), el primero: ") + (p[0].Length > 200 ? p[0][..200] + "..." : p[0]);
+                    return texto;
                 }
                 case TipoDeAccion.CarpetasProtegidas: return (e.GetProperty("exito").GetBoolean() ? "" : "No se pudo: ") + e.GetProperty("mensaje").GetString();
                 case TipoDeAccion.Vpn: return (e.GetProperty("exito").GetBoolean() ? "" : "No se pudo: ") + e.GetProperty("mensaje").GetString();

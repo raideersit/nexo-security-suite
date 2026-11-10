@@ -46,8 +46,8 @@ namespace Nexo.Ui.Desktop
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
         /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
-        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Accesos };
-        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Accesos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
@@ -79,8 +79,8 @@ namespace Nexo.Ui.Desktop
         /// <summary>Una revision que no se pudo hacer queda como «incompleta, sin hallazgos»: lo desconocido no es «bien».</summary>
         private void AvisarRevision(SeccionDeSeguridad s, Consulta<RevisionDeSeccion> r)
         {
-            // «Accesos» la hace el servicio, que ya deja su propia nota en el vault: no se duplica.
-            if (s == SeccionDeSeguridad.Accesos) return;
+            // «Accesos» y «Señuelos» las hace el servicio, que ya deja su propio rastro en el vault: no se duplica.
+            if (s is SeccionDeSeguridad.Accesos or SeccionDeSeguridad.Senuelos) return;
             int n = r.Valor?.Analisis.Hallazgos.Count(h => h.Severidad != Severidad.Info) ?? 0;
             string maxima = n == 0 ? "Info" : r.Valor!.Analisis.Hallazgos.Where(h => h.Severidad != Severidad.Info).Max(h => h.Severidad).ToString();
             var campos = new Dictionary<string, object?>(StringComparer.Ordinal) { ["hallazgos"] = n, ["maxima"] = maxima, ["completa"] = r.Valor?.Analisis.Completo ?? false };
@@ -190,6 +190,44 @@ namespace Nexo.Ui.Desktop
         }
 
         // ------------------------------------------------------------
+        // Reponer los señuelos tocados (lo hace el SERVICIO, con plan, token y aprobacion; el tocado no se borra).
+
+        public const string TextoDeReponer = "Reponer señuelos...";
+
+        private static bool HaySenuelosTocados(IReadOnlyList<HallazgoDeSistema> hs) => hs.Any(h => h.Id.StartsWith("SENUELO-", StringComparison.Ordinal) && h.Id != "SENUELO-SIN-PONER");
+
+        public Task<Consulta<PlanDelServicio>> PrevisualizarReponerSenuelosAsync(CancellationToken ct = default) => _servicio.PrevisualizarReponerSenuelosAsync(ct);
+
+        /// <summary>Repone con un plan ya confirmado y vuelve a revisar (si se abrio el UAC, la seccion queda «Sin revisar»: el cambio llega despues).</summary>
+        public async Task<ResultadoDeAccion> ReponerSenuelosAsync(string token, CancellationToken ct = default)
+        {
+            _aplicando = true;
+            Calcular();
+            ResultadoDeAccion r;
+            try
+            {
+                try { r = await _servicio.ReponerSenuelosAsync(token, ct); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { r = new ResultadoDeAccion(false, false, "error inesperado (" + ex.GetType().Name + ")"); }
+            }
+            finally
+            {
+                _aplicando = false;
+                _ultimas[SeccionDeSeguridad.Senuelos] = null;
+                Calcular();
+            }
+            if (!r.PidioAprobacion) await RevisarAsync(SeccionDeSeguridad.Senuelos, ct);
+            return r;
+        }
+
+        private string? AccionDe(SeccionDeSeguridad s, bool revisando, IReadOnlyList<HallazgoDeSistema> hs)
+        {
+            if (revisando || _aplicando) return null;
+            if (s == SeccionDeSeguridad.Ransomware && PuedeActivarse(hs)) return TextoDeActivar;
+            if (s == SeccionDeSeguridad.Senuelos && HaySenuelosTocados(hs)) return TextoDeReponer;
+            return null;
+        }
+
+        // ------------------------------------------------------------
         private void Calcular()
         {
             var filas = new List<FilaDeSeccion>();
@@ -207,7 +245,7 @@ namespace Nexo.Ui.Desktop
                         ResumirSeguridad.Gravedad(h.Severidad), Colores.De(ResumirSeguridad.IndicadorDe(h.Severidad)), h.Titulo,
                         h.Sujeto ?? "", h.Sujeto is not null, h.Detalle, h.Recomendacion)).ToList(),
                     no, no.Count > 0, rev, !rev, ResumirSeguridad.Boton(s),
-                    s == SeccionDeSeguridad.Ransomware && !rev && !_aplicando && PuedeActivarse(hs) ? TextoDeActivar : null));
+                    AccionDe(s, rev, hs)));
             }
             Secciones = filas;
 
@@ -236,6 +274,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Aplicaciones => "Aplicaciones desactualizadas",
             SeccionDeSeguridad.Dispositivos => "Cámara y micrófono",
             SeccionDeSeguridad.Ransomware => "Protección contra ransomware (carpetas protegidas de Windows)",
+            SeccionDeSeguridad.Senuelos => "Señuelos contra ransomware (archivos cebo que vigila Nexo)",
             SeccionDeSeguridad.Accesos => "Accesos y cuentas (registro de Seguridad de Windows)",
             _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
@@ -311,7 +350,7 @@ namespace Nexo.Ui.Desktop
             var hechas = secciones.Where(x => !x.Revisando && x.Consulta is not null).ToList();
             if (hechas.Count == 0)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Sin revisar todavía",
-                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, la protección contra ransomware de Windows, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
+                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, la protección contra ransomware de Windows, los señuelos de Nexo, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
 
             Indicador peor = hechas.Select(x => x.Consulta!.Valor is RevisionDeSeccion v ? IndicadorSeccion(v) : Indicador.SinDatos).Aggregate(Mas);
             bool todas = hechas.Count == secciones.Count;
@@ -343,6 +382,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.FallosConocidos => n + (n == 1 ? " programa consultado" : " programas consultados"),
             SeccionDeSeguridad.Dispositivos => n + (n == 1 ? " programa en el registro" : " programas en el registro"),
             SeccionDeSeguridad.Ransomware => n + (n == 1 ? " bloqueo o cambio en 30 días" : " bloqueos o cambios en 30 días"),
+            SeccionDeSeguridad.Senuelos => n + (n == 1 ? " señuelo vigilado" : " señuelos vigilados"),
             SeccionDeSeguridad.Accesos => n + (n == 1 ? " evento revisado en 7 días" : " eventos revisados en 7 días"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };
