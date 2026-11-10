@@ -17,6 +17,8 @@
     <EmbeddedResource Include="Datos\nvd-java-8u401.json" LogicalName="nvd-java-8u401.json" />
     <!-- Evento 7045 REAL de este equipo (servicio de Chrome), con el nombre del equipo cambiado. -->
     <EmbeddedResource Include="Datos\evento-7045-real.xml" LogicalName="evento-7045-real.xml" />
+    <!-- Evento 5007 REAL de Defender de este equipo (cambio de otro ajuste), con el nombre del equipo cambiado. -->
+    <EmbeddedResource Include="Datos\evento-5007-real.xml" LogicalName="evento-5007-real.xml" />
   </ItemGroup>
 
   <ItemGroup>

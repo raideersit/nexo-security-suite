@@ -34,6 +34,7 @@ namespace Nexo.Tray.Demo
             {
                 ProbarModelo();
                 ProbarResumenDeAcciones();
+                await ProbarExitoQueDevuelveElServicio().ConfigureAwait(false);
                 ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);
             }
@@ -45,6 +46,33 @@ namespace Nexo.Tray.Demo
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");
             return _fallos == 0 ? 0 : 1;
+        }
+
+        /// <summary>Un servicio de mentira que contesta «aplicar» con lo que se le diga.</summary>
+        private sealed class ServicioQueContesta : Nexo.Ipc.IManejadorDeComandos
+        {
+            public object? Respuesta;
+            public Task<object?> ManejarAsync(string metodo, JsonElement? parametros, CancellationToken ct) => Task.FromResult(Respuesta);
+        }
+
+        // En la VPN y en las carpetas protegidas la LLAMADA va bien aunque Windows no aplique el cambio: manda el «exito» de la respuesta.
+        private static async Task ProbarExitoQueDevuelveElServicio()
+        {
+            Console.WriteLine("Aplicar: el «exito» que devuelve el servicio manda");
+            string pipe = "nexo-tray-exito-" + Guid.NewGuid().ToString("N");
+            var falso = new ServicioQueContesta();
+            await using var servidor = new Nexo.Ipc.ServidorDePipe(pipe, falso);
+            servidor.Iniciar();
+            TimeSpan espera = TimeSpan.FromSeconds(5);
+            string token = new string('a', 64);
+
+            falso.Respuesta = new { exito = false, mensaje = "Windows aceptó la orden, pero el ajuste no cambió.", modo_final = 0, destino = "activar" };
+            ResultadoDeAplicar r = await AccionesDelServicio.AplicarAsync(pipe, TipoDeAccion.CarpetasProtegidas, token, espera).ConfigureAwait(false);
+            Check(!r.Exito && !r.NecesitaElevacion && r.Mensaje.StartsWith("No se pudo:"), "carpetas protegidas: llamada correcta pero «exito: false» = NO aplicado", r.Mensaje);
+            falso.Respuesta = new { exito = true, mensaje = "Listo.", modo_final = 1, destino = "activar" };
+            Check((await AccionesDelServicio.AplicarAsync(pipe, TipoDeAccion.CarpetasProtegidas, token, espera).ConfigureAwait(false)).Exito, "con «exito: true», aplicado");
+            falso.Respuesta = new { exito = false, mensaje = "WireGuard falló." };
+            Check(!(await AccionesDelServicio.AplicarAsync(pipe, TipoDeAccion.Vpn, token, espera).ConfigureAwait(false)).Exito, "VPN: igual");
         }
 
         // Lo que la ventana y la bandeja le cuentan a quien acaba de aplicar una accion. Visto en la ventana real (2026-11-05):
@@ -67,6 +95,11 @@ namespace Nexo.Tray.Demo
             Check(R(TipoDeAccion.Cuarentena, "{\"movidos\":[\"a\"],\"omitidos\":[]}") == "1 archivo en cuarentena. ", "uno en cuarentena: singular");
             Check(R(TipoDeAccion.Cuarentena, "{\"movidos\":[\"a\",\"b\"],\"omitidos\":[]}") == "2 archivos en cuarentena. ", "dos en cuarentena: plural");
             Check(R(TipoDeAccion.Firewall, "{\"aplicados\":1,\"omitidos\":[]}") == "1 cambio aplicado. ", "un cambio de firewall: singular");
+            Check(AccionesDelServicio.MetodoDeAplicar(TipoDeAccion.CarpetasProtegidas) == "cfa.aplicar", "carpetas protegidas: se aplica con «cfa.aplicar»");
+            Check(Enum.TryParse("carpetasprotegidas", ignoreCase: true, out TipoDeAccion tcfa) && tcfa == TipoDeAccion.CarpetasProtegidas, "la bandeja elevada entiende «--aplicar CarpetasProtegidas»");
+            r = R(TipoDeAccion.CarpetasProtegidas, "{\"exito\":false,\"mensaje\":\"Windows aceptó la orden, pero el ajuste no cambió.\"}");
+            Check(r.StartsWith("No se pudo: Windows aceptó", StringComparison.Ordinal), "carpetas protegidas sin aplicar: lo dice (nunca «activado»)", r);
+            Check(R(TipoDeAccion.CarpetasProtegidas, "{\"exito\":true,\"mensaje\":\"Listo.\"}") == "Listo.", "carpetas protegidas aplicadas: el mensaje del servicio");
 
             r = R(TipoDeAccion.Firewall, "{\"aplicados\":0,\"omitidos\":[\"necesita administrador\",\"necesita administrador\"]}");
             Check(r == "0 cambios aplicados. 2 omitidos. El primero: necesita administrador", "omitidos: cuantos y el primer motivo", r);

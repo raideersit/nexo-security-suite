@@ -372,6 +372,16 @@ namespace Nexo.Ui.Desktop
             await Seguridad.RevisarAsync(seccion);
         }
 
+        private async void AccionDeSeccion(object? sender, RoutedEventArgs e)
+        {
+            // Hoy la unica accion es activar las carpetas protegidas. Siempre: plan del servicio -> confirmar (por omision «No») -> aplicar.
+            if (sender is not Avalonia.Controls.Control { Tag: SeccionDeSeguridad.Ransomware }) return;
+            const string Titulo = "Proteger tus carpetas contra ransomware";
+            string? token = await ConfirmarPlanAsync(await Seguridad.PrevisualizarActivarCarpetasAsync(), Titulo, "¿Activar la protección?");
+            if (token is null) return;
+            await MostrarResultadoAsync(Titulo, await Seguridad.AplicarCarpetasProtegidasAsync(token));
+        }
+
         internal const string TextoDeAvisoNvd =
             "Nexo va a consultar la base pública de fallos de seguridad NVD (del gobierno de EE. UU., gratuita y sin cuenta).\n\n" +
             "Se envía a Internet solo el nombre del programa y su versión (por ejemplo «winrar 7.01»). No se envía tu nombre, tu equipo, tus archivos ni la lista completa de lo que tienes instalado.\n\n" +

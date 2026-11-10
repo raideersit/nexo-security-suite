@@ -19,6 +19,8 @@ namespace Nexo.Reports.Model
         public const string ModoSigiloso = "modo-sigiloso";
         public const string ResultadoEscaneo = "resultado-escaneo";
         public const string VulnerabilidadDetectada = "vulnerabilidad-detectada";
+        public const string ProteccionRansomwareRevisada = "proteccion-ransomware-revisada";
+        public const string ProteccionRansomwareCambiada = "proteccion-ransomware-cambiada";
 
         // --- Modulo de privacidad (Prompt 2) ---
         public const string ConexionVpn = "conexion-vpn";

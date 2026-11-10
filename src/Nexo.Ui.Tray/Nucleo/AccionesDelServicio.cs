@@ -17,7 +17,9 @@ namespace Nexo.Ui.Tray.Nucleo
         Purga,
         Limpieza,
         Firewall,
-        Vpn
+        Vpn,
+        /// <summary>Activar las carpetas protegidas contra ransomware de Defender.</summary>
+        CarpetasProtegidas
     }
 
     public sealed record PlanPropuesto(string Descripcion, bool HayCambios, string? Token, IReadOnlyList<string> Avisos);
@@ -56,6 +58,7 @@ namespace Nexo.Ui.Tray.Nucleo
             TipoDeAccion.Limpieza => "limpieza.aplicar",
             TipoDeAccion.Firewall => "firewall.aplicar",
             TipoDeAccion.Vpn => "vpn.aplicar",
+            TipoDeAccion.CarpetasProtegidas => "cfa.aplicar",
             _ => throw new ArgumentOutOfRangeException(nameof(t))
         };
 
@@ -105,8 +108,8 @@ namespace Nexo.Ui.Tray.Nucleo
             await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
             Respuesta r = await c.LlamarAsync(MetodoDeAplicar(tipo), new { token }, ct).ConfigureAwait(false);
 
-            // En la VPN la llamada puede ir bien y WireGuard fallar: manda el «exito» que devuelve el servicio.
-            if (r.Exito) return new ResultadoDeAplicar(tipo != TipoDeAccion.Vpn || r.Resultado!.Value.GetProperty("exito").GetBoolean(), false, Resumir(tipo, r.Resultado!.Value));
+            // En la VPN y en las carpetas protegidas la llamada puede ir bien y Windows no aplicar el cambio: manda el «exito» que devuelve el servicio.
+            if (r.Exito) return new ResultadoDeAplicar(tipo is not (TipoDeAccion.Vpn or TipoDeAccion.CarpetasProtegidas) || r.Resultado!.Value.GetProperty("exito").GetBoolean(), false, Resumir(tipo, r.Resultado!.Value));
             if (r.Error!.Codigo == AprobacionRequerida) return new ResultadoDeAplicar(false, true, r.Error.Mensaje);
             return new ResultadoDeAplicar(false, false, r.Error.Mensaje);
         }
@@ -169,6 +172,7 @@ namespace Nexo.Ui.Tray.Nucleo
                         return "SIMULACION: " + n + (n == 1 ? " archivo se habria limpiado" : " archivos se habrian limpiado") + " (" + peso + "). No se borro nada. " + Omitidos(e);
                     return n + (n == 1 ? " archivo limpiado" : " archivos limpiados") + " (" + peso + "). " + Omitidos(e);
                 }
+                case TipoDeAccion.CarpetasProtegidas: return (e.GetProperty("exito").GetBoolean() ? "" : "No se pudo: ") + e.GetProperty("mensaje").GetString();
                 case TipoDeAccion.Vpn: return (e.GetProperty("exito").GetBoolean() ? "" : "No se pudo: ") + e.GetProperty("mensaje").GetString();
                 case TipoDeAccion.Firewall: { int n = e.GetProperty("aplicados").GetInt32(); return n + (n == 1 ? " cambio aplicado. " : " cambios aplicados. ") + Omitidos(e); }
                 default: return "";

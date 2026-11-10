@@ -17,6 +17,8 @@
     <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.1" />
     <!-- Leer el estado de los servicios de tunel de WireGuard (solo lectura). Paquete oficial de Microsoft, MIT. -->
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <!-- Leer la configuracion de Defender (MSFT_MpPreference) para la proteccion contra ransomware. Paquete oficial de Microsoft, MIT. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

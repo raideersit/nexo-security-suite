@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexo.Modules.Threats.Ransomware;
 using Nexo.Modules.Threats.Vulnerabilidades;
 #if WINDOWS
 using Nexo.Modules.Threats.Windows;
+using Nexo.Ui.Tray.Nucleo;
 #endif
 
 namespace Nexo.Ui.Desktop.Nucleo
@@ -23,7 +25,12 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// Señales de intrusion en los registros de Seguridad y de Sistema (cuentas creadas, administradores nuevos, Escritorio remoto, registro
         /// borrado...). Exige administrador: la hace el SERVICIO («alertas.revisar»), no la ventana. Solo lectura, sin red.
         /// </summary>
-        Accesos
+        Accesos,
+        /// <summary>
+        /// La proteccion contra ransomware de Windows (acceso controlado a carpetas de Defender): si esta activada y que bloqueo. Solo lectura,
+        /// local, sin red y sin administrador (la lista de programas con permiso no se ve sin el, y se dice).
+        /// </summary>
+        Ransomware
     }
 
     /// <summary>
@@ -47,6 +54,17 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// </summary>
         Task<Consulta<RevisionDeSeccion>> RevisarFallosConocidosAsync(IReadOnlyList<AplicacionDesactualizada> aplicaciones, IProgress<string>? progreso, CancellationToken ct)
             => Task.FromResult(Consulta<RevisionDeSeccion>.Mal("esta comprobación no está disponible aquí"));
+
+        /// <summary>
+        /// Pide al SERVICIO el plan para activar las carpetas protegidas contra ransomware («activar» o «auditar»). No cambia nada. Cambiar
+        /// Defender exige administrador: lo hace el servicio, con token y aprobacion. Por omision no esta disponible.
+        /// </summary>
+        Task<Consulta<PlanDelServicio>> PrevisualizarCarpetasProtegidasAsync(string modo, CancellationToken ct)
+            => Task.FromResult(Consulta<PlanDelServicio>.Mal("hace falta el servicio de Nexo para cambiar la configuración de Defender"));
+
+        /// <summary>Aplica el plan de ese token (con UAC si la politica lo exige).</summary>
+        Task<ResultadoDeAccion> AplicarCarpetasProtegidasAsync(string token, CancellationToken ct)
+            => Task.FromResult(new ResultadoDeAccion(false, false, "hace falta el servicio de Nexo para cambiar la configuración de Defender"));
     }
 
     public sealed class ServicioDeSeguridadNoDisponible : IServicioDeSeguridad
@@ -68,12 +86,25 @@ namespace Nexo.Ui.Desktop.Nucleo
     {
         private readonly Func<DateTimeOffset> _reloj;
         private readonly string? _pipe;
+        private readonly ILanzadorElevado? _lanzador;
+
+        public async Task<Consulta<PlanDelServicio>> PrevisualizarCarpetasProtegidasAsync(string modo, CancellationToken ct)
+        {
+            if (_pipe is null) return Consulta<PlanDelServicio>.Mal("hace falta el servicio de Nexo para cambiar la configuración de Defender");
+            return LectorDeEscaneo.Plan(await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(5), "cfa.previsualizar", new { modo }, ct).ConfigureAwait(false));
+        }
+
+        public Task<ResultadoDeAccion> AplicarCarpetasProtegidasAsync(string token, CancellationToken ct)
+            => _pipe is null
+                ? Task.FromResult(new ResultadoDeAccion(false, false, "hace falta el servicio de Nexo para cambiar la configuración de Defender"))
+                : LlamadaPorPipe.AplicarAsync(_pipe, TimeSpan.FromSeconds(10), TipoDeAccion.CarpetasProtegidas, token, _lanzador ?? new LanzadorPorBandeja(_pipe), ct);
 
         /// <param name="pipe">El canal del servicio, para la sección «Accesos» (el registro de Seguridad exige administrador). Sin él, esa sección lo dice.</param>
-        public ServicioDeSeguridadLocal(Func<DateTimeOffset>? reloj = null, string? pipe = null)
+        public ServicioDeSeguridadLocal(Func<DateTimeOffset>? reloj = null, string? pipe = null, ILanzadorElevado? lanzador = null)
         {
             _reloj = reloj ?? (() => DateTimeOffset.Now);
             _pipe = pipe;
+            _lanzador = lanzador;
         }
 
         public async Task<Consulta<RevisionDeSeccion>> RevisarAsync(SeccionDeSeguridad seccion, CancellationToken ct)
@@ -108,6 +139,12 @@ namespace Nexo.Ui.Desktop.Nucleo
                         DateTimeOffset ahora = _reloj();
                         return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, AnalizadorDeDispositivos.Analizar(s, ahora), ahora,
                             Elementos: s.Estado == EstadoDeLecturaDispositivos.Correcta ? s.Registros.Count : null));
+                    }
+                    case SeccionDeSeguridad.Ransomware:
+                    {
+                        DateTimeOffset ahora = _reloj();
+                        LecturaDeCarpetasProtegidas l = await Task.Run(() => LectorDeCarpetasProtegidasWindows.Leer(AnalizadorDeCarpetasProtegidas.PeriodoPorOmision, ahora), ct).ConfigureAwait(false);
+                        return Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, AnalizadorDeCarpetasProtegidas.Analizar(l), ahora, Elementos: AnalizadorDeCarpetasProtegidas.Relevantes(l)));
                     }
                     default:
                     {

@@ -172,6 +172,8 @@ namespace Nexo.Service
             // Señales de intrusion en los registros de Seguridad y de Sistema (solo lectura; por eso aqui, como SYSTEM).
             modulos.Add(new ModuloAlertas(LectorDeAlertasWindows.Leer, reportes));
             modulos.Add(new ModuloVpn(new LectorDeWireGuardWindows(), new EjecutorDeWireGuardWindows(), reportes, politica));
+            // Activar las carpetas protegidas contra ransomware de Defender (plan + token + aprobacion; nunca las apaga).
+            modulos.Add(new ModuloCarpetasProtegidas(new LectorDeEstadoDeCfaWindows(), new EjecutorDeCfaWindows(), reportes, politica));
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }

@@ -25,10 +25,14 @@ namespace Nexo.Ui.Desktop
         bool HayNoEvaluado,
         bool Revisando,
         bool PuedeRevisar,
-        string Boton = "Revisar")
+        string Boton = "Revisar",
+        string? Accion = null)
     {
         /// <summary>Para el XAML: Avalonia no convierte un entero en booleano al enlazar IsVisible.</summary>
         public bool HayHallazgos => Hallazgos.Count > 0;
+
+        /// <summary>Un segundo boton que CAMBIA algo (hoy solo «Activar la protección...» en la de ransomware). Siempre pasa por plan y confirmacion.</summary>
+        public bool HayAccion => Accion is not null;
     }
 
     /// <summary>
@@ -42,8 +46,8 @@ namespace Nexo.Ui.Desktop
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
         /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
-        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Accesos };
-        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Accesos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
@@ -68,6 +72,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Wifi => "seguridad.wifi",
             SeccionDeSeguridad.Aplicaciones => "seguridad.aplicaciones",
             SeccionDeSeguridad.Dispositivos => "seguridad.dispositivos",
+            SeccionDeSeguridad.Ransomware => "seguridad.ransomware",
             _ => "seguridad.fallos_conocidos"
         };
 
@@ -89,7 +94,7 @@ namespace Nexo.Ui.Desktop
         public bool PuedeRevisarTodo { get; private set; }
         public Indicador Indicador { get; private set; } = Indicador.SinDatos;
 
-        /// <summary>Revisa las locales (cuentas, Wi-Fi, aplicaciones, cámara y micrófono), una tras otra (la de aplicaciones tarda mas y consulta Internet).</summary>
+        /// <summary>Revisa las locales (cuentas, Wi-Fi, aplicaciones, cámara y micrófono, ransomware, accesos), una tras otra (la de aplicaciones tarda mas y consulta Internet).</summary>
         public async Task RevisarTodoAsync(CancellationToken ct = default)
         {
             foreach (SeccionDeSeguridad s in Orden)
@@ -144,6 +149,47 @@ namespace Nexo.Ui.Desktop
         }
 
         // ------------------------------------------------------------
+        // Activar las carpetas protegidas (lo hace el SERVICIO: cambiar Defender exige administrador).
+
+        public const string TextoDeActivar = "Activar la protección...";
+
+        /// <summary>Los hallazgos que se arreglan activando la proteccion. Con otro antivirus o con el tiempo real apagado NO se ofrece.</summary>
+        public static readonly IReadOnlyList<string> SeArreglanActivando = new[] { "CFA-APAGADO", "CFA-AUDITORIA", "CFA-SOLO-DISCOS" };
+
+        private static bool PuedeActivarse(IReadOnlyList<HallazgoDeSistema> hs)
+            => hs.Any(h => SeArreglanActivando.Contains(h.Id)) && !hs.Any(h => h.Id is "CFA-SIN-TIEMPO-REAL" or "CFA-OTRO-ANTIVIRUS");
+
+        private bool _aplicando;
+
+        /// <summary>Pide al servicio el plan para activar la proteccion. No cambia nada.</summary>
+        public Task<Consulta<PlanDelServicio>> PrevisualizarActivarCarpetasAsync(CancellationToken ct = default)
+            => _servicio.PrevisualizarCarpetasProtegidasAsync("activar", ct);
+
+        /// <summary>
+        /// Aplica un plan ya confirmado. Despues, el resultado anterior de la seccion ya no vale: se vuelve a revisar; si se abrio el aviso de UAC
+        /// (el cambio lo hara otro proceso, mas tarde) se borra para que nadie lo tome por el estado actual.
+        /// </summary>
+        public async Task<ResultadoDeAccion> AplicarCarpetasProtegidasAsync(string token, CancellationToken ct = default)
+        {
+            _aplicando = true;
+            Calcular();
+            ResultadoDeAccion r;
+            try
+            {
+                try { r = await _servicio.AplicarCarpetasProtegidasAsync(token, ct); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { r = new ResultadoDeAccion(false, false, "error inesperado (" + ex.GetType().Name + ")"); }
+            }
+            finally
+            {
+                _aplicando = false;
+                _ultimas[SeccionDeSeguridad.Ransomware] = null;
+                Calcular();
+            }
+            if (!r.PidioAprobacion) await RevisarAsync(SeccionDeSeguridad.Ransomware, ct);
+            return r;
+        }
+
+        // ------------------------------------------------------------
         private void Calcular()
         {
             var filas = new List<FilaDeSeccion>();
@@ -160,7 +206,8 @@ namespace Nexo.Ui.Desktop
                     hs.Select(h => new FilaDeHallazgoVista(
                         ResumirSeguridad.Gravedad(h.Severidad), Colores.De(ResumirSeguridad.IndicadorDe(h.Severidad)), h.Titulo,
                         h.Sujeto ?? "", h.Sujeto is not null, h.Detalle, h.Recomendacion)).ToList(),
-                    no, no.Count > 0, rev, !rev, ResumirSeguridad.Boton(s)));
+                    no, no.Count > 0, rev, !rev, ResumirSeguridad.Boton(s),
+                    s == SeccionDeSeguridad.Ransomware && !rev && !_aplicando && PuedeActivarse(hs) ? TextoDeActivar : null));
             }
             Secciones = filas;
 
@@ -188,6 +235,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Wifi => "Redes Wi-Fi",
             SeccionDeSeguridad.Aplicaciones => "Aplicaciones desactualizadas",
             SeccionDeSeguridad.Dispositivos => "Cámara y micrófono",
+            SeccionDeSeguridad.Ransomware => "Protección contra ransomware (carpetas protegidas de Windows)",
             SeccionDeSeguridad.Accesos => "Accesos y cuentas (registro de Seguridad de Windows)",
             _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
@@ -263,7 +311,7 @@ namespace Nexo.Ui.Desktop
             var hechas = secciones.Where(x => !x.Revisando && x.Consulta is not null).ToList();
             if (hechas.Count == 0)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Sin revisar todavía",
-                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
+                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, la protección contra ransomware de Windows, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
 
             Indicador peor = hechas.Select(x => x.Consulta!.Valor is RevisionDeSeccion v ? IndicadorSeccion(v) : Indicador.SinDatos).Aggregate(Mas);
             bool todas = hechas.Count == secciones.Count;
@@ -294,6 +342,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Wifi => n + (n == 1 ? " red guardada" : " redes guardadas"),
             SeccionDeSeguridad.FallosConocidos => n + (n == 1 ? " programa consultado" : " programas consultados"),
             SeccionDeSeguridad.Dispositivos => n + (n == 1 ? " programa en el registro" : " programas en el registro"),
+            SeccionDeSeguridad.Ransomware => n + (n == 1 ? " bloqueo o cambio en 30 días" : " bloqueos o cambios en 30 días"),
             SeccionDeSeguridad.Accesos => n + (n == 1 ? " evento revisado en 7 días" : " eventos revisados en 7 días"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };
