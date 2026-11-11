@@ -29,6 +29,7 @@ namespace Nexo.Ui.Tray.Nucleo
         private readonly HashSet<string> _revisadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _senuelosAvisados = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _mineriaAvisada = new HashSet<string>(StringComparer.Ordinal);
+        private bool _wifiAvisado;         // ya se avisó de la red Wi-Fi sin cifrado actual (se rearma al desconectarse o cambiar de red)
         private int _copiaAvisadas;      // cuántas copias sospechosas se avisaron ya con globo
         private InstantaneaDelServicio _ultima = InstantaneaDelServicio.SinConexion("sin consultar todavia");
 
@@ -47,6 +48,12 @@ namespace Nexo.Ui.Tray.Nucleo
         public IReadOnlyList<SenueloTocadoVista> SenuelosNuevos { get; private set; } = Array.Empty<SenueloTocadoVista>();
         /// <summary>Hay una copia sospechosa guardada que todavía no se avisó con globo (una sola vez por cada una nueva).</summary>
         public bool CopiaSospechosaNueva { get; private set; }
+
+        /// <summary>Hay un Wi-Fi sin cifrado del que aún no se avisó con globo (sigue pendiente hasta que <see cref="MarcarWifiAvisado"/>).</summary>
+        public bool WifiSinCifradoNuevo { get; private set; }
+
+        /// <summary>La bandeja ya mostró el globo de la red actual: no se repite hasta que se desconecte o cambie.</summary>
+        public void MarcarWifiAvisado() { _wifiAvisado = true; WifiSinCifradoNuevo = false; }
 
         /// <summary>Hallazgos graves de criptominería que aún no se avisaron con globo.</summary>
         public IReadOnlyList<AvisoDeMineriaVista> MineriaNueva { get; private set; } = Array.Empty<AvisoDeMineriaVista>();
@@ -88,6 +95,12 @@ namespace Nexo.Ui.Tray.Nucleo
                     if (_mineriaAvisada.Add(m.Clave)) mineria.Add(m);
             }
             MineriaNueva = mineria;
+            // Wi-Fi sin cifrado: un aviso por conexión. Sin servicio no se cambia nada (no se repite el globo al volver).
+            if (i.Conectado)
+            {
+                if (!i.WifiSinCifrado) _wifiAvisado = false;
+                WifiSinCifradoNuevo = i.WifiSinCifrado && !_wifiAvisado;
+            }
             // Copia de seguridad: si no se pudo hablar con el servicio se conserva lo avisado (no se repite el globo al volver).
             CopiaSospechosaNueva = false;
             if (i.Conectado)

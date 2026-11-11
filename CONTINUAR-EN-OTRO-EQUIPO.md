@@ -1702,6 +1702,34 @@ Solo los lectores; **aún sin lista descargada, servicio, ventana ni bandeja**.
 - **Sin probar:** servicio real como SYSTEM con `Nexo:Mineria:Activo=true` (y una lista local real) + ventana/bandeja reales (pantalla). Hay que decidirlo con el usuario: activarlo cambia lo que corre en su servicio.
 - La pestaña NO tiene botón «Revisar» propio distinto del resto (usa el genérico de cada sección).
 
+## 2ay. Perfiles de actividad (fila 18), paso 1: señales y reglas (2026-11-11, en el HP)
+
+Diseño decidido (a partir de las «dos honestidades» de la Salida 4 §1.5): Nexo **observa** señales reales y elige un perfil; solo pospondrá **sus propias** tareas pesadas (escaneo programado, copia, limpieza). **No** cambia el plan de energía (en Modern Standby suele empeorar), **no** cambia la prioridad de otros programas, **no** toca la protección (el tiempo real sigue). El «Wi-Fi público» no es un perfil de rendimiento: solo se avisa (la acción es de seguridad).
+
+- `Nexo.Modules.Cleanup/Perfiles/PerfilDeActividad.cs` (portable): `Perfil` {Normal, JuegoOVideo, Bateria}, `ReglasDePerfil.Decidir`, `SelectorDePerfil` con histéresis (entrar es inmediato; volver a Normal pide 3 lecturas seguidas: un alt-tab no reanuda las tareas). Pantalla bloqueada/protector = «Ausente» = **buen** momento para tareas pesadas; «No molestar» no cambia el perfil. Lo no leído es «no evaluado» y **nunca** pospone nada (un fallo de lectura no debe dejar la copia parada).
+- `Nexo.Native/Power/EstadoDeEnergia.cs` (`GetSystemPowerStatus`) y `Nexo.Native/Shell/NotificacionDeUsuario.cs` (`SHQueryUserNotificationState`); `Nexo.Modules.Cleanup.Windows/LectorDeActividadWindows.cs`. Sin administrador, solo lectura.
+- **Pruebas:** `Nexo.Cleanup.Demo` (portable, +29) y `Nexo.Cleanup.Windows.Demo` (real, +15): bytes inventados, y en el HP cruce de la corriente y el % de batería con `SystemInformation.PowerStatus` (Online 100 = Conectada 100). La señal de pantalla completa se vio real: detectó una aplicación a pantalla completa en el HP durante la prueba. Roturas a propósito: 10/10 cazadas (una era floja: «sin batería» con 255 ya daba nulo; ahora la prueba usa 100).
+- **Sin probar:** un juego Direct3D real a pantalla completa (el valor `JuegoD3D`), y Wi-Fi abierto de punta a punta (el dato `WifiAbierto` lo debe aportar quien llama desde la revisión de Wi-Fi; aún no está cableado).
+- **Siguiente (paso 2, HECHO: ver §2az):** que el servicio use el perfil: `perfil.estado` (solo lectura) y que el escaneo programado, la copia versionada y la limpieza automática se pospongan mientras `PosponerTareasPesadas` (con un máximo de espera para no dejarlos parados días); luego una línea en la ventana y la bandeja.
+
+## 2az. Perfiles de actividad, paso 2: el servicio (2026-11-11, en el HP)
+
+- `Nexo.Modules.Cleanup/Perfiles/PuertaDeTareasPesadas.cs` (portable): «¿puedo empezar ahora una tarea pesada?». Con perfil Normal (o sin perfiles) siempre; en JuegoOVideo/Bateria se pospone el ARRANQUE, pero **como máximo `MaximoDeEspera` (6 h por omisión)**: pasado ese tiempo corre aunque siga el perfil, y el estado dice «forzada». Una tarea ya empezada no se interrumpe. Cada tarea tiene su cuenta; al pasar por Normal la espera se borra.
+- `src/Nexo.Service/ModuloPerfil.cs`: lee las señales cada 10 s (mín. 2) y alimenta la puerta; `perfil.estado` (solo lectura; sin métodos para cambiar el perfil), `ModuloPerfilApagado`. **Apagado por omisión** (`Nexo:Perfiles:Activo`, `SegundosEntreLecturas`, `MaximoEsperaHoras`): cambia CUÁNDO corren las tareas automáticas. Una lectura que falla **abre** la puerta y se avisa (nunca deja tareas paradas por no saber).
+- **Quién la usa:** el escaneo programado (`ModuloEscaneoProgramado.EsperarPuertaAsync`: espera de a 1 min antes de escanear) y la copia versionada AUTOMÁTICA (`VueltaAsync`). «Copiar ahora» (a mano) **nunca** espera. La limpieza no es automática (siempre con plan, token y aprobación): no usa la puerta. La salud del disco es una lectura liviana: tampoco.
+- **No toca:** el plan de energía, la prioridad de otros programas ni el tiempo real.
+- **Pruebas:** `Nexo.Service.Demo` `PerfilPruebas.cs` (28; incluye el BUCLE real del escaneo con reloj y espera falsos y la lista de métodos del servicio = 40), `Nexo.Cleanup.Demo` (puerta, +13). Roturas a propósito: 11/11 cazadas; 3 se habían escapado (la espera vieja que se arrastraba, el cableado del bucle real y que el escaneo dejara «pospuesto» tras terminar) y se arreglaron las pruebas.
+- **Sin probar:** servicio real como SYSTEM con `Nexo:Perfiles:Activo=true` (y con un juego Direct3D de verdad). El Wi-Fi abierto sigue sin cablear al servicio (`AvisarWifiAbierto` queda en falso).
+- **Siguiente (paso 3, HECHO: ver §2ba):** una línea en la ventana (estado del perfil y qué se pospuso, con su máximo) y el aviso en la bandeja; cablear el Wi-Fi abierto desde la revisión de Wi-Fi.
+
+## 2ba. Perfiles de actividad, paso 3: Wi-Fi sin cifrado, ventana y bandeja (2026-11-11, en el HP)
+
+- **Servicio:** `ModuloPerfil` recibe `wifiAbierto` (función opcional) y lo consulta como mucho **1 vez por minuto**; `perfil.estado` suma `wifi_abierto` y `wifi_leido` (false = no se sabe). La regla vive en `NexoWorker.WifiAbiertoDe` (pura): conexión con la seguridad desactivada = abierto (misma regla que `WIFI-CONEXION-SIN-CIFRADO`); sin adaptador = false (un hecho); servicio WLAN parado o error = **null (no se sabe, nunca «cerrado»)**. El Wi-Fi abierto NO cambia el perfil ni pospone nada (es de seguridad).
+- **Ventana:** octava fila de la pestaña Estado, «Perfil de actividad» (`LectorDeModulos.Perfil` + `Resumir.FilaDelPerfil`): apagado y sin lecturas = gris; Normal/juego/batería conocido = verde (si pospone, dice qué espera, desde cuándo y el máximo, o «correrá igual» si ya cumplió); Wi-Fi sin cifrado = atención (con VPN y HTTPS); un aviso, lo no leído o «no se sabe si el Wi-Fi está abierto» = lo dice. Perfil desconocido o máximo ≤ 0 invalidan toda la respuesta. Las pruebas de «7 filas» pasaron a 8.
+- **Bandeja:** `Instantanea.LeerWifiSinCifrado` (true solo con perfiles activos, Wi-Fi leído y abierto) + globo con diálogo. **Un globo por conexión**: el aviso queda *pendiente* hasta que la bandeja de verdad lo muestra (no se pierde si coincide con señuelos, criptominería o una copia sospechosa, que tienen prioridad), no se repite en la misma red ni tras un corte del servicio, y se rearma al pasar por una red cifrada.
+- **Pruebas:** `Nexo.Service.Demo` (+11: caché de 60 s, fallo = «no se sabe», regla con datos construidos, y lector REAL cruzado con `netsh wlan show interfaces`: el HP estaba conectado a una red cifrada, Nexo dijo «no abierto» = netsh), `Nexo.Desktop.Demo` `PerfilVentanaPruebas.cs` (+14), `Nexo.Tray.Demo` `WifiBandejaPruebas.cs` (+13, con el JSON real). Roturas a propósito: 14/14 cazadas (una, «WLAN parado», solo cuando se separó la regla en función pura).
+- **Sin probar:** una red Wi-Fi realmente abierta (no hay una a mano) y el servicio real como SYSTEM con `Nexo:Perfiles:Activo=true`; ventana y bandeja con pantalla real. Queda ya cerrado el cableado del Wi-Fi que faltaba en §2ay.
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
@@ -1864,7 +1892,7 @@ El código viaja por git; las máquinas no comparten nada más.
     ilegible (+3 en `Nexo.Cleanup.Windows.Demo`, solo compiladas).
   - **Huecos:** deshabilitar tareas (haría falta la API COM del Programador de tareas) y las tareas que están en
     el registro (`TaskCache`) pero cuyo XML se borró, una técnica conocida para esconderlas.
-- **§1.5 Perfiles de rendimiento** sigue en diseño. **§1.3 Desinstalar aplicaciones**
+- **§1.5 Perfiles de rendimiento**: paso 1 hecho (§2ay). **§1.3 Desinstalar aplicaciones**
   no se construye, por recomendación de [[Salida 6 - Analisis de viabilidad del proyecto]].
 
 ---

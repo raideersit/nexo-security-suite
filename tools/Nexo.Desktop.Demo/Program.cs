@@ -49,6 +49,7 @@ namespace Nexo.Desktop.Demo
             ProbarActivarCarpetasProtegidas();
             ProbarSenuelosEnLaVentana();
             ProbarMineriaEnLaVentana();
+            ProbarPerfilEnLaVentana();
             ProbarBloqueoDeSeguridadDelModelo();
             ProbarRastroDeLaVentana();
             ProbarTotpEnLaVentana();
@@ -165,8 +166,8 @@ namespace Nexo.Desktop.Demo
             ResumenDeEstado r = Resumen(InstantaneaDelServicio.SinConexion("el servicio no esta en marcha"));
             Check(r.Estado == EstadoDeBandeja.Desconectado && r.Indicador == Indicador.SinDatos, "sin conexion: estado desconectado, indicador gris");
             Check(r.Detalle.Contains("el servicio no esta en marcha"), "sin conexion: el detalle dice el motivo", r.Detalle);
-            Check(r.Modulos.Count == 7 && r.Modulos.All(f => f.Indicador == Indicador.SinDatos && f.Estado == "Sin datos"),
-                "sin conexion: las 7 filas sin datos, ninguna con color");
+            Check(r.Modulos.Count == 8 && r.Modulos.All(f => f.Indicador == Indicador.SinDatos && f.Estado == "Sin datos"),
+                "sin conexion: las 8 filas sin datos, ninguna con color");
             Check(r.BarraServicio == "Servicio: sin conexión" && r.BarraTiempoReal.EndsWith("sin datos") && r.BarraMotor.EndsWith("sin datos"),
                 "sin conexion: la barra de estado no afirma nada");
 
@@ -306,7 +307,7 @@ namespace Nexo.Desktop.Demo
             Esperar(vm.ActualizarAsync());
             Check(vm.Titulo.Contains("apagado") && avisos > 0, "tras consultar muestra el estado y avisa a la ventana", vm.Titulo);
             Check(vm.BarraConsulta == "Última consulta: 09:12:30", "la hora de la ultima consulta sale del reloj", vm.BarraConsulta);
-            Check(vm.Modulos.Count == 7, "la ventana recibe las 7 filas");
+            Check(vm.Modulos.Count == 8, "la ventana recibe las 8 filas");
 
             fija.Valor = EstadoCompleto.SinConexion(InstantaneaDelServicio.SinConexion("el servicio no esta en marcha"));
             Esperar(vm.ActualizarAsync());
@@ -1298,7 +1299,7 @@ namespace Nexo.Desktop.Demo
                 Dispatcher.UIThread.RunJobs();
                 Check(fija.Llamadas == 1, "al abrirse consulta al servicio una vez", fija.Llamadas.ToString());
                 Check(w.TituloDeEstado.Text == vm.Titulo && vm.Titulo.Contains("Firewall"), "el titulo enlazado muestra lo mas grave", w.TituloDeEstado.Text);
-                Check(w.ListaDeModulos.ItemCount == 7, "la tabla de modulos tiene 7 filas", w.ListaDeModulos.ItemCount.ToString());
+                Check(w.ListaDeModulos.ItemCount == 8, "la tabla de modulos tiene 8 filas", w.ListaDeModulos.ItemCount.ToString());
                 Check(w.Pestanas.ItemCount == 12 && w.Pestanas.SelectedIndex == 0, "12 pestañas y se abre en «Estado»");
                 Check(new[] { w.BotonEscanear, w.BotonLimpiar, w.BotonFirewall, w.BotonCuarentena, w.BotonActualizar }
                         .All(b => b.LargeIcon?.PixelSize.Width == 24 && b.SmallIcon?.PixelSize.Width == 16),

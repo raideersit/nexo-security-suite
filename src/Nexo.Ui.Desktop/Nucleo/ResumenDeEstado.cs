@@ -44,6 +44,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         public const string Firewall = "Firewall";
         public const string Cuarentena = "Cuarentena";
         public const string Disco = "Salud del disco";
+        public const string Perfil = "Perfil de actividad";
         public const string Limpieza = "Limpieza";
 
         /// <summary>Como se muestran las fechas (hora local del equipo).</summary>
@@ -60,6 +61,7 @@ namespace Nexo.Ui.Desktop.Nucleo
                 i.Conectado ? FilaDelFirewall(e.Firewall) : SinConexion(Firewall),
                 i.Conectado ? FilaDeLaCuarentena(e.Cuarentena) : SinConexion(Cuarentena),
                 i.Conectado ? FilaDelDisco(e.Disco) : SinConexion(Disco),
+                i.Conectado ? FilaDelPerfil(e.Perfil) : SinConexion(Perfil),
                 i.Conectado
                     ? new FilaDeModulo(Limpieza, Indicador.SinDatos, "A pedido", "No tiene estado: se usa desde su pestaña o desde la bandeja.")
                     : SinConexion(Limpieza)
@@ -226,6 +228,50 @@ namespace Nexo.Ui.Desktop.Nucleo
             return new FilaDeModulo(Cuarentena, Indicador.Correcto, q.Elementos == 1 ? "1 elemento" : q.Elementos + " elementos",
                 // El servicio NO purga solo: lo vencido se elimina cuando alguien lo pide (pestaña Cuarentena).
                 q.ProximoVencimiento is DateTimeOffset v ? "El más antiguo vence el " + Fecha(v) + " (después se puede eliminar)." : "Guardados cifrados.");
+        }
+
+        private static string NombreDeTarea(string t) => t switch
+        {
+            "copia" => "la copia de seguridad",
+            "escaneo-programado" => "el escaneo programado",
+            _ => t
+        };
+
+        /// <summary>
+        /// La fila «Perfil de actividad» (§2az). Verde = el perfil es conocido (Normal, o juego/vídeo/batería con Nexo apartándose); el Wi-Fi sin
+        /// cifrado es «atención»; apagado o sin leer es gris. Nunca se dice «Normal» si no se leyó.
+        /// </summary>
+        private static FilaDeModulo FilaDelPerfil(Consulta<EstadoDePerfil>? c)
+        {
+            if (c?.Valor is not EstadoDePerfil p) return NoSePudo(Perfil, c?.Error ?? "el servicio no da el perfil");
+            if (!p.Activo) return new FilaDeModulo(Perfil, Indicador.SinDatos, "Apagado", "El escaneo programado y la copia corren a su hora (se activa en appsettings.json: Nexo:Perfiles:Activo).");
+            if (p.Perfil is null) return new FilaDeModulo(Perfil, Indicador.SinDatos, "Sin lecturas todavía", "El servicio aún no ha mirado la energía ni la pantalla.");
+
+            string quePasa = p.Perfil switch
+            {
+                "JuegoOVideo" => "Hay un juego o vídeo a pantalla completa",
+                "Bateria" => "El equipo funciona con batería",
+                _ => "Todo normal"
+            };
+            var partes = new List<string>();
+            if (p.Pospone)
+            {
+                partes.Add("Nexo pospone sus tareas pesadas (escaneo programado y copia) para no estorbar; el tiempo real sigue activo.");
+                foreach (TareaPospuestaVista t in p.Pospuestas)
+                    partes.Add(char.ToUpperInvariant(NombreDeTarea(t.Tarea)[0]) + NombreDeTarea(t.Tarea)[1..] + " espera desde las " + t.Desde.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
+                               + (t.Forzada ? " y correrá igual, porque ya cumplió el máximo de espera." : "; como mucho espera " + p.MaximoEsperaHoras.ToString("0.##", CultureInfo.InvariantCulture) + " h."));
+            }
+            if (p.Aviso is not null) partes.Add("Aviso: " + p.Aviso + ".");
+            if (p.NoEvaluado.Count > 0) partes.Add("No se pudo leer: " + string.Join("; ", p.NoEvaluado) + ".");
+            if (!p.WifiLeido) partes.Add("No se sabe si el Wi-Fi está abierto.");
+
+            if (p.WifiAbierto)
+            {
+                partes.Insert(0, "Estás conectado a una red Wi-Fi sin cifrado: cualquiera cerca puede ver lo que no vaya cifrado. Usa una VPN y no escribas contraseñas en sitios sin HTTPS.");
+                return new FilaDeModulo(Perfil, Indicador.Atencion, "Wi-Fi sin cifrado", string.Join(" ", partes));
+            }
+            return new FilaDeModulo(Perfil, p.Aviso is null && p.NoEvaluado.Count == 0 ? Indicador.Correcto : Indicador.Atencion,
+                p.Pospone ? quePasa + ": tareas pospuestas" : quePasa, partes.Count == 0 ? "Nexo trabaja con normalidad." : string.Join(" ", partes));
         }
 
         private static FilaDeModulo FilaDelDisco(Consulta<EstadoDeDiscos>? c)

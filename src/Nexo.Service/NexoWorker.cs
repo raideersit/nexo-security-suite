@@ -110,6 +110,10 @@ namespace Nexo.Service
 
             if (tiempoReal is null) modulos.Add(new ModuloTiempoRealApagado());
 
+            // Perfiles de actividad (apagados por omisión): deciden CUÁNDO arrancan el escaneo programado y la copia automática.
+            ModuloPerfil? perfil = CrearPerfil();
+            modulos.Add(perfil is null ? new ModuloPerfilApagado() : perfil);
+
             // Escaneo programado: APAGADO por omision, se activa solo en appsettings.json (sin metodos del pipe para cambiarlo).
             ModuloEscaneoProgramado? programado = null;
             if (bool.TryParse(_config["Nexo:EscaneoProgramado:Activo"], out bool progActivo) && progActivo)
@@ -131,6 +135,7 @@ namespace Nexo.Service
                         ? reg
                         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Nexo", "escaneo-programado.json");
                     programado = new ModuloEscaneoProgramado(motor, reportes, validas, intervalo, estado, excluir: new[] { almacenQ.Carpeta, vault });
+                    if (perfil is not null) programado.Puerta = perfil.Puerta;
                     if (tiempoReal is not null) programado.EscaneoCompleto += tiempoReal.EscaneoCompleto;
                     programado.Iniciar();
                     modulos.Add(programado);
@@ -179,7 +184,7 @@ namespace Nexo.Service
             // Señuelos contra ransomware (apagados por omisión; ver CrearSenuelos).
             modulos.Add(CrearSenuelos(reportes, politica));
             // Copia versionada (apagada por omisión; ver CrearCopia).
-            modulos.Add(CrearCopia(reportes));
+            modulos.Add(CrearCopia(reportes, perfil?.Puerta));
             // Anti-criptojacking (apagado por omisión; ver CrearMineria).
             modulos.Add(CrearMineria());
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
@@ -208,6 +213,38 @@ namespace Nexo.Service
             var vigilante = new VigilanteDeSenuelos(_servicios.GetService<IAccesoASenuelos>() ?? new AccesoASenuelosWindows(ocultos),
                                                     new AlmacenDeSenuelosJson(registro), reportes);
             var modulo = new ModuloSenuelos(vigilante, () => CarpetasDeSenuelos(fijas), cada, politica);
+            modulo.Iniciar();
+            return modulo;
+        }
+
+        /// <summary>
+        /// ¿Estás conectado ahora a una red Wi-Fi sin cifrado? Misma regla que la revisión de Wi-Fi (conexión con la seguridad desactivada).
+        /// Sin adaptador Wi-Fi: false (un hecho). Servicio WLAN parado o error de lectura: null (no se sabe).
+        /// </summary>
+        internal static bool? WifiAbiertoAhora() => WifiAbiertoDe(LectorDeWifiWindows.Leer());
+
+        /// <summary>La regla, sobre una lectura ya hecha (separada para probarla con datos construidos).</summary>
+        internal static bool? WifiAbiertoDe(Nexo.Modules.Threats.Vulnerabilidades.InstantaneaDeWifi w)
+        {
+            if (w.Estado == Nexo.Modules.Threats.Vulnerabilidades.EstadoDeLecturaWifi.SinAdaptador) return false;
+            if (w.Estado != Nexo.Modules.Threats.Vulnerabilidades.EstadoDeLecturaWifi.Correcta) return null;
+            return w.Adaptadores.Any(a => a.Conexion is { SeguridadActiva: false });
+        }
+
+        /// <summary>
+        /// Perfiles de actividad: APAGADOS por omisión. Se activan con Nexo:Perfiles:Activo; Nexo:Perfiles:SegundosEntreLecturas (10, mínimo 2) y
+        /// Nexo:Perfiles:MaximoEsperaHoras (6): lo más que un escaneo o una copia automáticos esperan por un juego, un vídeo o la batería.
+        /// </summary>
+        private ModuloPerfil? CrearPerfil()
+        {
+            if (!bool.TryParse(_config["Nexo:Perfiles:Activo"], out bool activo) || !activo) return null;
+            TimeSpan? cada = double.TryParse(_config["Nexo:Perfiles:SegundosEntreLecturas"], System.Globalization.NumberStyles.Float,
+                                             System.Globalization.CultureInfo.InvariantCulture, out double seg) && seg > 0
+                ? TimeSpan.FromSeconds(seg) : null;
+            TimeSpan? maximo = double.TryParse(_config["Nexo:Perfiles:MaximoEsperaHoras"], System.Globalization.NumberStyles.Float,
+                                               System.Globalization.CultureInfo.InvariantCulture, out double h) && h > 0
+                ? TimeSpan.FromHours(h) : null;
+            var modulo = new ModuloPerfil(() => Nexo.Modules.Cleanup.Windows.LectorDeActividadWindows.Leer(), maximo, cada, wifiAbierto: WifiAbiertoAhora);
             modulo.Iniciar();
             return modulo;
         }
@@ -263,7 +300,7 @@ namespace Nexo.Service
         /// con letra de unidad, p. ej. «E:\»). Nexo:Copia:Versiones (7), Nexo:Copia:CadaHoras (0 = solo a mano) y Nexo:Copia:Carpetas
         /// (separadas por «;»; si falta, Documentos, Escritorio e Imágenes de cada perfil).
         /// </summary>
-        private IModuloDelServicio CrearCopia(IReportWriter reportes)
+        private IModuloDelServicio CrearCopia(IReportWriter reportes, Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas? puerta = null)
         {
             if (!bool.TryParse(_config["Nexo:Copia:Activo"], out bool activo) || !activo) return new ModuloCopiaApagado();
             string destino = _config["Nexo:Copia:Destino"] ?? "";
@@ -273,6 +310,7 @@ namespace Nexo.Service
                                              System.Globalization.CultureInfo.InvariantCulture, out double h) && h > 0 ? TimeSpan.FromHours(h) : null;
             string? fijas = _config["Nexo:Copia:Carpetas"] is { Length: > 0 } f ? f : null;
             var modulo = new ModuloCopia(() => CarpetasDeSenuelos(fijas), destino, versiones, cada, reportes);
+            if (puerta is not null) modulo.Puerta = puerta;
             modulo.Iniciar();
             return modulo;
         }

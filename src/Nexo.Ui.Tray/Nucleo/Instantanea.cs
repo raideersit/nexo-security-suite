@@ -31,6 +31,7 @@ namespace Nexo.Ui.Tray.Nucleo
                 (int copiaSospechosas, bool copiaFallida) = await CopiaAsync(c, ct).ConfigureAwait(false);
 
                 IReadOnlyList<AvisoDeMineriaVista>? mineria = await MineriaAsync(c, ct).ConfigureAwait(false);
+                bool wifiSinCifrado = await WifiAsync(c, ct).ConfigureAwait(false);
 
                 JsonElement e = estado.Resultado!.Value;
                 var lista = new List<DeteccionVista>();
@@ -59,7 +60,8 @@ namespace Nexo.Ui.Tray.Nucleo
                     SenuelosError: errorSenuelos,
                     CopiaSospechosas: copiaSospechosas,
                     CopiaFallida: copiaFallida,
-                    MineriaAvisos: mineria);
+                    MineriaAvisos: mineria,
+                    WifiSinCifrado: wifiSinCifrado);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
                                        || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
@@ -67,6 +69,25 @@ namespace Nexo.Ui.Tray.Nucleo
                 // Sin servicio no se aparenta nada: la bandeja lo muestra como desconectado.
                 return InstantaneaDelServicio.SinConexion(ex is TimeoutException ? "el servicio no esta en marcha" : ex.GetType().Name);
             }
+        }
+
+        private static async Task<bool> WifiAsync(ClienteDePipe c, CancellationToken ct)
+        {
+            Respuesta r = await c.LlamarAsync("perfil.estado", ct: ct).ConfigureAwait(false);
+            return r.Exito && r.Resultado is { } e && LeerWifiSinCifrado(e);
+        }
+
+        /// <summary>
+        /// De «perfil.estado»: true SOLO si los perfiles están activos, el servicio pudo leer el Wi-Fi y dice que estás en una red sin cifrado.
+        /// Apagado, sin leer o con otra forma: false (la bandeja no afirma lo que no sabe).
+        /// </summary>
+        public static bool LeerWifiSinCifrado(JsonElement e)
+        {
+            try
+            {
+                return e.GetProperty("activo").GetBoolean() && e.GetProperty("wifi_leido").GetBoolean() && e.GetProperty("wifi_abierto").GetBoolean();
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return false; }
         }
 
         private static async Task<IReadOnlyList<AvisoDeMineriaVista>?> MineriaAsync(ClienteDePipe c, CancellationToken ct)

@@ -49,7 +49,8 @@ namespace Nexo.Ui.Tray.Nucleo
         string? SenuelosError = null,
         int CopiaSospechosas = 0,
         bool CopiaFallida = false,
-        IReadOnlyList<AvisoDeMineriaVista>? MineriaAvisos = null)
+        IReadOnlyList<AvisoDeMineriaVista>? MineriaAvisos = null,
+        bool WifiSinCifrado = false)
     {
         /// <summary>Hallazgos graves de criptominería según el servicio (vacío si está apagada o si no se pudo saber).</summary>
         public IReadOnlyList<AvisoDeMineriaVista> Mineria => MineriaAvisos ?? Array.Empty<AvisoDeMineriaVista>();

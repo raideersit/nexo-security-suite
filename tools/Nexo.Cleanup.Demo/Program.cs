@@ -67,6 +67,7 @@ namespace Nexo.Cleanup.Demo
             await ProbarInicio().ConfigureAwait(false);
             ProbarArranque();
             ProbarTareas();
+            ProbarPerfiles();
             await ProbarSmart().ConfigureAwait(false);
 
             Console.WriteLine();

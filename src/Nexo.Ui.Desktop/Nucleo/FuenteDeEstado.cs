@@ -47,7 +47,8 @@ namespace Nexo.Ui.Desktop.Nucleo
                     LectorDeModulos.Programado(await LlamarAsync(c, "escaneo-programado.estado", ct).ConfigureAwait(false)),
                     LectorDeModulos.Firewall(await LlamarAsync(c, "firewall.estado", ct).ConfigureAwait(false)),
                     LectorDeModulos.Cuarentena(await LlamarAsync(c, "cuarentena.listar", ct).ConfigureAwait(false)),
-                    LectorDeDisco.Estado(await LlamarAsync(c, "disco.estado", ct).ConfigureAwait(false)));
+                    LectorDeDisco.Estado(await LlamarAsync(c, "disco.estado", ct).ConfigureAwait(false)),
+                    LectorDeModulos.Perfil(await LlamarAsync(c, "perfil.estado", ct).ConfigureAwait(false)));
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
             {

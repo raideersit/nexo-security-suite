@@ -68,6 +68,9 @@ namespace Nexo.Service
 
         public IReadOnlyList<string> Metodos { get; } = new[] { "copia.estado", "copia.hacer" };
 
+        /// <summary>Perfiles de actividad (§2az): la copia AUTOMÁTICA pregunta aquí antes de arrancar. «Copiar ahora» (a mano) nunca espera.</summary>
+        public Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas Puerta { get; set; } = Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas.Abierta;
+
         /// <summary>El destino cuenta como disponible si existe la raíz de su unidad (el disco externo está conectado).</summary>
         public static bool DestinoDisponiblePorOmision(string destino)
         {
@@ -108,9 +111,12 @@ namespace Nexo.Service
                 // Se cuenta desde el último INTENTO, no desde la última copia buena: un destino roto no debe reintentarse cada minuto.
                 if (_ultimoIntento is { } u && ahora - u < _cada.Value) return;
             }
+            // Un juego, un vídeo o la batería posponen el ARRANQUE (con un máximo de espera); una copia ya empezada no se interrumpe.
+            if (!Puerta.Permite("copia", ahora)) return;
             // Sin el disco conectado HacerAsync no copia ni cuenta el intento: en cuanto se conecte, copia.
             try { await HacerAsync(automatica: true, ct).ConfigureAwait(false); }
             catch (ErrorDeComando) { /* ya hay una en curso: la siguiente vuelta lo verá */ }
+            finally { Puerta.Terminada("copia"); }
         }
 
         public async Task<object?> ManejarAsync(string metodo, JsonElement? p, CancellationToken ct)

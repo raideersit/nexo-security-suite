@@ -23,7 +23,7 @@ namespace Nexo.Cleanup.Windows.Demo
     ///   - archivos de prueba que se envian a la Papelera (recuperables).
     /// Nada toca el perfil del usuario ni el catalogo real de rutas.
     /// </summary>
-    public static class Program
+    public static partial class Program
     {
         private static int _fallos;
 
@@ -51,6 +51,7 @@ namespace Nexo.Cleanup.Windows.Demo
             await ProbarInicio(admin).ConfigureAwait(false);
             ProbarArranque(admin);
             ProbarPapelera();
+            ProbarActividad();
             await ProbarSalud().ConfigureAwait(false);
 
             Console.WriteLine();

@@ -84,6 +84,12 @@ namespace Nexo.Service
 
         public IReadOnlyList<string> Metodos { get; } = new[] { "escaneo-programado.estado", "escaneo-programado.detecciones" };
 
+        /// <summary>Perfiles de actividad (§2az): antes de cada escaneo se pregunta aquí. Solo se pospone el ARRANQUE, con un máximo de espera.</summary>
+        public Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas Puerta { get; set; } = Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas.Abierta;
+
+        /// <summary>Cada cuánto se vuelve a preguntar a la puerta mientras un escaneo espera.</summary>
+        internal static readonly TimeSpan EntreConsultasDePuerta = TimeSpan.FromMinutes(1);
+
         /// <summary>Quita las carpetas que el servicio no aceptaria escanear (mismas reglas que el pipe). Devuelve las validas.</summary>
         public static IReadOnlyList<string> Validar(IEnumerable<string> raices, out IReadOnlyList<string> rechazadas)
         {
@@ -117,10 +123,22 @@ namespace Nexo.Service
                     lock (_candado) _proxima = _reloj() + espera;
                     if (espera > TimeSpan.Zero) await _esperar(espera, ct).ConfigureAwait(false);
                     ct.ThrowIfCancellationRequested();
-                    await EjecutarUnaVezAsync(ct).ConfigureAwait(false);
+                    await EsperarPuertaAsync(ct).ConfigureAwait(false);
+                    try { await EjecutarUnaVezAsync(ct).ConfigureAwait(false); }
+                    finally { Puerta.Terminada("escaneo-programado"); }
                 }
             }
             catch (OperationCanceledException) { }
+        }
+
+        /// <summary>Si el perfil pide no molestar (juego, vídeo, batería), espera de a un minuto, hasta el máximo de la puerta. Interno: lo usan las pruebas.</summary>
+        internal async Task EsperarPuertaAsync(CancellationToken ct)
+        {
+            while (!Puerta.Permite("escaneo-programado", _reloj()))
+            {
+                await _esperar(EntreConsultasDePuerta, ct).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+            }
         }
 
         /// <summary>Cuanto falta para el proximo escaneo: segun el ultimo COMPLETO, o el ultimo intento fallido.</summary>

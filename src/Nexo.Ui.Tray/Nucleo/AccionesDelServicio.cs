@@ -131,6 +131,14 @@ namespace Nexo.Ui.Tray.Nucleo
             return (titulo, texto);
         }
 
+        public const string TituloDeWifiSinCifrado = "Nexo: estás en un Wi-Fi sin cifrado";
+
+        public const string TextoDeWifiSinCifrado =
+            "Estás conectado a una red Wi-Fi sin cifrado: cualquiera cerca puede ver lo que no vaya cifrado.\n\n"
+          + "  • Si puedes, desconéctate o cambia a una red con contraseña.\n"
+          + "  • Si no, usa una VPN y no escribas contraseñas ni datos de tarjetas en sitios sin HTTPS (candado en la barra de direcciones).\n\n"
+          + "Nexo no desconecta ni cambia nada: solo te avisa. Abre la ventana de Nexo, pestaña «Estado», para ver el detalle.";
+
         public static string TextoDeMineria(IReadOnlyList<AvisoDeMineriaVista> graves)
             => "Nexo ve señales de que algún programa puede estar minando criptomonedas con tu equipo:\n\n"
              + string.Join("\n", graves.Select(g => "  • " + g.Titulo + (g.Sujeto is { Length: > 0 } s ? " (" + s + ")" : "")))
