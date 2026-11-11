@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="nexo-service-demo" />
+    <InternalsVisibleTo Include="nexo-tray-demo" />
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

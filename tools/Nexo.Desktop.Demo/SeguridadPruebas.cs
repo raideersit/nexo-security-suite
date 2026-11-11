@@ -45,14 +45,14 @@ namespace Nexo.Desktop.Demo
             var m = new SeguridadModelo(f);
 
             Check(f.Llamadas.Count == 0, "al crearse NO revisa nada (la de aplicaciones usa Internet: solo cuando el usuario lo pide)");
-            Check(m.Secciones.Count == 8 && m.Secciones.All(s => s.Estado == "Sin revisar") && m.Indicador == Indicador.SinDatos, "al principio: 8 secciones «Sin revisar» (7 sin Internet y la de NVD) y el indicador sin datos");
+            Check(m.Secciones.Count == 9 && m.Secciones.All(s => s.Estado == "Sin revisar") && m.Indicador == Indicador.SinDatos, "al principio: 9 secciones «Sin revisar» (8 sin Internet y la de NVD) y el indicador sin datos");
             Check(m.Titulo == "Sin revisar todavía" && m.Explicacion.Contains("Solo se lee") && m.Explicacion.Contains("Internet"), "el titulo dice «Sin revisar todavía» y la explicacion avisa que solo lee y que una usa Internet");
             Check(m.PuedeRevisarTodo, "se puede pulsar «Revisar todo»");
-            Check(m.Secciones.Select(s => s.Nombre).SequenceEqual(new[] { "Cuentas y contraseñas del sistema", "Redes Wi-Fi", "Aplicaciones desactualizadas", "Fallos de seguridad conocidos en tus aplicaciones (NVD)", "Cámara y micrófono", "Protección contra ransomware (carpetas protegidas de Windows)", "Señuelos contra ransomware (archivos cebo que vigila Nexo)", "Accesos y cuentas (registro de Seguridad de Windows)" }), "los nombres de las 8 secciones, en español y en orden");
+            Check(m.Secciones.Select(s => s.Nombre).SequenceEqual(new[] { "Cuentas y contraseñas del sistema", "Redes Wi-Fi", "Aplicaciones desactualizadas", "Fallos de seguridad conocidos en tus aplicaciones (NVD)", "Cámara y micrófono", "Protección contra ransomware (carpetas protegidas de Windows)", "Señuelos contra ransomware (archivos cebo que vigila Nexo)", "Posible criptominería (programas que gastan CPU a escondidas)", "Accesos y cuentas (registro de Seguridad de Windows)" }), "los nombres de las 9 secciones, en español y en orden");
 
             // Todo limpio y completo.
             Esperar(m.RevisarTodoAsync());
-            Check(f.Llamadas.SequenceEqual(new[] { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Accesos }), "«Revisar todo» pide las 7 que no envían nada a Internet, en orden", string.Join(",", f.Llamadas));
+            Check(f.Llamadas.SequenceEqual(new[] { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Mineria, SeccionDeSeguridad.Accesos }), "«Revisar todo» pide las 8 que no envían nada a Internet, en orden", string.Join(",", f.Llamadas));
             Check(m.Indicador == Indicador.Correcto && m.Titulo == "Sin problemas en lo que se pudo revisar", "las 3 limpias y completas: verde, «Sin problemas en lo que se pudo revisar»", m.Titulo);
             Check(m.Explicacion.Contains("no es una garantía"), "y aun asi dice que no es una garantia");
             Check(m.Secciones.Take(3).All(s => s.Estado == "Sin hallazgos") && m.Secciones[3].Estado == "Sin revisar" && m.Secciones[0].Resumen.Contains("3 cuentas locales") && m.Secciones[1].Resumen.Contains("3 redes guardadas"),
@@ -170,8 +170,8 @@ namespace Nexo.Desktop.Demo
             w.Pestanas.SelectedIndex = 7;
             Dispatcher.UIThread.RunJobs();
             Check(f.Llamadas.Count == 0, "pestaña Seguridad: entrar en la pestaña NO lanza ninguna revision");
-            Check(w.TituloDeSeguridad.Text == "Sin revisar todavía" && w.ListaDeSecciones.ItemCount == 8 && w.BotonRevisarTodo.IsEnabled,
-                "pestaña Seguridad: titulo «Sin revisar todavía», 8 secciones y «Revisar todo» habilitado", w.TituloDeSeguridad.Text);
+            Check(w.TituloDeSeguridad.Text == "Sin revisar todavía" && w.ListaDeSecciones.ItemCount == 9 && w.BotonRevisarTodo.IsEnabled,
+                "pestaña Seguridad: titulo «Sin revisar todavía», 9 secciones y «Revisar todo» habilitado", w.TituloDeSeguridad.Text);
 
             f.Responde = s => s switch
             {
@@ -182,8 +182,8 @@ namespace Nexo.Desktop.Demo
             };
             Esperar(sm.RevisarTodoAsync());
             Dispatcher.UIThread.RunJobs();
-            Check(f.Llamadas.Count == 7 && w.TituloDeSeguridad.Text == "Hay cosas que revisar", "tras «Revisar todo»: 7 revisiones y el titulo enlazado", w.TituloDeSeguridad.Text);
-            Check(w.ListaDeSecciones.ItemCount == 8, "las 8 secciones siguen en la lista");
+            Check(f.Llamadas.Count == 8 && w.TituloDeSeguridad.Text == "Hay cosas que revisar", "tras «Revisar todo»: 8 revisiones y el titulo enlazado", w.TituloDeSeguridad.Text);
+            Check(w.ListaDeSecciones.ItemCount == 9, "las 9 secciones siguen en la lista");
 
             if (captura is not null)
             {

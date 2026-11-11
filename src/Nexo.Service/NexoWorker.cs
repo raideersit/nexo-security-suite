@@ -16,6 +16,7 @@ using Nexo.Modules.Cleanup.Disco;
 using Nexo.Modules.Cleanup.Junk;
 using Nexo.Modules.Cleanup.Platform;
 using Nexo.Modules.Cleanup.Windows;
+using Nexo.Modules.Threats.Criptojacking;
 using Nexo.Modules.Threats.Cuarentena;
 using Nexo.Modules.Threats.Escaner;
 using Nexo.Modules.Threats.Firewall;
@@ -179,6 +180,8 @@ namespace Nexo.Service
             modulos.Add(CrearSenuelos(reportes, politica));
             // Copia versionada (apagada por omisión; ver CrearCopia).
             modulos.Add(CrearCopia(reportes));
+            // Anti-criptojacking (apagado por omisión; ver CrearMineria).
+            modulos.Add(CrearMineria());
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }
@@ -207,6 +210,52 @@ namespace Nexo.Service
             var modulo = new ModuloSenuelos(vigilante, () => CarpetasDeSenuelos(fijas), cada, politica);
             modulo.Iniciar();
             return modulo;
+        }
+
+        /// <summary>
+        /// Anti-criptojacking: APAGADO por omisión. Se activa en appsettings.json con Nexo:Mineria:Activo. Nexo:Mineria:SegundosEntreMuestras
+        /// (30 por omisión, mínimo 2) y Nexo:Mineria:ListaDePools (ruta de un archivo LOCAL de texto: una IP o dominio por línea, o formato
+        /// hosts; opcional). Los dominios de la lista se resuelven a IP en segundo plano (hasta 300). Solo observa.
+        /// </summary>
+        private IModuloDelServicio CrearMineria()
+        {
+            if (!bool.TryParse(_config["Nexo:Mineria:Activo"], out bool activo) || !activo) return new ModuloMineriaApagado();
+
+            TimeSpan? cada = double.TryParse(_config["Nexo:Mineria:SegundosEntreMuestras"], System.Globalization.NumberStyles.Float,
+                                             System.Globalization.CultureInfo.InvariantCulture, out double seg) && seg > 0
+                ? TimeSpan.FromSeconds(seg) : null;
+            string? archivo = _config["Nexo:Mineria:ListaDePools"] is { Length: > 0 } a ? a : null;
+            var lector = new LectorDeMineriaWindows();
+            var modulo = new ModuloMineria(lector.Tomar, ct => CargarListaDePools(archivo, ct), cada);
+            modulo.Iniciar();
+            return modulo;
+        }
+
+        internal const int MaximoDeDominiosAResolver = 300;
+
+        internal static async Task<ListaDePools> CargarListaDePools(string? archivo, CancellationToken ct)
+        {
+            if (archivo is null) return ListaDePools.Vacia;
+            if (!CarpetasParaSenuelos.EsRutaLocal(archivo)) throw new InvalidOperationException("la ruta de la lista no es local");
+            var info = new FileInfo(archivo);
+            if (!info.Exists) throw new FileNotFoundException("la lista no existe");
+            if (info.Length > 5_000_000) throw new InvalidOperationException("la lista es demasiado grande");
+            (ListaDePools lista, _) = ListaDePools.Leer(await File.ReadAllTextAsync(archivo, ct).ConfigureAwait(false));
+
+            var ips = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string dominio in lista.ListaDeDominios.Take(MaximoDeDominiosAResolver))
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    limite.CancelAfter(TimeSpan.FromSeconds(3));
+                    foreach (System.Net.IPAddress ip in await System.Net.Dns.GetHostAddressesAsync(dominio, limite.Token).ConfigureAwait(false))
+                        ips.Add(ListaDePools.Canonica(ip.ToString()));
+                }
+                catch (Exception e) when (e is System.Net.Sockets.SocketException or OperationCanceledException && !ct.IsCancellationRequested) { /* dominio caído o sin respuesta: se omite */ }
+            }
+            return new ListaDePools(ips, lista.ListaDeDominios);
         }
 
         /// <summary>

@@ -35,7 +35,12 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// Los señuelos contra ransomware de Nexo (§2am): los pone y vigila el SERVICIO; la ventana solo lee «senuelos.estado». Reponer los
         /// tocados es la unica accion, con plan, token y aprobacion.
         /// </summary>
-        Senuelos
+        Senuelos,
+        /// <summary>
+        /// Posible criptominería (§2au-§2aw): CPU alta sostenida en segundo plano y conexiones a servidores de minería. La hace el SERVICIO
+        /// («mineria.estado»); la ventana solo lee. Solo observa: no detiene nada.
+        /// </summary>
+        Mineria
     }
 
     /// <summary>
@@ -164,6 +169,14 @@ namespace Nexo.Ui.Desktop.Nucleo
                         Consulta<RevisionDeSenuelos> c = LectorDeSenuelosDelServicio.Leer(r);
                         return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
                             : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), c.Valor.Nota, c.Valor.Nota is null ? c.Valor.Senuelos : null));
+                    }
+                    case SeccionDeSeguridad.Mineria:
+                    {
+                        if (_pipe is null) return Consulta<RevisionDeSeccion>.Mal(LectorDeMineriaDelServicio.SinServicio);
+                        RespuestaCruda r = await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(3), "mineria.estado", null, ct).ConfigureAwait(false);
+                        Consulta<RevisionDeMineria> c = LectorDeMineriaDelServicio.Leer(r);
+                        return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
+                            : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), c.Valor.Nota, c.Valor.Nota is null ? c.Valor.Muestras : null));
                     }
                     case SeccionDeSeguridad.Dispositivos:
                     {

@@ -1673,6 +1673,35 @@ Fila 4 de la Salida 0. Solo el núcleo portable (`src/Nexo.Modules.Threats/Cript
 - **Pruebas:** `Nexo.Vuln.Demo` §31-32; 5 roturas cazadas (una sexta, equivalente, descartada).
 - **Siguiente (paso 2):** lectores de Windows (CPU por proceso con `Process.TotalProcessorTime`, conexiones con `GetExtendedTcpTable` por PID, primer plano con `GetForegroundWindow`), descarga de la lista pública (CoinBlockerLists, gratuita; **preguntar antes de descargar**) y resolución de sus dominios a IP; luego servicio (`mineria.estado`, apagado por omisión), sección en Seguridad y bandeja.
 
+## 2av. Anti-criptojacking, paso 2a: los lectores de Windows (2026-11-10, en el HP)
+
+Solo los lectores; **aún sin lista descargada, servicio, ventana ni bandeja**.
+
+- `Nexo.Native/Network/TablaTcp.cs`: `GetExtendedTcpTable` (IPv4 e IPv6, solo ESTABLECIDAS, con PID). No lanza: devuelve el código Win32 y quien llama lo cuenta como «no evaluado». Sin administrador.
+- `Nexo.Native/Shell/VentanaActiva.cs`: PID del proceso en primer plano (-1 si no se sabe).
+- `Nexo.Modules.Threats.Windows/LectorDeMineriaWindows.cs`: `Tomar()` da una `MuestraDeMineria`; CPU = diferencia de `TotalProcessorTime` entre dos llamadas / segundos / núcleos (la primera llamada da 0, nunca inventa); los procesos protegidos (sin permiso) se omiten, no cuentan como 0 %; PID reutilizado con otro nombre empieza de cero.
+- **Pruebas:** `Nexo.Vuln.Windows.Demo` §14 (disco/red REALES): conexión IPv4 e IPv6 propias vistas con nuestro PID y puerto exacto, cruce con `netstat -ano` en ambos sentidos (57/57 y 39/39), un hijo de PowerShell girando marca 12,5 % en 8 núcleos (= 1 núcleo, ni más ni menos).
+- **Defectos reales cazados:** el hijo marcaba 4,7 % porque PowerShell aún arrancaba (error de la prueba, no del lector: ahora se deja calentar 3 s); la primera versión de las pruebas dejaba pasar 4 de 5 roturas (IPv6, filtro «establecida», dividir por núcleos): se reforzaron.
+- **Roturas a propósito:** 4/5 cazadas (offset IPv6 de la dirección, filtro de estado, división por núcleos, offset del PID IPv6). **No cazada:** `pid == primerPlano` → `false`: la prueba solo comprueba el primer plano si el proceso de la ventana activa es legible, y eso depende de lo que el usuario tenga al frente en ese instante.
+- **Siguiente:** ver §2aw (la descarga de la lista pública quedó descartada; servicio hecho).
+
+## 2aw. Anti-criptojacking, paso 2b: el servicio (2026-11-10, en el HP)
+
+- **Lista pública: DESCARTADA (con permiso del usuario se intentó).** CoinBlockerLists vive en GitLab y responde 403 con un desafío de Cloudflare a cualquier cliente automático; el único espejo en GitHub (`Ultimate-Hosts-Blacklist/ZeroDot1_CoinBlockerLists`) es un volcado de 298 673 dominios (7,8 MB, procesado por PyFunceble, de 2021) con ruido como subdominios de btcchina: daría falsas alarmas. NoCoin (`hoshsadiq/adblock-nocoin-list`, MIT, 8 KB, bajó bien) lista scripts de minería en navegadores, no servidores de pools: no encaja. Nada de esto se guarda en el repo.
+- **Qué se hizo en su lugar:** `Nexo:Mineria:ListaDePools` = ruta de un archivo LOCAL opcional (IP o dominio por línea, o formato hosts; máx. 5 MB, ruta local); sus dominios (hasta 300) se resuelven a IP dentro del bucle, sin retrasar el arranque. Sin lista el núcleo dice «no evaluado» (§2au) y el estado nunca da «sin sospechas»; la detección sigue por CPU sostenida + puertos Stratum.
+- `src/Nexo.Service/ModuloMineria.cs`: `mineria.estado` (solo lectura; no hay método para detener ni cambiar nada), apagado por omisión (`Nexo:Mineria:Activo`, `SegundosEntreMuestras` 30, mínimo 2), variante `ModuloMineriaApagado`. «Sin sospechas» solo si hubo ≥ 8 muestras, la última fue completa, sin hallazgos y sin fallo; si la lista no carga se sigue vigilando y se avisa; una muestra que falla se avisa y no cuenta. Cableado en `NexoWorker.CrearMineria`.
+- **Pruebas:** `Nexo.Service.Demo` `MineriaPruebas.cs` (14 comprobaciones) y la lista de métodos del servicio (39). Roturas a propósito: 6/6 cazadas tras reforzar (faltaba probar que una muestra fallida tras 8 buenas quita el «sin sospechas»).
+- **Sin probar:** servicio real como SYSTEM con `Nexo:Mineria:Activo=true` y una lista local real.
+- **Siguiente:** ver §2ax (ventana y bandeja hechas); queda la prueba real.
+
+## 2ax. Anti-criptojacking, paso 3: ventana y bandeja (2026-11-11, en el HP)
+
+- **Ventana:** novena sección de Seguridad, «Posible criptominería» (`SeccionDeSeguridad.Mineria`, `Nucleo/Mineria.cs` = `LectorDeMineriaDelServicio`). Solo lee `mineria.estado`; sin botones que cambien algo. Entra en «Revisar todo» (8 locales + NVD aparte). Reglas: gravedad desconocida o forma rara invalida TODA la respuesta; «observando (n de 8 muestras)», «ninguna muestra aún», lo no leído y el aviso del servicio van a «no evaluado» (nunca verde); apagada = «No aplica» con la nota de dónde activarla; no deja rastro en el vault (el servicio no lo escribe y la ventana nunca escribe).
+- **Bandeja:** `Instantanea.LeerMineria` + `ModeloDeBandeja.MineriaNueva` + globo (`AccionesDelServicio.AvisoDeMineria`/`TextoDeMineria`; al pulsarlo, un diálogo con qué hacer). **Solo gravedad Alta o Crítica** abre globo (CPU alta sola = Baja/Media: se ve en la ventana, no molesta con un globo); un aviso por hallazgo (tipo+programa), se olvida si desaparece, y un fallo de lectura no repite avisos. El globo de señuelos tiene prioridad en el mismo ciclo. `Nexo.Service` da `InternalsVisibleTo nexo-tray-demo`.
+- **Pruebas:** Desktop.Demo `SeguridadMineriaPruebas.cs` (16, y las cuentas de secciones 8→9 / revisiones 7→8), Tray.Demo `MineriaBandejaPruebas.cs` (con el JSON REAL de `ModuloMineria`), Service.Demo contrato (el JSON real lo lee la ventana). Roturas a propósito: 7/7 cazadas en la ventana y la bandeja.
+- **Sin probar:** servicio real como SYSTEM con `Nexo:Mineria:Activo=true` (y una lista local real) + ventana/bandeja reales (pantalla). Hay que decidirlo con el usuario: activarlo cambia lo que corre en su servicio.
+- La pestaña NO tiene botón «Revisar» propio distinto del resto (usa el genérico de cada sección).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS

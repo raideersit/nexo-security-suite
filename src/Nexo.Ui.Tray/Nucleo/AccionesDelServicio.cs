@@ -120,6 +120,25 @@ namespace Nexo.Ui.Tray.Nucleo
             return (titulo, texto);
         }
 
+        /// <summary>El aviso de posible criptominería para la bandeja. No detiene nada: dice qué mirar. Sin interfaz: se prueba en Nexo.Tray.Demo.</summary>
+        public static (string Titulo, string Texto) AvisoDeMineria(IReadOnlyList<AvisoDeMineriaVista> nuevos)
+        {
+            AvisoDeMineriaVista p = nuevos[0];
+            string titulo = nuevos.Any(n => n.Severidad == "Critica") ? "Nexo: posible criptominería (grave)" : "Nexo: posible criptominería";
+            string quien = p.Sujeto is { Length: > 0 } s && !p.Titulo.Contains(s, StringComparison.OrdinalIgnoreCase) ? " (" + s + ")" : "";
+            string texto = p.Titulo + quien + (nuevos.Count > 1 ? " y " + (nuevos.Count - 1) + " más." : ".")
+                         + " Nexo no detiene nada: abre el Administrador de tareas y comprueba si reconoces ese programa. Pulsa para ver más.";
+            return (titulo, texto);
+        }
+
+        public static string TextoDeMineria(IReadOnlyList<AvisoDeMineriaVista> graves)
+            => "Nexo ve señales de que algún programa puede estar minando criptomonedas con tu equipo:\n\n"
+             + string.Join("\n", graves.Select(g => "  • " + g.Titulo + (g.Sujeto is { Length: > 0 } s ? " (" + s + ")" : "")))
+             + "\n\nQué hacer:\n"
+             + "  • Abre el Administrador de tareas (Ctrl+Mayús+Esc) y mira qué programa gasta CPU. Si no lo reconoces, ciérralo y búscalo en Internet.\n"
+             + "  • Abre la ventana de Nexo, pestaña «Seguridad», sección «Posible criptominería», para ver el detalle.\n\n"
+             + "Nexo solo observa: no detiene ni borra nada. Un programa legítimo (un compilador, un renderizador) también puede gastar mucha CPU.";
+
         public static async Task<PlanPropuesto> PrevisualizarLimpiezaAsync(string pipe, TimeSpan espera, CancellationToken ct = default)
         {
             await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);

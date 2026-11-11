@@ -46,8 +46,8 @@ namespace Nexo.Ui.Desktop
     public sealed class SeguridadModelo : INotifyPropertyChanged
     {
         /// <summary>Las revisiones locales que corre «Revisar todo». El cruce con NVD NO esta aqui: envia datos a Internet y solo corre con su boton.</summary>
-        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Accesos };
-        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Orden = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Mineria, SeccionDeSeguridad.Accesos };
+        private static readonly SeccionDeSeguridad[] Todas = { SeccionDeSeguridad.Cuentas, SeccionDeSeguridad.Wifi, SeccionDeSeguridad.Aplicaciones, SeccionDeSeguridad.FallosConocidos, SeccionDeSeguridad.Dispositivos, SeccionDeSeguridad.Ransomware, SeccionDeSeguridad.Senuelos, SeccionDeSeguridad.Mineria, SeccionDeSeguridad.Accesos };
 
         private readonly IServicioDeSeguridad _servicio;
         private readonly Dictionary<SeccionDeSeguridad, Consulta<RevisionDeSeccion>?> _ultimas = new();
@@ -80,7 +80,7 @@ namespace Nexo.Ui.Desktop
         private void AvisarRevision(SeccionDeSeguridad s, Consulta<RevisionDeSeccion> r)
         {
             // «Accesos» y «Señuelos» las hace el servicio, que ya deja su propio rastro en el vault: no se duplica.
-            if (s is SeccionDeSeguridad.Accesos or SeccionDeSeguridad.Senuelos) return;
+            if (s is SeccionDeSeguridad.Accesos or SeccionDeSeguridad.Senuelos or SeccionDeSeguridad.Mineria) return;
             int n = r.Valor?.Analisis.Hallazgos.Count(h => h.Severidad != Severidad.Info) ?? 0;
             string maxima = n == 0 ? "Info" : r.Valor!.Analisis.Hallazgos.Where(h => h.Severidad != Severidad.Info).Max(h => h.Severidad).ToString();
             var campos = new Dictionary<string, object?>(StringComparer.Ordinal) { ["hallazgos"] = n, ["maxima"] = maxima, ["completa"] = r.Valor?.Analisis.Completo ?? false };
@@ -275,6 +275,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Dispositivos => "Cámara y micrófono",
             SeccionDeSeguridad.Ransomware => "Protección contra ransomware (carpetas protegidas de Windows)",
             SeccionDeSeguridad.Senuelos => "Señuelos contra ransomware (archivos cebo que vigila Nexo)",
+            SeccionDeSeguridad.Mineria => "Posible criptominería (programas que gastan CPU a escondidas)",
             SeccionDeSeguridad.Accesos => "Accesos y cuentas (registro de Seguridad de Windows)",
             _ => "Fallos de seguridad conocidos en tus aplicaciones (NVD)"
         };
@@ -350,7 +351,7 @@ namespace Nexo.Ui.Desktop
             var hechas = secciones.Where(x => !x.Revisando && x.Consulta is not null).ToList();
             if (hechas.Count == 0)
                 return (Indicador.SinDatos, algunaRevisando ? "Revisando..." : "Sin revisar todavía",
-                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, la protección contra ransomware de Windows, los señuelos de Nexo, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
+                        "Pulsa «Revisar todo» para comprobar las cuentas, el Wi-Fi, las aplicaciones, qué programas usaron la cámara y el micrófono, la protección contra ransomware de Windows, los señuelos de Nexo, si algún programa parece minar criptomonedas, y las señales de intrusión del registro de Seguridad. Solo se lee: ninguna revisión cambia nada en el equipo. La de aplicaciones consulta Internet (winget).");
 
             Indicador peor = hechas.Select(x => x.Consulta!.Valor is RevisionDeSeccion v ? IndicadorSeccion(v) : Indicador.SinDatos).Aggregate(Mas);
             bool todas = hechas.Count == secciones.Count;
@@ -383,6 +384,7 @@ namespace Nexo.Ui.Desktop
             SeccionDeSeguridad.Dispositivos => n + (n == 1 ? " programa en el registro" : " programas en el registro"),
             SeccionDeSeguridad.Ransomware => n + (n == 1 ? " bloqueo o cambio en 30 días" : " bloqueos o cambios en 30 días"),
             SeccionDeSeguridad.Senuelos => n + (n == 1 ? " señuelo vigilado" : " señuelos vigilados"),
+            SeccionDeSeguridad.Mineria => n + (n == 1 ? " muestra tomada" : " muestras tomadas"),
             SeccionDeSeguridad.Accesos => n + (n == 1 ? " evento revisado en 7 días" : " eventos revisados en 7 días"),
             _ => n + (n == 1 ? " aplicación con versión nueva" : " aplicaciones con versión nueva")
         };

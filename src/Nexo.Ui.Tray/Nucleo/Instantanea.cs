@@ -30,6 +30,8 @@ namespace Nexo.Ui.Tray.Nucleo
                 // La copia de seguridad es opcional: un servicio sin ella o apagada no cambia nada (no hay copia que vigilar).
                 (int copiaSospechosas, bool copiaFallida) = await CopiaAsync(c, ct).ConfigureAwait(false);
 
+                IReadOnlyList<AvisoDeMineriaVista>? mineria = await MineriaAsync(c, ct).ConfigureAwait(false);
+
                 JsonElement e = estado.Resultado!.Value;
                 var lista = new List<DeteccionVista>();
                 foreach (JsonElement d in detec.Resultado!.Value.GetProperty("detecciones").EnumerateArray())
@@ -56,13 +58,47 @@ namespace Nexo.Ui.Tray.Nucleo
                     SenuelosEnRafaga: rafaga,
                     SenuelosError: errorSenuelos,
                     CopiaSospechosas: copiaSospechosas,
-                    CopiaFallida: copiaFallida);
+                    CopiaFallida: copiaFallida,
+                    MineriaAvisos: mineria);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
                                        || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
             {
                 // Sin servicio no se aparenta nada: la bandeja lo muestra como desconectado.
                 return InstantaneaDelServicio.SinConexion(ex is TimeoutException ? "el servicio no esta en marcha" : ex.GetType().Name);
+            }
+        }
+
+        private static async Task<IReadOnlyList<AvisoDeMineriaVista>?> MineriaAsync(ClienteDePipe c, CancellationToken ct)
+        {
+            Respuesta r = await c.LlamarAsync("mineria.estado", ct: ct).ConfigureAwait(false);
+            return r.Exito && r.Resultado is { } e ? LeerMineria(e) : null;
+        }
+
+        /// <summary>
+        /// Los hallazgos Alta o Crítica de «mineria.estado». Apagada: lista vacía. Una forma que no se reconoce (o una gravedad desconocida)
+        /// devuelve null: la bandeja no afirma nada de lo que no puede leer, y tampoco repite avisos por ello.
+        /// </summary>
+        public static IReadOnlyList<AvisoDeMineriaVista>? LeerMineria(JsonElement e)
+        {
+            try
+            {
+                if (!e.GetProperty("activo").GetBoolean()) return Array.Empty<AvisoDeMineriaVista>();
+                var lista = new List<AvisoDeMineriaVista>();
+                foreach (JsonElement h in e.GetProperty("hallazgos").EnumerateArray())
+                {
+                    string sev = h.GetProperty("severidad").GetString() ?? throw new FormatException();
+                    if (sev is not ("Info" or "Baja" or "Media" or "Alta" or "Critica")) throw new FormatException();
+                    if (sev is not ("Alta" or "Critica")) continue;
+                    JsonElement s = h.GetProperty("sujeto");
+                    lista.Add(new AvisoDeMineriaVista(h.GetProperty("id").GetString() ?? throw new FormatException(),
+                        s.ValueKind == JsonValueKind.String ? s.GetString() : null, h.GetProperty("titulo").GetString() ?? throw new FormatException(), sev));
+                }
+                return lista;
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or FormatException)
+            {
+                return null;
             }
         }
 

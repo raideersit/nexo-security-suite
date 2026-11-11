@@ -29,6 +29,7 @@ namespace Nexo.Ui.Tray
         private readonly ToolStripMenuItem _senuelos = new ToolStripMenuItem();
         private readonly ToolStripMenuItem _copia = new ToolStripMenuItem();
         private bool _globoDeCopia;      // el ultimo globo era de la copia: pulsarlo explica que hacer
+        private bool _globoDeMineria;     // el ultimo globo era de criptominería: pulsarlo explica qué mirar
         private bool _globoDeSenuelos;   // el ultimo globo era de señuelos: pulsarlo abre los señuelos, no las detecciones
         private bool _revisando;    // hay una revision en marcha: no se lanza otra
         private readonly Dictionary<EstadoDeBandeja, Icon> _iconos;
@@ -64,6 +65,7 @@ namespace Nexo.Ui.Tray
             _icono.BalloonTipClicked += async (_, _) =>
             {
                 if (_globoDeSenuelos) await VerSenuelosAsync();
+                else if (_globoDeMineria) VerMineria();
                 else if (_globoDeCopia) VerCopiaSospechosa();
                 else await RevisarDeteccionesAsync();
             };
@@ -88,6 +90,7 @@ namespace Nexo.Ui.Tray
                 {
                     _globoDeSenuelos = false;
                     _globoDeCopia = false;
+                    _globoDeMineria = false;
                     _icono.ShowBalloonTip(8000, "Nexo: amenaza detectada",
                         d.Firma + " en " + System.IO.Path.GetFileName(d.Ruta) + ". Pulsa para revisarla.", ToolTipIcon.Warning);
                 }
@@ -97,13 +100,24 @@ namespace Nexo.Ui.Tray
                     (string titulo, string texto) = AccionesDelServicio.AvisoDeSenuelos(_modelo.SenuelosNuevos, i.SenuelosEnRafaga);
                     _globoDeSenuelos = true;
                     _globoDeCopia = false;
+                    _globoDeMineria = false;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Error);
+                }
+                // La criptominería, solo si no hay globo de señuelos en este ciclo.
+                else if (_modelo.MineriaNueva.Count > 0)
+                {
+                    (string titulo, string texto) = AccionesDelServicio.AvisoDeMineria(_modelo.MineriaNueva);
+                    _globoDeSenuelos = false;
+                    _globoDeCopia = false;
+                    _globoDeMineria = true;
+                    _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
                 }
                 // La copia sospechosa, solo si no hay un globo de señuelos (lo más urgente) en este mismo ciclo.
                 else if (_modelo.CopiaSospechosaNueva)
                 {
                     (string titulo, string texto) = AccionesDelServicio.AvisoDeCopia(i.CopiaSospechosas);
                     _globoDeSenuelos = false;
+                    _globoDeMineria = false;
                     _globoDeCopia = true;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
                 }
@@ -186,6 +200,12 @@ namespace Nexo.Ui.Tray
         }
 
         /// <summary>Explica qué significa y qué hacer con una copia sospechosa. No cambia nada: restaurar se hace en la ventana de Nexo.</summary>
+        private void VerMineria()
+        {
+            if (_modelo.Ultima.Mineria.Count == 0) return;
+            Dialogo.Mostrar(AccionesDelServicio.TextoDeMineria(_modelo.Ultima.Mineria), "Nexo — posible criptominería", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
         private void VerCopiaSospechosa()
         {
             int n = _modelo.Ultima.CopiaSospechosas;

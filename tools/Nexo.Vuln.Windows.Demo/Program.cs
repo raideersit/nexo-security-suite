@@ -73,6 +73,7 @@ namespace Nexo.Vuln.Windows.Demo
             ProbarAlertasReales();
             ProbarRansomwareReal();
             ProbarSenuelosReales();
+            ProbarMineriaReal();
             // Sale a Internet (NVD): solo si se pide.
             if (Environment.GetCommandLineArgs().Contains("--nvd")) ProbarNvdReal();
             else Console.WriteLine("7. NVD real: OMITIDA (sale a Internet; se ejecuta con --nvd)");

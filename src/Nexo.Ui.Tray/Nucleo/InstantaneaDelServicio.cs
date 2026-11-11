@@ -21,6 +21,15 @@ namespace Nexo.Ui.Tray.Nucleo
         public string Clave => Ruta + "|" + Cuando.UtcTicks;
     }
 
+    /// <summary>
+    /// Un hallazgo de posible criptominería (§2aw) que merece un globo: solo gravedad «Alta» o «Crítica» (la CPU alta sola es «Baja» o «Media»:
+    /// se ve en la ventana, no se avisa con un globo). Se identifica por tipo y programa: no se repite mientras siga siendo el mismo.
+    /// </summary>
+    public sealed record AvisoDeMineriaVista(string Id, string? Sujeto, string Titulo, string Severidad)
+    {
+        public string Clave => Id + "|" + Sujeto;
+    }
+
     /// <summary>Lo que se sabe del servicio en un momento dado. Si no se pudo hablar con el, <see cref="Conectado"/> es false.</summary>
     public sealed record InstantaneaDelServicio(
         bool Conectado,
@@ -39,8 +48,12 @@ namespace Nexo.Ui.Tray.Nucleo
         bool SenuelosEnRafaga = false,
         string? SenuelosError = null,
         int CopiaSospechosas = 0,
-        bool CopiaFallida = false)
+        bool CopiaFallida = false,
+        IReadOnlyList<AvisoDeMineriaVista>? MineriaAvisos = null)
     {
+        /// <summary>Hallazgos graves de criptominería según el servicio (vacío si está apagada o si no se pudo saber).</summary>
+        public IReadOnlyList<AvisoDeMineriaVista> Mineria => MineriaAvisos ?? Array.Empty<AvisoDeMineriaVista>();
+
         /// <summary>Señuelos tocados según el servicio (vacío si están apagados o si no se pudo saber: ver <see cref="SenuelosError"/>).</summary>
         public IReadOnlyList<SenueloTocadoVista> Tocados => SenuelosTocados ?? Array.Empty<SenueloTocadoVista>();
 

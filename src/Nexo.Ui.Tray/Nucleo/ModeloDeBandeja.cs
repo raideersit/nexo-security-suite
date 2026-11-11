@@ -28,6 +28,7 @@ namespace Nexo.Ui.Tray.Nucleo
         private readonly HashSet<string> _notificadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _revisadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _senuelosAvisados = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _mineriaAvisada = new HashSet<string>(StringComparer.Ordinal);
         private int _copiaAvisadas;      // cuántas copias sospechosas se avisaron ya con globo
         private InstantaneaDelServicio _ultima = InstantaneaDelServicio.SinConexion("sin consultar todavia");
 
@@ -46,6 +47,9 @@ namespace Nexo.Ui.Tray.Nucleo
         public IReadOnlyList<SenueloTocadoVista> SenuelosNuevos { get; private set; } = Array.Empty<SenueloTocadoVista>();
         /// <summary>Hay una copia sospechosa guardada que todavía no se avisó con globo (una sola vez por cada una nueva).</summary>
         public bool CopiaSospechosaNueva { get; private set; }
+
+        /// <summary>Hallazgos graves de criptominería que aún no se avisaron con globo.</summary>
+        public IReadOnlyList<AvisoDeMineriaVista> MineriaNueva { get; private set; } = Array.Empty<AvisoDeMineriaVista>();
         public InstantaneaDelServicio Ultima => _ultima;
 
         /// <summary>
@@ -75,6 +79,15 @@ namespace Nexo.Ui.Tray.Nucleo
                     if (_senuelosAvisados.Add(t.Clave)) senuelos.Add(t);
             }
             SenuelosNuevos = senuelos;
+            // Criptominería: si no se pudo saber (MineriaAvisos null) se conserva lo avisado; lo que ya no aparece se olvida (si vuelve, es nuevo).
+            var mineria = new List<AvisoDeMineriaVista>();
+            if (i.Conectado && i.MineriaAvisos is { } graves)
+            {
+                _mineriaAvisada.IntersectWith(graves.Select(m => m.Clave));
+                foreach (AvisoDeMineriaVista m in graves)
+                    if (_mineriaAvisada.Add(m.Clave)) mineria.Add(m);
+            }
+            MineriaNueva = mineria;
             // Copia de seguridad: si no se pudo hablar con el servicio se conserva lo avisado (no se repite el globo al volver).
             CopiaSospechosaNueva = false;
             if (i.Conectado)
