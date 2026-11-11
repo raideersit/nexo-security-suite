@@ -225,20 +225,6 @@ La librería **rechaza con una excepción** cualquier intento de escribir un cam
 
 ---
 
-## Fuera de alcance
-
-Decidido en el análisis de viabilidad, con justificación en cada caso:
-
-- **Driver minifiltro de kernel** y todo lo que depende de él: bloqueo preventivo, anti-ransomware propio, antivirus en tiempo real real.
-- **Detección de rootkits** — requiere kernel por definición.
-- **Entorno de rescate WinPE** — Microsoft Defender Offline ya lo hace, gratis.
-- **Navegador seguro propio** — Windows Sandbox ya da aislamiento real.
-- **Detección de deepfakes** — infactible para una persona.
-- **Estafas por SMS** — Windows no expone API para leerlos.
-- **Módulo de privacidad completo** — WireGuard, uBlock Origin y SmartScreen ya existen y son mejores que lo que este proyecto construiría.
-
----
-
 ## Licencia
 
 MIT. Ver [LICENSE](LICENSE).
