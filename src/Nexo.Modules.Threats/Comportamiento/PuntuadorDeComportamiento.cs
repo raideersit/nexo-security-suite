@@ -141,14 +141,20 @@ namespace Nexo.Modules.Threats.Comportamiento
         {
             var hallazgos = new List<HallazgoDeSistema>();
             int sinSaber = 0;
+            var nombresSinSaber = new List<string>();
             foreach (Ficha f in _fichas.Values.OrderBy(x => x.Orden))
             {
-                if (f.Firma == EstadoDeFirma.Desconocida) sinSaber++;
+                if (f.Firma == EstadoDeFirma.Desconocida)
+                {
+                    sinSaber++;
+                    if (nombresSinSaber.Count < 5 && !nombresSinSaber.Contains(f.Nombre)) nombresSinSaber.Add(f.Nombre);
+                }
                 Severidad s = Nivel(Puntos(f));
                 if (s > Severidad.Info) hallazgos.Add(Hallazgo(f, s));
             }
             var no = new List<string>();
-            if (sinSaber > 0) no.Add("firma digital: no se pudo comprobar en " + sinSaber + " proceso(s) (no suma ni resta puntos)");
+            if (sinSaber > 0) no.Add("firma digital: no se pudo comprobar en " + sinSaber + " proceso(s) (no suma ni resta puntos)"
+                                  + (nombresSinSaber.Count > 0 ? "; por ejemplo: " + string.Join(", ", nombresSinSaber) : ""));
             return new ResultadoDeAnalisis(hallazgos, no);
         }
 

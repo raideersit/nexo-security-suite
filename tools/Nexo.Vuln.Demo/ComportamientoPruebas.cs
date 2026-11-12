@@ -44,6 +44,10 @@ namespace Nexo.Vuln.Demo
             var s = new PuntuadorDeComportamiento();
             for (int i = 0; i < 5; i++) s.Registrar(Ev(TipoDeSenal.ServicioCreado, pid: i)); // firma desconocida
             Check(s.Resumen().Hallazgos.Count == 0 && !s.Resumen().Completo && s.Resumen().NoEvaluado.Single().Contains("5 proceso"), "firma desconocida: no acusa y dice que no se pudo comprobar");
+            var nombres = new PuntuadorDeComportamiento();
+            for (int i = 0; i < 8; i++) nombres.Registrar(new EventoDeComportamiento(TipoDeSenal.ServicioCreado, 100 + i, "proc" + i + ".exe", null, EstadoDeFirma.Desconocida, "x"));
+            string dicho = nombres.Resumen().NoEvaluado.Single();
+            Check(dicho.Contains("8 proceso") && dicho.Contains("proc0.exe") && dicho.Contains("proc4.exe") && !dicho.Contains("proc5.exe"), "dice QUÉ procesos no se pudieron firmar (los 5 primeros, no todos)", dicho);
 
             var t = new PuntuadorDeComportamiento();
             t.Registrar(Ev(TipoDeSenal.ServicioCreado, f: EstadoDeFirma.Ausente));
