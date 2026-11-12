@@ -17,8 +17,18 @@ namespace Nexo.Desktop.Demo
             public Consulta<EstadoDeCopiaVista> Estado = Consulta<EstadoDeCopiaVista>.Mal("sin datos de prueba");
             public Consulta<ResultadoDeHacerCopia> AlHacer = Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(true, null, 3, 3, 0, false, null));
             public int Consultas, Pedidos;
+            public readonly List<string> Descartados = new();
+            // null = el servicio hace de verdad el descarte sobre el destino del estado (como el servicio real, que usa SU destino).
+            public Consulta<ResultadoDeDescartar>? AlDescartar;
             public Task<Consulta<EstadoDeCopiaVista>> EstadoAsync(CancellationToken ct) { Consultas++; return Task.FromResult(Estado); }
             public Task<Consulta<ResultadoDeHacerCopia>> HacerAsync(CancellationToken ct) { Pedidos++; return Task.FromResult(AlHacer); }
+            public Task<Consulta<ResultadoDeDescartar>> DescartarAsync(string id, CancellationToken ct)
+            {
+                Descartados.Add(id);
+                if (AlDescartar is not null) return Task.FromResult(AlDescartar);
+                (bool ok, string? error) = CopiaVersionada.DescartarSospecha(Estado.Valor!.Destino!, id);
+                return Task.FromResult(Consulta<ResultadoDeDescartar>.Bien(new ResultadoDeDescartar(ok, error)));
+            }
         }
 
         private static EstadoDeCopiaVista EstadoCopia(string destino, bool disponible = true, int versiones = 1, DateTimeOffset? ultima = null, UltimaCopiaVista? ultimo = null, bool enCurso = false)
@@ -161,6 +171,72 @@ namespace Nexo.Desktop.Demo
                 Check(!CopiaVersionada.Listar(c, out _).Any(v => v.Sospechosa) && CopiaVersionada.Verificar(c).Correcto, "en el disco también, y el contenido sigue intacto");
             }
             finally { try { Directory.Delete(r2, true); } catch { } }
+
+            // ---- protección de la carpeta de copias y descarte por el servicio
+            {
+                string aviso = "El destino usa exFAT, que no admite permisos";
+                var sinProteger = new CopiaFalsa { Estado = Consulta<EstadoDeCopiaVista>.Bien(EstadoCopia(@"E:\", ultima: ahora.AddHours(-1), ultimo: UltimoBueno()) with { AvisoDeProteccion = aviso }) };
+                var mp = new CopiaModelo(sinProteger, reloj: () => ahora);
+                Esperar(mp.ActualizarAsync());
+                Check(mp.Aviso.Contains("NO están protegidas") && mp.Aviso.Contains(aviso), "sin proteger: la pestaña lo dice con el motivo");
+                var protegida = new CopiaFalsa { Estado = Consulta<EstadoDeCopiaVista>.Bien(EstadoCopia(@"E:\", ultima: ahora.AddHours(-1), ultimo: UltimoBueno())) };
+                var mq = new CopiaModelo(protegida, reloj: () => ahora);
+                Esperar(mq.ActualizarAsync());
+                Check(!mq.Aviso.Contains("protegidas"), "protegida: no hay aviso de más");
+                sinProteger.AlHacer = Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(true, null, 3, 3, 0, false, null, aviso));
+                Esperar(mp.HacerAhoraAsync());
+                Check(mp.Mensaje.StartsWith("Copia hecha: 3 archivos") && mp.Mensaje.Contains("ATENCIÓN") && mp.Mensaje.Contains(aviso), "al hacer una copia sin protección, el mensaje lo avisa en el momento");
+                protegida.AlHacer = Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(true, null, 3, 3, 0, false, null));
+                Esperar(mq.HacerAhoraAsync());
+                Check(!mq.Mensaje.Contains("ATENCIÓN"), "con protección, el mensaje no lleva el aviso");
+
+                string r3 = Path.Combine(Path.GetTempPath(), "nexo-copia-ven3-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    string d = Path.Combine(r3, "d"), c = Path.Combine(r3, "c"); Directory.CreateDirectory(d);
+                    for (int i = 0; i < 25; i++) File.WriteAllText(Path.Combine(d, "f" + i), "x" + i);
+                    var cfg3 = new ConfiguracionDeCopia(new[] { d }, c, 5);
+                    CopiaVersionada.Copiar(cfg3, ahora);
+                    for (int i = 0; i < 25; i++) File.WriteAllText(Path.Combine(d, "f" + i), "CIFRADO " + i);
+                    CopiaVersionada.Copiar(cfg3, ahora.AddMinutes(5));
+                    var srv = new CopiaFalsa { Estado = Consulta<EstadoDeCopiaVista>.Bien(EstadoCopia(c, versiones: 2, ultima: ahora.AddMinutes(5), ultimo: UltimoBueno()) with { SospechosasGuardadas = 1 }) };
+                    var m = new CopiaModelo(srv, reloj: () => ahora.AddMinutes(10));
+                    Esperar(m.ActualizarAsync());
+                    FilaDeVersion sosp = m.Versiones.Single(v => v.Sospechosa);
+                    m.FilaSeleccionada = sosp;
+                    Esperar(m.DescartarSospechaAsync());
+                    Check(srv.Descartados.SequenceEqual(new[] { sosp.Id }), "descartar le pide al SERVICIO esa copia por su id (la ventana ya no escribe en la carpeta de copias)", string.Join(",", srv.Descartados));
+                    Check(m.Mensaje.StartsWith("Listo") && !m.Versiones.Any(v => v.Sospechosa), "y la pestaña se recarga sin la sospechosa");
+
+                    // El servicio se niega: se dice, no se finge.
+                    CopiaVersionada.Copiar(new ConfiguracionDeCopia(new[] { d }, c, 5), ahora.AddMinutes(20));
+                    for (int i = 0; i < 25; i++) File.WriteAllText(Path.Combine(d, "f" + i), "OTRA " + i);
+                    CopiaVersionada.Copiar(cfg3, ahora.AddMinutes(30));
+                    var rechaza = new CopiaFalsa { Estado = srv.Estado, AlDescartar = Consulta<ResultadoDeDescartar>.Bien(new ResultadoDeDescartar(false, "No existe esa copia.")) };
+                    var mr = new CopiaModelo(rechaza, reloj: () => ahora.AddMinutes(40));
+                    Esperar(mr.ActualizarAsync());
+                    mr.FilaSeleccionada = mr.Versiones.First(v => v.Sospechosa);
+                    Esperar(mr.DescartarSospechaAsync());
+                    Check(mr.Mensaje == "No se pudo descartar la sospecha: No existe esa copia." && mr.Versiones.Any(v => v.Sospechosa), "si el servicio dice que no, lo muestra y la sospecha sigue");
+                    var caido = new CopiaFalsa { Estado = srv.Estado, AlDescartar = Consulta<ResultadoDeDescartar>.Mal("el servicio no está en marcha") };
+                    var mc = new CopiaModelo(caido, reloj: () => ahora.AddMinutes(40));
+                    Esperar(mc.ActualizarAsync());
+                    mc.FilaSeleccionada = mc.Versiones.First(v => v.Sospechosa);
+                    Esperar(mc.DescartarSospechaAsync());
+                    Check(mc.Mensaje.Contains("el servicio no está en marcha") && mc.Versiones.Any(v => v.Sospechosa), "sin servicio: lo dice, no finge haberlo hecho");
+                }
+                finally { try { Directory.Delete(r3, true); } catch { } }
+
+                // El lector del pipe
+                Check(LectorDeCopia.Descartar(Json("{\"exito\":true,\"error\":null}")).Valor is { Exito: true, Error: null }, "lector: descartar bien");
+                Check(LectorDeCopia.Descartar(Json("{\"exito\":false,\"error\":\"No existe esa copia.\"}")).Valor is { Exito: false, Error: "No existe esa copia." }, "lector: descartar con motivo");
+                Check(LectorDeCopia.Descartar(Json("{\"exito\":false,\"error\":null}")).Valor is { Exito: false, Error: { Length: > 0 } }, "lector: un fallo sin motivo igual lleva un motivo");
+                Check(LectorDeCopia.Descartar(new RespuestaCruda(false, "metodo desconocido", null)).Error!.Contains("actualízalo"), "lector: un servicio viejo sin copia.descartar se explica");
+                Check(LectorDeCopia.Descartar(Json("{}")).Error == "respuesta del servicio no reconocida", "lector: JSON incompleto es «no reconocida»");
+                Check(LectorDeCopia.Estado(Json("{\"activo\":true,\"destino\":\"E:\\\\\",\"destino_disponible\":true,\"versiones_a_conservar\":3,\"versiones_en_destino\":1,\"listas_ilegibles\":0,\"en_curso\":false,\"carpetas\":[],\"sin_copia\":[],\"nota\":\"n\",\"aviso_proteccion\":\"exFAT\"}")).Valor?.AvisoDeProteccion == "exFAT",
+                      "lector: el estado trae el aviso de protección");
+                Check(LectorDeCopia.Hacer(Json("{\"exito\":true,\"archivos\":1,\"nuevos\":1,\"omitidos\":0,\"sospechosa\":false,\"aviso_proteccion\":\"exFAT\"}")).Valor?.AvisoDeProteccion == "exFAT", "lector: copia.hacer trae el aviso de protección");
+            }
 
             // ---- el lector con un JSON mal formado
             Check(LectorDeCopia.Estado(Json("{\"activo\":true}")).Error == "respuesta del servicio no reconocida", "un JSON incompleto es «no reconocida», no un verde inventado");

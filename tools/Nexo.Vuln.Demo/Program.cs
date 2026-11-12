@@ -57,6 +57,7 @@ namespace Nexo.Vuln.Demo
             ProbarSenuelosCasos();
             ProbarCarpetasDeSenuelos();
             ProbarCopiaVersionada();
+            ProbarProteccionDeCopia();
             ProbarCopiaVersionadaReglas();
             ProbarListaDeMineria();
             ProbarVigilanteDeMineria();

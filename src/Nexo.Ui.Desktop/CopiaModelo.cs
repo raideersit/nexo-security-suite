@@ -48,7 +48,12 @@ namespace Nexo.Ui.Desktop
             _restaurar = restaurar ?? ((d, id, c, ct) => CopiaVersionada.Restaurar(d, id, c, ct));
             _verificar = verificar ?? ((d, ct) => CopiaVersionada.Verificar(d, ct));
             _listar = listar ?? (d => CopiaVersionada.Listar(d, out _));
-            _descartar = descartar ?? ((d, id) => CopiaVersionada.DescartarSospecha(d, id));
+            // Por omisión lo hace el SERVICIO (la carpeta de copias es de solo lectura para la persona). El destino lo elige el servicio, no se manda.
+            _descartar = descartar ?? ((_, id) =>
+            {
+                Consulta<ResultadoDeDescartar> c = _servicio.DescartarAsync(id, CancellationToken.None).GetAwaiter().GetResult();
+                return c.Valor is ResultadoDeDescartar r ? (r.Exito, r.Error) : (false, c.Error);
+            });
             _reloj = reloj ?? (() => DateTimeOffset.Now);
             Calcular();
         }
@@ -133,10 +138,12 @@ namespace Nexo.Ui.Desktop
             _ocupado = false;
             Mensaje = c.Valor is not ResultadoDeHacerCopia r ? "No se pudo pedir la copia: " + c.Error + "."
                     : !r.Exito ? "La copia no se hizo: " + r.Error
-                    : r.Sospechosa ? "Copia hecha, pero SOSPECHOSA: " + r.MotivoSospecha
-                    : "Copia hecha: " + r.Archivos + " archivos (" + r.Nuevos + " nuevos)" + (r.Omitidos > 0 ? ", " + r.Omitidos + " omitidos" : "") + ".";
+                    : r.Sospechosa ? "Copia hecha, pero SOSPECHOSA: " + r.MotivoSospecha + SufijoDeProteccion(r.AvisoDeProteccion)
+                    : "Copia hecha: " + r.Archivos + " archivos (" + r.Nuevos + " nuevos)" + (r.Omitidos > 0 ? ", " + r.Omitidos + " omitidos" : "") + "." + SufijoDeProteccion(r.AvisoDeProteccion);
             await ActualizarAsync(ct).ConfigureAwait(true);
         }
+
+        private static string SufijoDeProteccion(string? aviso) => string.IsNullOrEmpty(aviso) ? "" : " ATENCIÓN: las copias no quedaron protegidas contra cambios. " + aviso;
 
         /// <summary>Restaura la versión elegida a una carpeta nueva o vacía. Nunca pisa nada.</summary>
         public async Task RestaurarAsync(string carpetaNueva, CancellationToken ct = default)
@@ -217,6 +224,7 @@ namespace Nexo.Ui.Desktop
                 var avisos = new List<string>();
                 if (s.Ultimo is { Sospechosa: true, MotivoSospecha: { } m }) avisos.Add(m);
                 if (s.Ultimo is { PodaSuspendida: true, MotivoPoda: { } mp }) avisos.Add(mp);
+                if (s.AvisoDeProteccion is { Length: > 0 } ap) avisos.Add("Las copias NO están protegidas contra cambios de otros programas: " + ap);
                 if (s.ListasIlegibles > 0) avisos.Add(s.ListasIlegibles + " lista(s) de copias del disco no se pudieron leer.");
                 if (s.Ultimo is { Omitidos: > 0 } o) avisos.Add(o.Omitidos + " archivo(s) no se copiaron en la última copia, por ejemplo: " + string.Join("; ", o.PrimerosOmitidos.Take(3).Select(x => x.Ruta + " (" + x.Motivo + ")")));
                 if (s.SinCopia.Count > 0) avisos.Add("Carpetas sin copia: " + string.Join("; ", s.SinCopia));

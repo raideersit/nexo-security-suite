@@ -76,6 +76,7 @@ namespace Nexo.Vuln.Windows.Demo
             ProbarMineriaReal();
             ProbarFirmaReal();
             ProbarComportamientoWindows();
+            ProbarProteccionDeCopiaReal();
             // Sale a Internet (NVD): solo si se pide.
             if (Environment.GetCommandLineArgs().Contains("--nvd")) ProbarNvdReal();
             if (Environment.GetCommandLineArgs().Contains("--etw")) ProbarEtwReal();

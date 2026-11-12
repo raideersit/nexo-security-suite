@@ -21,6 +21,7 @@ namespace Nexo.Service.Demo
             Check(ea.Ok && !ea.R!.Value.GetProperty("activo").GetBoolean(), "apagada: lo dice");
             Check(!(await PedirSenuelos(apagado, "copia.hacer", null)).Ok, "apagada: copia.hacer se niega");
             Check(!(await PedirSenuelos(apagado, "copia.restaurar", null)).Ok, "apagada: no existe copia.restaurar");
+            Check(!(await PedirSenuelos(apagado, "copia.descartar", new { id = "20261112T201222Z" })).Ok, "apagada: copia.descartar se niega");
 
             string raiz = Path.Combine(Path.GetTempPath(), "nexo-copia-svc-" + Guid.NewGuid().ToString("N"));
             string docs = Path.Combine(raiz, "docs"), destino = Path.Combine(raiz, "copia");
@@ -33,7 +34,7 @@ namespace Nexo.Service.Demo
                 var ahora = new DateTimeOffset(2026, 11, 10, 12, 0, 0, TimeSpan.Zero);
                 var ausente = new CarpetaSinSenuelo(@"C:\Users\ana\OneDrive\Escritorio", "carpeta de OneDrive");
                 var m = new ModuloCopia(() => (new[] { docs, Path.Combine(raiz, "no-existe") }, new[] { ausente }), destino, 3, null, w, reloj: () => ahora);
-                Check(m.Metodos.SequenceEqual(new[] { "copia.estado", "copia.hacer" }), "dos métodos: ninguno restaura, ninguno cambia destino ni carpetas");
+                Check(m.Metodos.SequenceEqual(new[] { "copia.estado", "copia.hacer", "copia.descartar" }), "tres métodos: ninguno restaura, ninguno cambia destino ni carpetas");
 
                 var e0 = (await PedirSenuelos(m, "copia.estado", null)).R!.Value;
                 Check(e0.GetProperty("activo").GetBoolean() && e0.GetProperty("ultima_correcta").ValueKind == JsonValueKind.Null && e0.GetProperty("sin_copia").GetArrayLength() == 1,

@@ -28,11 +28,17 @@ namespace Nexo.Modules.Threats.Ransomware
     //     (no puede saber qué contenido sigue en uso).
     //
     //  Lo que NO hace: no cifra la copia (quien lea el destino lee tus archivos: usa un disco que guardes) y no
-    //  protege el destino de un ransomware que pueda escribir en él: lo ideal es un disco externo que solo se
-    //  conecta para copiar. Se dice en la ventana.
+    //  protege el destino de un ransomware con permisos de administrador: lo ideal es un disco externo que solo se
+    //  conecta para copiar. Se dice en la ventana. Contra un programa de usuario normal sí hay una defensa: el
+    //  gancho ProtegerCarpeta (en Windows, permisos NTFS: solo SYSTEM y Administradores escriben); si el disco no
+    //  admite permisos (FAT/exFAT) o falla, la copia sigue pero el resultado lo avisa.
     // =====================================================================================================
 
-    public sealed record ConfiguracionDeCopia(IReadOnlyList<string> Origenes, string Destino, int VersionesAConservar = 7, long TopePorArchivoBytes = 4L * 1024 * 1024 * 1024);
+    /// <param name="ProtegerCarpeta">Gancho opcional: recibe la carpeta de copias (<c>&lt;destino&gt;\NexoCopias</c>) YA creada y aún vacía, y devuelve
+    /// null si la dejó protegida contra cambios de usuarios normales, o el motivo por el que no pudo. La copia sigue en ambos casos, pero el
+    /// motivo llega en <see cref="ResultadoDeCopia.AvisoDeProteccion"/>: nunca se calla que las copias quedaron desprotegidas.</param>
+    public sealed record ConfiguracionDeCopia(IReadOnlyList<string> Origenes, string Destino, int VersionesAConservar = 7, long TopePorArchivoBytes = 4L * 1024 * 1024 * 1024,
+                                              Func<string, string?>? ProtegerCarpeta = null);
 
     public sealed record EntradaDeCopia(string Origen, string Relativa, string Sha256, long Bytes, DateTimeOffset Modificado);
 
@@ -41,7 +47,7 @@ namespace Nexo.Modules.Threats.Ransomware
     public sealed record Instantanea(string Id, DateTimeOffset Creada, IReadOnlyList<EntradaDeCopia> Entradas, IReadOnlyList<OmitidoEnCopia> Omitidos, bool Sospechosa, string? MotivoSospecha);
 
     public sealed record ResultadoDeCopia(bool Correcto, string? Error, Instantanea? Instantanea, int ArchivosNuevos, int ArchivosReutilizados,
-                                          int Podadas, bool PodaSuspendida, string? MotivoDePoda);
+                                          int Podadas, bool PodaSuspendida, string? MotivoDePoda, string? AvisoDeProteccion = null);
 
     public sealed record ResultadoDeRestauracion(bool Correcto, string? Error, int Restaurados, IReadOnlyList<OmitidoEnCopia> NoRestaurados);
 
@@ -93,8 +99,17 @@ namespace Nexo.Modules.Threats.Ransomware
             if (mal is not null) return new ResultadoDeCopia(false, mal, null, 0, 0, 0, false, null);
 
             string destino = Path.GetFullPath(c.Destino);
+            string? avisoDeProteccion = null;
             try
             {
+                // Primero la carpeta de Nexo, se protege, y solo después lo que va dentro: así hereda los permisos y nada queda escribible por el camino.
+                string raizDeCopias = Path.Combine(destino, CarpetaDeCopias);
+                Directory.CreateDirectory(raizDeCopias);
+                if (c.ProtegerCarpeta is not null)
+                {
+                    try { avisoDeProteccion = c.ProtegerCarpeta(raizDeCopias); }
+                    catch (Exception e) { avisoDeProteccion = "No se pudo proteger la carpeta de copias: " + e.Message; }
+                }
                 Directory.CreateDirectory(Blobs(destino));
                 Directory.CreateDirectory(Manifiestos(destino));
             }
@@ -134,7 +149,7 @@ namespace Nexo.Modules.Threats.Ransomware
                 File.WriteAllText(tmp, JsonSerializer.Serialize(inst, Json), new UTF8Encoding(false));
                 File.Move(tmp, Path.Combine(Manifiestos(destino), id + ".json"));
             }
-            catch (Exception e) { return new ResultadoDeCopia(false, "No se pudo guardar la lista de la copia: " + e.Message, null, nuevos, reutilizados, 0, false, null); }
+            catch (Exception e) { return new ResultadoDeCopia(false, "No se pudo guardar la lista de la copia: " + e.Message, null, nuevos, reutilizados, 0, false, null, avisoDeProteccion); }
 
             int podadas = 0; bool suspendida = false; string? motivoPoda = null;
             if (sospechosa) { suspendida = true; motivoPoda = "No se borró ninguna versión vieja: " + motivoSospecha; }
@@ -143,7 +158,7 @@ namespace Nexo.Modules.Threats.Ransomware
                 (podadas, motivoPoda) = Podar(destino, c.VersionesAConservar);
                 if (motivoPoda is not null) suspendida = true;
             }
-            return new ResultadoDeCopia(true, null, inst, nuevos, reutilizados, podadas, suspendida, motivoPoda);
+            return new ResultadoDeCopia(true, null, inst, nuevos, reutilizados, podadas, suspendida, motivoPoda, avisoDeProteccion);
         }
 
         private static (bool, string?) Sospechar(Instantanea? anterior, List<EntradaDeCopia> nuevas)
@@ -307,7 +322,7 @@ namespace Nexo.Modules.Threats.Ransomware
             }
         }
 
-        /// <summary>Una firma barata de las listas del destino (cuántas y la última modificación): cambia si se añade, borra o reescribe alguna.</summary>
+        /// <summary>Una firma barata de las listas del destino (cuántas, la última modificación y el tamaño total): cambia si se añade, borra o reescribe alguna. El tamaño cubre un reescrito dentro del mismo instante de reloj (p. ej. al descartar una sospecha cambia el motivo).</summary>
         public static string FirmaDeLasListas(string destino)
         {
             try
@@ -315,7 +330,7 @@ namespace Nexo.Modules.Threats.Ransomware
                 string carpeta = Manifiestos(Path.GetFullPath(destino));
                 if (!Directory.Exists(carpeta)) return "-";
                 var fi = new DirectoryInfo(carpeta).GetFiles("*.json");
-                return fi.Length + "|" + (fi.Length == 0 ? 0 : fi.Max(f => f.LastWriteTimeUtc.Ticks));
+                return fi.Length + "|" + (fi.Length == 0 ? 0 : fi.Max(f => f.LastWriteTimeUtc.Ticks)) + "|" + fi.Sum(f => f.Length);
             }
             catch { return "?"; }
         }

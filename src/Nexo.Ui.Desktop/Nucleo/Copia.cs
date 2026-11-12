@@ -15,19 +15,26 @@ namespace Nexo.Ui.Desktop.Nucleo
     /// <summary>copia.estado. Apagada: <c>Activo == false</c> y solo hay <c>Nota</c>.</summary>
     public sealed record EstadoDeCopiaVista(bool Activo, string? Destino, bool DestinoDisponible, int VersionesAConservar, int VersionesEnDestino, int ListasIlegibles,
                                             double? AutomaticaCadaHoras, bool EnCurso, DateTimeOffset? UltimaCorrecta, UltimaCopiaVista? Ultimo,
-                                            IReadOnlyList<string> Carpetas, IReadOnlyList<string> SinCopia, string? Aviso, string Nota, int? SospechosasGuardadas = null);
+                                            IReadOnlyList<string> Carpetas, IReadOnlyList<string> SinCopia, string? Aviso, string Nota, int? SospechosasGuardadas = null,
+                                            string? AvisoDeProteccion = null);
 
     /// <summary>copia.hacer. <c>Exito == false</c> con <c>Error</c>: la copia no se hizo (disco ausente, fallo...).</summary>
-    public sealed record ResultadoDeHacerCopia(bool Exito, string? Error, int Archivos, int Nuevos, int Omitidos, bool Sospechosa, string? MotivoSospecha);
+    public sealed record ResultadoDeHacerCopia(bool Exito, string? Error, int Archivos, int Nuevos, int Omitidos, bool Sospechosa, string? MotivoSospecha,
+                                               string? AvisoDeProteccion = null);
+
+    /// <summary>copia.descartar. <c>Exito == false</c> con <c>Error</c>: no se dio por buena (no existe, ya no era sospechosa, disco ausente...).</summary>
+    public sealed record ResultadoDeDescartar(bool Exito, string? Error);
 
     /// <summary>
-    /// La copia versionada vista desde la ventana. Por el pipe solo se consulta el estado y se pide una copia: restaurar y verificar los hace la
-    /// ventana con los permisos de la persona (el servicio es SYSTEM y no debe escribir donde le diga un proceso cualquiera).
+    /// La copia versionada vista desde la ventana. Por el pipe se consulta el estado, se pide una copia y se da por buena una sospechosa (por su id: la
+    /// carpeta de copias es de solo lectura para la persona, así que solo el servicio puede reescribir su lista). Restaurar y verificar los hace la
+    /// ventana con los permisos de la persona, que solo necesitan leer (el servicio es SYSTEM y no debe escribir donde le diga un proceso cualquiera).
     /// </summary>
     public interface IServicioDeCopia
     {
         Task<Consulta<EstadoDeCopiaVista>> EstadoAsync(CancellationToken ct);
         Task<Consulta<ResultadoDeHacerCopia>> HacerAsync(CancellationToken ct);
+        Task<Consulta<ResultadoDeDescartar>> DescartarAsync(string id, CancellationToken ct);
     }
 
     public sealed class ServicioDeCopiaNoDisponible : IServicioDeCopia
@@ -36,6 +43,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         public ServicioDeCopiaNoDisponible(string motivo) => _motivo = motivo;
         public Task<Consulta<EstadoDeCopiaVista>> EstadoAsync(CancellationToken ct) => Task.FromResult(Consulta<EstadoDeCopiaVista>.Mal(_motivo));
         public Task<Consulta<ResultadoDeHacerCopia>> HacerAsync(CancellationToken ct) => Task.FromResult(Consulta<ResultadoDeHacerCopia>.Mal(_motivo));
+        public Task<Consulta<ResultadoDeDescartar>> DescartarAsync(string id, CancellationToken ct) => Task.FromResult(Consulta<ResultadoDeDescartar>.Mal(_motivo));
     }
 
     public static class LectorDeCopia
@@ -69,7 +77,8 @@ namespace Nexo.Ui.Desktop.Nucleo
                     e.GetProperty("carpetas").EnumerateArray().Select(x => x.GetString() ?? "").ToList(),
                     e.GetProperty("sin_copia").EnumerateArray().Select(x => (x.GetProperty("carpeta").GetString() ?? "") + ": " + (x.GetProperty("motivo").GetString() ?? "")).ToList(),
                     Texto(e, "aviso"), nota,
-                    e.TryGetProperty("sospechosas_guardadas", out JsonElement sg) && sg.ValueKind == JsonValueKind.Number ? sg.GetInt32() : null));
+                    e.TryGetProperty("sospechosas_guardadas", out JsonElement sg) && sg.ValueKind == JsonValueKind.Number ? sg.GetInt32() : null,
+                    Texto(e, "aviso_proteccion")));
             }
             catch (Exception ex) when (ex is KeyNotFoundException || ex is InvalidOperationException || ex is FormatException)
             {
@@ -86,11 +95,28 @@ namespace Nexo.Ui.Desktop.Nucleo
                 bool exito = e.GetProperty("exito").GetBoolean();
                 if (!exito) return Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(false, Texto(e, "error") ?? "no se pudo hacer la copia", 0, 0, 0, false, null));
                 return Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(true, null, e.GetProperty("archivos").GetInt32(), e.GetProperty("nuevos").GetInt32(),
-                    e.GetProperty("omitidos").GetInt32(), e.GetProperty("sospechosa").GetBoolean(), Texto(e, "motivo_sospecha")));
+                    e.GetProperty("omitidos").GetInt32(), e.GetProperty("sospechosa").GetBoolean(), Texto(e, "motivo_sospecha"), Texto(e, "aviso_proteccion")));
             }
             catch (Exception ex) when (ex is KeyNotFoundException || ex is InvalidOperationException || ex is FormatException)
             {
                 return Consulta<ResultadoDeHacerCopia>.Mal("respuesta del servicio no reconocida");
+            }
+        }
+
+        public static Consulta<ResultadoDeDescartar> Descartar(RespuestaCruda r)
+        {
+            if (!r.Exito)
+                return Consulta<ResultadoDeDescartar>.Mal(r.Error is { Length: > 0 } err && err.Contains("desconocido", StringComparison.OrdinalIgnoreCase)
+                    ? "este servicio es de una versión que no sabe dar por buena una copia sospechosa: actualízalo" : string.IsNullOrEmpty(r.Error) ? "el servicio contestó con un error" : r.Error);
+            if (r.Resultado is not JsonElement e || e.ValueKind != JsonValueKind.Object) return Consulta<ResultadoDeDescartar>.Mal("respuesta vacía del servicio");
+            try
+            {
+                bool exito = e.GetProperty("exito").GetBoolean();
+                return Consulta<ResultadoDeDescartar>.Bien(new ResultadoDeDescartar(exito, exito ? null : Texto(e, "error") ?? "no se pudo dar por buena la copia"));
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException || ex is InvalidOperationException || ex is FormatException)
+            {
+                return Consulta<ResultadoDeDescartar>.Mal("respuesta del servicio no reconocida");
             }
         }
 
@@ -112,6 +138,9 @@ namespace Nexo.Ui.Desktop.Nucleo
         // «espera» es solo para conectar; la llamada puede tardar minutos (el servicio lee y hashea todo) y no tiene tope propio.
         public async Task<Consulta<ResultadoDeHacerCopia>> HacerAsync(CancellationToken ct)
             => LectorDeCopia.Hacer(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "copia.hacer", null, ct).ConfigureAwait(false));
+
+        public async Task<Consulta<ResultadoDeDescartar>> DescartarAsync(string id, CancellationToken ct)
+            => LectorDeCopia.Descartar(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "copia.descartar", new { id }, ct).ConfigureAwait(false));
     }
 #endif
 }

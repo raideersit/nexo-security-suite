@@ -15,9 +15,15 @@ namespace Nexo.Service
     /// <summary>
     /// Copia versionada (§2ap/§2aq del traspaso). Apagada por omisión: se activa solo en appsettings.json (Nexo:Copia:Activo).
     ///
-    /// Por el pipe solo hay DOS métodos: <c>copia.estado</c> y <c>copia.hacer</c> (hacer una instantánea ahora). No hay método de
-    /// restaurar a propósito: el servicio corre como SYSTEM y no debe escribir donde le diga un proceso cualquiera; restaurar lo
-    /// hace la ventana, con los permisos de la persona. Tampoco hay métodos para cambiar el destino ni las carpetas.
+    /// Por el pipe solo hay TRES métodos: <c>copia.estado</c>, <c>copia.hacer</c> (hacer una instantánea ahora) y <c>copia.descartar</c>
+    /// (dar por buena una copia sospechosa, por su id: el destino es siempre el configurado, nunca una ruta que mande el cliente).
+    /// No hay método de restaurar a propósito: el servicio corre como SYSTEM y no debe escribir donde le diga un proceso cualquiera;
+    /// restaurar lo hace la ventana, con los permisos de la persona (solo necesita leer). Tampoco hay métodos para cambiar el destino
+    /// ni las carpetas.
+    ///
+    /// La carpeta de copias se protege con permisos (solo SYSTEM y Administradores escriben) al crearla, y por eso «descartar» tuvo que
+    /// pasar al servicio: la ventana, con los permisos de la persona, ya no puede reescribir la lista de una copia. Si el disco no admite
+    /// permisos o no se pudo proteger, la copia se hace igual y el estado lleva <c>aviso_proteccion</c>.
     ///
     /// Copiar no cambia nada del usuario, así que no pide aprobación; sí tiene tope de frecuencia (un minuto entre copias) y una
     /// sola a la vez, para que un proceso no pueda saturar el disco. Si el destino (un disco externo) no está conectado, no es un
@@ -38,6 +44,7 @@ namespace Nexo.Service
         private readonly Func<string, bool> _destinoDisponible;
         private readonly Func<DateTimeOffset> _reloj;
         private readonly Func<TimeSpan, CancellationToken, Task> _esperar;
+        private readonly Func<string, string?>? _proteger;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly SemaphoreSlim _paso = new SemaphoreSlim(1, 1);
         private readonly object _candado = new object();
@@ -47,13 +54,15 @@ namespace Nexo.Service
         private ResultadoDeCopia? _ultimo;
         private DateTimeOffset? _ultimaCorrecta;
         private string? _motivoDeEspera;
+        private string? _avisoDeProteccion;       // por qué la última copia dejó las copias SIN proteger (null = protegidas, o aún no se sabe)
         // Cuántas copias sospechosas hay guardadas en el destino. Se lee del disco una vez y tras cada copia (no en cada consulta: la bandeja pregunta cada 5 s).
         private int? _sospechosas;
         private string? _firmaDeListas;   // con qué estado de las listas se contó; si cambia (p. ej. la persona descarta una sospecha), se vuelve a contar
 
         public ModuloCopia(Func<(IReadOnlyList<string>, IReadOnlyList<CarpetaSinSenuelo>)> carpetas, string destino, int versiones, TimeSpan? cada, IReportWriter reportes,
                            Func<ConfiguracionDeCopia, DateTimeOffset, CancellationToken, ResultadoDeCopia>? copiar = null,
-                           Func<string, bool>? destinoDisponible = null, Func<DateTimeOffset>? reloj = null, Func<TimeSpan, CancellationToken, Task>? esperar = null)
+                           Func<string, bool>? destinoDisponible = null, Func<DateTimeOffset>? reloj = null, Func<TimeSpan, CancellationToken, Task>? esperar = null,
+                           Func<string, string?>? proteger = null, bool protegerPorOmision = true)
         {
             _carpetas = carpetas;
             _destino = destino;
@@ -64,9 +73,11 @@ namespace Nexo.Service
             _destinoDisponible = destinoDisponible ?? DestinoDisponiblePorOmision;
             _reloj = reloj ?? (() => DateTimeOffset.Now);
             _esperar = esperar ?? ((t, ct) => Task.Delay(t, ct));
+            // En Windows, por omisión se protege la carpeta con permisos NTFS; las pruebas portables pasan su propio gancho (o protegerPorOmision: false).
+            _proteger = proteger ?? (protegerPorOmision && OperatingSystem.IsWindows() ? Nexo.Modules.Threats.Windows.ProteccionDeCopiaWindows.Proteger : null);
         }
 
-        public IReadOnlyList<string> Metodos { get; } = new[] { "copia.estado", "copia.hacer" };
+        public IReadOnlyList<string> Metodos { get; } = new[] { "copia.estado", "copia.hacer", "copia.descartar" };
 
         /// <summary>Perfiles de actividad (§2az): la copia AUTOMÁTICA pregunta aquí antes de arrancar. «Copiar ahora» (a mano) nunca espera.</summary>
         public Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas Puerta { get; set; } = Nexo.Modules.Cleanup.Perfiles.PuertaDeTareasPesadas.Abierta;
@@ -127,9 +138,38 @@ namespace Nexo.Service
                     return Estado();
                 case "copia.hacer":
                     return await HacerAsync(automatica: false, ct).ConfigureAwait(false);
+                case "copia.descartar":
+                    return await DescartarAsync(p, ct).ConfigureAwait(false);
                 default:
                     throw new ErrorDeComando(CodigoDeError.MetodoDesconocido, "metodo desconocido");
             }
+        }
+
+        /// <summary>
+        /// La persona revisó una copia sospechosa y la da por buena. Solo recibe el id (texto de la forma 20261112T201222Z, con sufijo opcional
+        /// «-N»): el destino es el configurado, así que no se puede apuntar el servicio (SYSTEM) a otra ruta. No espera a una copia en curso:
+        /// se turna con ella para no reescribir una lista mientras se podan.
+        /// </summary>
+        private async Task<object> DescartarAsync(JsonElement? p, CancellationToken ct)
+        {
+            string? id = null;
+            if (p is { ValueKind: JsonValueKind.Object } o && o.TryGetProperty("id", out JsonElement v) && v.ValueKind == JsonValueKind.String) id = v.GetString();
+            if (string.IsNullOrEmpty(id) || id.Length > 40 || !id.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '-'))
+                throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "falta el id de la copia (solo letras, números y guion)");
+            if (!await _paso.WaitAsync(0, ct).ConfigureAwait(false))
+                throw new ErrorDeComando(CopiaEnCurso, "ya hay una copia en marcha: espera a que termine");
+            try
+            {
+                if (!_destinoDisponible(_destino)) return new { exito = false, error = "El destino no está disponible. ¿Está conectado el disco externo?" };
+                (bool ok, string? error) = await Task.Run(() => CopiaVersionada.DescartarSospecha(_destino, id), ct).ConfigureAwait(false);
+                if (ok)
+                {
+                    int? sosp = ContarSospechosas();
+                    lock (_candado) { if (sosp is not null) _sospechosas = sosp; _firmaDeListas = CopiaVersionada.FirmaDeLasListas(_destino); }
+                }
+                return new { exito = ok, error };
+            }
+            finally { _paso.Release(); }
         }
 
         private async Task<object> HacerAsync(bool automatica, CancellationToken ct)
@@ -155,7 +195,7 @@ namespace Nexo.Service
                 }
 
                 (IReadOnlyList<string> carpetas, _) = _carpetas();
-                var cfg = new ConfiguracionDeCopia(carpetas.Where(Directory.Exists).ToList(), _destino, _versiones);
+                var cfg = new ConfiguracionDeCopia(carpetas.Where(Directory.Exists).ToList(), _destino, _versiones, ProtegerCarpeta: _proteger);
                 // La copia lee y hashea todo: fuera del hilo del pipe.
                 ResultadoDeCopia r = await Task.Run(() => _copiar(cfg, ahora, ct), ct).ConfigureAwait(false);
                 int? sosp = r.Correcto ? ContarSospechosas() : null;
@@ -163,6 +203,7 @@ namespace Nexo.Service
                 {
                     if (sosp is not null) { _sospechosas = sosp; _firmaDeListas = CopiaVersionada.FirmaDeLasListas(_destino); }
                     _ultimo = r;
+                    _avisoDeProteccion = r.AvisoDeProteccion;
                     _motivoDeEspera = null;
                     if (r.Correcto) _ultimaCorrecta = ahora;
                 }
@@ -176,7 +217,8 @@ namespace Nexo.Service
                     nuevos = r.ArchivosNuevos,
                     omitidos = r.Instantanea?.Omitidos.Count ?? 0,
                     sospechosa = r.Instantanea?.Sospechosa ?? false,
-                    motivo_sospecha = r.Instantanea?.MotivoSospecha
+                    motivo_sospecha = r.Instantanea?.MotivoSospecha,
+                    aviso_proteccion = r.AvisoDeProteccion
                 };
             }
             finally { _paso.Release(); }
@@ -223,6 +265,8 @@ namespace Nexo.Service
             try { return CopiaVersionada.Listar(_destino, out _).Count(i => i.Sospechosa); }
             catch { return null; }
         }
+
+        private string? AvisoDeProteccion() { lock (_candado) return _avisoDeProteccion; }
 
         private object Estado()
         {
@@ -274,7 +318,9 @@ namespace Nexo.Service
                 carpetas,
                 sin_copia = descartadas.Select(x => new { carpeta = x.Carpeta, motivo = x.Motivo }).ToList(),
                 aviso = espera,
-                nota = "La copia no está cifrada y no protege el destino de un ransomware que pueda escribir en él: lo ideal es un disco externo que solo se conecta para copiar."
+                // null = protegida por la última copia, o todavía no se ha hecho ninguna en esta sesión del servicio.
+                aviso_proteccion = AvisoDeProteccion(),
+                nota = "La copia no está cifrada. La carpeta de copias solo la pueden cambiar SYSTEM y los administradores, pero un programa con permisos de administrador sí podría borrarla: lo ideal es un disco externo que solo se conecta para copiar."
             };
         }
 
@@ -292,7 +338,7 @@ namespace Nexo.Service
 
     public sealed class ModuloCopiaApagado : IModuloDelServicio
     {
-        public IReadOnlyList<string> Metodos { get; } = new[] { "copia.estado", "copia.hacer" };
+        public IReadOnlyList<string> Metodos { get; } = new[] { "copia.estado", "copia.hacer", "copia.descartar" };
 
         public Task<object?> ManejarAsync(string metodo, JsonElement? parametros, CancellationToken ct)
             => metodo switch
@@ -302,7 +348,7 @@ namespace Nexo.Service
                     activo = false,
                     nota = "La copia versionada está apagada. Se activa en appsettings.json (Nexo:Copia:Activo y Nexo:Copia:Destino)."
                 }),
-                "copia.hacer" => throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "la copia versionada está apagada"),
+                "copia.hacer" or "copia.descartar" => throw new ErrorDeComando(CodigoDeError.ParametrosInvalidos, "la copia versionada está apagada"),
                 _ => throw new ErrorDeComando(CodigoDeError.MetodoDesconocido, "metodo desconocido")
             };
     }

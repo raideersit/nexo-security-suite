@@ -51,6 +51,7 @@ namespace Nexo.Service.Demo
                 await ProbarPerfilDelServicio().ConfigureAwait(false);
                 await ProbarCopiaDelServicio().ConfigureAwait(false);
                 await ProbarCopiaContratoConLaVentana().ConfigureAwait(false);
+                await ProbarCopiaProteccionYDescarte().ConfigureAwait(false);
                 await ProbarAlertasDelServicio().ConfigureAwait(false);
                 ProbarAprobacionDeOtroUsuario();
                 await ProbarTiempoReal(Path.Combine(raiz, "vault5"), "nexo-service-demo-" + Guid.NewGuid().ToString("N"), raiz).ConfigureAwait(false);
@@ -152,16 +153,16 @@ namespace Nexo.Service.Demo
                 Check(!string.IsNullOrEmpty(ping.Resultado?.GetProperty("version").GetString()), "informa su version");
 
                 Respuesta estado = await c.LlamarAsync("estado").ConfigureAwait(false);
-                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 41
+                Check(estado.Exito && estado.Resultado?.GetProperty("metodos").GetArrayLength() == 42
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Select(x => x.GetString()).Count(x => x!.StartsWith("vpn.")) == 3
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Any(x => x.GetString() == "alertas.revisar")
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Select(x => x.GetString()).Where(x => x!.StartsWith("cfa.")).OrderBy(x => x).SequenceEqual(new[] { "cfa.aplicar", "cfa.previsualizar" })
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Count(x => x.GetString()!.StartsWith("senuelos.")) == 3
-                      && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Select(x => x.GetString()).Where(x => x!.StartsWith("copia.")).OrderBy(x => x).SequenceEqual(new[] { "copia.estado", "copia.hacer" })
+                      && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Select(x => x.GetString()).Where(x => x!.StartsWith("copia.")).OrderBy(x => x).SequenceEqual(new[] { "copia.descartar", "copia.estado", "copia.hacer" })
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Count(x => x.GetString() == "mineria.estado") == 1
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Count(x => x.GetString() == "comportamiento.estado") == 1
                       && estado.Resultado.Value.GetProperty("metodos").EnumerateArray().Count(x => x.GetString() == "perfil.estado") == 1,
-                      "estado lista los metodos que expone: los basicos, los del firewall, «ventana.registrar», los tres «vpn.*», «alertas.revisar», los dos «cfa.*» los tres «senuelos.*» y los dos «copia.*» y «mineria.estado» y «perfil.estado» (apagados)");
+                      "estado lista los metodos que expone: los basicos, los del firewall, «ventana.registrar», los tres «vpn.*», «alertas.revisar», los dos «cfa.*» los tres «senuelos.*» y los tres «copia.*» y «mineria.estado» y «perfil.estado» (apagados)");
 
                 // Salud del disco: el servicio lee al arrancar (en segundo plano); disco.estado no vuelve a leer.
                 Respuesta disco = await c.LlamarAsync("disco.estado").ConfigureAwait(false);
