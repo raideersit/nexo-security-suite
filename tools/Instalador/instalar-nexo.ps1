@@ -117,7 +117,15 @@ switch ($Accion) {
 
             New-Item -ItemType Directory -Force -Path $Destino | Out-Null
             foreach ($d in 'service', 'tray', 'desktop', 'autocompletado', 'extension', 'instalador') {
-                & robocopy.exe (Join-Path $prep $d) (Join-Path $Destino $d) /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+                # /MIR pisaria el appsettings.json del servicio con el de fabrica (todo apagado) y se perderian los ajustes del usuario
+                # (modulos activados, carpetas de copia, etc.): si ya existe, se excluye (/XF tampoco lo borra). Los ajustes nuevos
+                # de una version posterior no estan en el archivo viejo y toman su valor por omision (apagado).
+                $extra = @()
+                if ($d -eq 'service' -and (Test-Path -LiteralPath (Join-Path $Destino 'service\appsettings.json'))) {
+                    $extra = @('/XF', 'appsettings.json')
+                    Write-Host 'Se conserva la configuracion existente del servicio (appsettings.json).'
+                }
+                & robocopy.exe (Join-Path $prep $d) (Join-Path $Destino $d) /MIR /NFL /NDL /NJH /NJS /NP @extra | Out-Null
                 if ($LASTEXITCODE -ge 8) { throw "robocopy fallo copiando $d (codigo $LASTEXITCODE)." }
             }
             $global:LASTEXITCODE = 0
