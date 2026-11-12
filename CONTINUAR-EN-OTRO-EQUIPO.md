@@ -1757,6 +1757,13 @@ Diseño decidido (a partir de las «dos honestidades» de la Salida 4 §1.5): Ne
 - **Probado de verdad (2026-11-12, como administrador):** la instalación real funciona: 4 .exe + extensión en `C:\Program Files\Nexo`, servicio `NexoService` (LocalSystem, manual, detenido), acceso directo en el menú Inicio, entrada en «Aplicaciones», ACL correctas (Usuarios solo leer/ejecutar). Error corregido por el camino: pasar los parámetros a `nexo-service.ps1` con una LISTA hacía que `-Accion` llegara como texto posicional; ahora va con tabla hash. `nexo-autocompletar.exe --instalar` repuntó el manifiesto a Program Files (Brave/Chrome y Edge «listo»). La ventana y la bandeja arrancan desde Program Files.
 - **SIN PROBAR:** arrancar el servicio instalado (`Start-Service NexoService`, requiere consola de administrador) y ver la ventana conectada; actualización sobre una instalación previa; `desinstalar` desde «Aplicaciones»; `-Autocontenido`; bandeja en el inicio de sesión; cargar la extensión desde `C:\Program Files\Nexo\extension` en Brave.
 
+## 2be. Pruebas reales del servicio instalado (2026-11-12, en el HP)
+
+- **Servicio instalado arrancado** (`Start-Service NexoService`): la ventana desde `C:\Program Files\Nexo\desktop` muestra «servicio conectado, versión 1.0.0».
+- **Comportamiento (ETW) dentro del servicio real, como SYSTEM:** con `tools/Instalador/activar-comportamiento.ps1` (pone `Nexo:Comportamiento:Activo=true` con copia `.bak`, reinicia el servicio; `-Restaurar` lo deja como estaba). La sección salió «revisión incompleta», 117 eventos, «firma no se pudo comprobar en 2 procesos» (esperado: probablemente procesos protegidos; no se identificaron). Con `tools/Instalador/prueba-alerta-comportamiento.ps1` (copia alterada de powershell.exe en Descargas que escribe en Inicio y abre una conexión) salió un hallazgo GRAVE, como se esperaba. Restaurado después.
+- **Sin confirmar:** si salió el globo de la bandeja; qué 2 procesos no se pudieron firmar; la carga (`eventos_perdidos`).
+- **Aprendido:** pegar varias líneas en la consola puede ejecutarlas desordenadas y partir la primera palabra; dar UN comando por guion (`powershell -NoProfile -ExecutionPolicy Bypass -File ...`).
+
 ## 3. Lo que necesita el otro equipo
 
 ### 3.1 Comprobar si hace falta la BIOS
