@@ -31,6 +31,7 @@ namespace Nexo.Ui.Tray.Nucleo
                 (int copiaSospechosas, bool copiaFallida) = await CopiaAsync(c, ct).ConfigureAwait(false);
 
                 IReadOnlyList<AvisoDeMineriaVista>? mineria = await MineriaAsync(c, ct).ConfigureAwait(false);
+                IReadOnlyList<AvisoDeMineriaVista>? comportamiento = await ComportamientoAsync(c, ct).ConfigureAwait(false);
                 bool wifiSinCifrado = await WifiAsync(c, ct).ConfigureAwait(false);
 
                 JsonElement e = estado.Resultado!.Value;
@@ -61,7 +62,8 @@ namespace Nexo.Ui.Tray.Nucleo
                     CopiaSospechosas: copiaSospechosas,
                     CopiaFallida: copiaFallida,
                     MineriaAvisos: mineria,
-                    WifiSinCifrado: wifiSinCifrado);
+                    WifiSinCifrado: wifiSinCifrado,
+                    ComportamientoAvisos: comportamiento);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException
                                        || ex is JsonException || ex is KeyNotFoundException || ex is InvalidOperationException)
@@ -89,6 +91,15 @@ namespace Nexo.Ui.Tray.Nucleo
             }
             catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return false; }
         }
+
+        private static async Task<IReadOnlyList<AvisoDeMineriaVista>?> ComportamientoAsync(ClienteDePipe c, CancellationToken ct)
+        {
+            Respuesta r = await c.LlamarAsync("comportamiento.estado", ct: ct).ConfigureAwait(false);
+            return r.Exito && r.Resultado is { } e ? LeerComportamiento(e) : null;
+        }
+
+        /// <summary>Los hallazgos Alta o Crítica de «comportamiento.estado»: misma forma y mismas reglas que los de criptominería (<see cref="LeerMineria"/>).</summary>
+        public static IReadOnlyList<AvisoDeMineriaVista>? LeerComportamiento(JsonElement e) => LeerMineria(e);
 
         private static async Task<IReadOnlyList<AvisoDeMineriaVista>?> MineriaAsync(ClienteDePipe c, CancellationToken ct)
         {

@@ -38,6 +38,7 @@ namespace Nexo.Tray.Demo
                 await ProbarSenuelosEnLaBandeja().ConfigureAwait(false);
                 await ProbarCopiaEnLaBandeja().ConfigureAwait(false);
                 await ProbarMineriaEnLaBandeja().ConfigureAwait(false);
+                await ProbarComportamientoEnLaBandeja().ConfigureAwait(false);
                 await ProbarWifiEnLaBandeja().ConfigureAwait(false);
                 ProbarUbicacionSegura(raiz);
                 await ProbarContraElServicio(raiz).ConfigureAwait(false);

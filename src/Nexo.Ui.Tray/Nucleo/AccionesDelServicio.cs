@@ -131,6 +131,24 @@ namespace Nexo.Ui.Tray.Nucleo
             return (titulo, texto);
         }
 
+        /// <summary>El aviso de comportamiento sospechoso para la bandeja. No detiene nada: dice qué mirar.</summary>
+        public static (string Titulo, string Texto) AvisoDeComportamiento(IReadOnlyList<AvisoDeMineriaVista> nuevos)
+        {
+            AvisoDeMineriaVista p = nuevos[0];
+            string quien = p.Sujeto is { Length: > 0 } s && !p.Titulo.Contains(s, StringComparison.OrdinalIgnoreCase) ? " (" + s + ")" : "";
+            string texto = p.Titulo + quien + (nuevos.Count > 1 ? " y " + (nuevos.Count - 1) + " más." : ".")
+                         + " Nexo no detiene nada: si no reconoces el programa, analízalo. Pulsa para ver más.";
+            return ("Nexo: comportamiento sospechoso", texto);
+        }
+
+        public static string TextoDeComportamiento(IReadOnlyList<AvisoDeMineriaVista> graves)
+            => "Nexo ve que algún programa junta varias señales de comportamiento sospechoso (por ejemplo: sin firma digital, escribe en la carpeta Inicio, crea un servicio):\n\n"
+             + string.Join("\n", graves.Select(g => "  • " + g.Titulo + (g.Sujeto is { Length: > 0 } s ? " (" + s + ")" : "")))
+             + "\n\nQué hacer:\n"
+             + "  • Si no reconoces el programa, no lo abras de nuevo y analízalo con Nexo.\n"
+             + "  • Abre la ventana de Nexo, pestaña «Seguridad», sección «Comportamiento sospechoso», para ver el detalle y los motivos.\n\n"
+             + "Nexo solo observa: no detiene ni borra nada. Cada señal por separado es normal (los instaladores también las dan): es una sospecha, no una prueba.";
+
         public const string TituloDeWifiSinCifrado = "Nexo: estás en un Wi-Fi sin cifrado";
 
         public const string TextoDeWifiSinCifrado =

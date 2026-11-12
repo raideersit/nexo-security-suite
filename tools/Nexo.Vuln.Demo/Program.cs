@@ -60,6 +60,7 @@ namespace Nexo.Vuln.Demo
             ProbarCopiaVersionadaReglas();
             ProbarListaDeMineria();
             ProbarVigilanteDeMineria();
+            ProbarComportamiento();
 
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? "TODAS LAS VERIFICACIONES PASARON" : _fallos + " VERIFICACIONES FALLIDAS");

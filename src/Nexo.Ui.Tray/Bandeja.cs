@@ -30,6 +30,7 @@ namespace Nexo.Ui.Tray
         private readonly ToolStripMenuItem _copia = new ToolStripMenuItem();
         private bool _globoDeCopia;      // el ultimo globo era de la copia: pulsarlo explica que hacer
         private bool _globoDeWifi;         // el ultimo globo era del Wi-Fi sin cifrado
+        private bool _globoDeComportamiento; // el ultimo globo era de comportamiento sospechoso
         private bool _globoDeMineria;     // el ultimo globo era de criptominería: pulsarlo explica qué mirar
         private bool _globoDeSenuelos;   // el ultimo globo era de señuelos: pulsarlo abre los señuelos, no las detecciones
         private bool _revisando;    // hay una revision en marcha: no se lanza otra
@@ -67,6 +68,7 @@ namespace Nexo.Ui.Tray
             {
                 if (_globoDeSenuelos) await VerSenuelosAsync();
                 else if (_globoDeMineria) VerMineria();
+                else if (_globoDeComportamiento) VerComportamiento();
                 else if (_globoDeWifi) Dialogo.Mostrar(AccionesDelServicio.TextoDeWifiSinCifrado, "Nexo — Wi-Fi sin cifrado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 else if (_globoDeCopia) VerCopiaSospechosa();
                 else await RevisarDeteccionesAsync();
@@ -93,6 +95,7 @@ namespace Nexo.Ui.Tray
                     _globoDeSenuelos = false;
                     _globoDeCopia = false;
                     _globoDeMineria = false;
+                    _globoDeComportamiento = false;
                     _globoDeWifi = false;
                     _icono.ShowBalloonTip(8000, "Nexo: amenaza detectada",
                         d.Firma + " en " + System.IO.Path.GetFileName(d.Ruta) + ". Pulsa para revisarla.", ToolTipIcon.Warning);
@@ -104,6 +107,7 @@ namespace Nexo.Ui.Tray
                     _globoDeSenuelos = true;
                     _globoDeCopia = false;
                     _globoDeMineria = false;
+                    _globoDeComportamiento = false;
                     _globoDeWifi = false;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Error);
                 }
@@ -114,6 +118,18 @@ namespace Nexo.Ui.Tray
                     _globoDeSenuelos = false;
                     _globoDeCopia = false;
                     _globoDeMineria = true;
+                    _globoDeComportamiento = false;
+                    _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
+                }
+                // El comportamiento sospechoso, solo si no hay señuelos ni criptominería en este ciclo.
+                else if (_modelo.ComportamientoNuevo.Count > 0)
+                {
+                    (string titulo, string texto) = AccionesDelServicio.AvisoDeComportamiento(_modelo.ComportamientoNuevo);
+                    _globoDeSenuelos = false;
+                    _globoDeCopia = false;
+                    _globoDeMineria = false;
+                    _globoDeWifi = false;
+                    _globoDeComportamiento = true;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
                 }
                 // El Wi-Fi sin cifrado, solo si no hay nada más grave en este ciclo; si coincide, queda pendiente para el siguiente.
@@ -123,15 +139,17 @@ namespace Nexo.Ui.Tray
                     (string titulo, string texto) = AccionesDelServicio.AvisoDeCopia(i.CopiaSospechosas);
                     _globoDeSenuelos = false;
                     _globoDeMineria = false;
+                    _globoDeComportamiento = false;
                     _globoDeWifi = false;
                     _globoDeCopia = true;
                     _icono.ShowBalloonTip(15000, titulo, texto, ToolTipIcon.Warning);
                 }
                 // El Wi-Fi sin cifrado, solo si nada más grave tomó este ciclo; hasta mostrarse queda pendiente (no se pierde).
-                if (_modelo.WifiSinCifradoNuevo && !_modelo.SenuelosNuevos.Any() && _modelo.MineriaNueva.Count == 0 && !_modelo.CopiaSospechosaNueva)
+                if (_modelo.WifiSinCifradoNuevo && !_modelo.SenuelosNuevos.Any() && _modelo.MineriaNueva.Count == 0 && _modelo.ComportamientoNuevo.Count == 0 && !_modelo.CopiaSospechosaNueva)
                 {
                     _globoDeSenuelos = false;
                     _globoDeMineria = false;
+                    _globoDeComportamiento = false;
                     _globoDeCopia = false;
                     _globoDeWifi = true;
                     _icono.ShowBalloonTip(15000, AccionesDelServicio.TituloDeWifiSinCifrado, "Cualquiera cerca puede ver lo que no vaya cifrado. Usa una VPN o cambia de red. Pulsa para ver más.", ToolTipIcon.Warning);
@@ -216,6 +234,12 @@ namespace Nexo.Ui.Tray
         }
 
         /// <summary>Explica qué significa y qué hacer con una copia sospechosa. No cambia nada: restaurar se hace en la ventana de Nexo.</summary>
+        private void VerComportamiento()
+        {
+            if (_modelo.Ultima.Comportamiento.Count == 0) return;
+            Dialogo.Mostrar(AccionesDelServicio.TextoDeComportamiento(_modelo.Ultima.Comportamiento), "Nexo — comportamiento sospechoso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
         private void VerMineria()
         {
             if (_modelo.Ultima.Mineria.Count == 0) return;

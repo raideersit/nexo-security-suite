@@ -29,6 +29,7 @@ namespace Nexo.Ui.Tray.Nucleo
         private readonly HashSet<string> _revisadas = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _senuelosAvisados = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _mineriaAvisada = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _comportamientoAvisado = new HashSet<string>(StringComparer.Ordinal);
         private bool _wifiAvisado;         // ya se avisó de la red Wi-Fi sin cifrado actual (se rearma al desconectarse o cambiar de red)
         private int _copiaAvisadas;      // cuántas copias sospechosas se avisaron ya con globo
         private InstantaneaDelServicio _ultima = InstantaneaDelServicio.SinConexion("sin consultar todavia");
@@ -57,6 +58,7 @@ namespace Nexo.Ui.Tray.Nucleo
 
         /// <summary>Hallazgos graves de criptominería que aún no se avisaron con globo.</summary>
         public IReadOnlyList<AvisoDeMineriaVista> MineriaNueva { get; private set; } = Array.Empty<AvisoDeMineriaVista>();
+        public IReadOnlyList<AvisoDeMineriaVista> ComportamientoNuevo { get; private set; } = Array.Empty<AvisoDeMineriaVista>();
         public InstantaneaDelServicio Ultima => _ultima;
 
         /// <summary>
@@ -95,6 +97,15 @@ namespace Nexo.Ui.Tray.Nucleo
                     if (_mineriaAvisada.Add(m.Clave)) mineria.Add(m);
             }
             MineriaNueva = mineria;
+            // Comportamiento sospechoso: misma regla (un aviso por hallazgo; si no se pudo saber, se conserva lo avisado).
+            var comportamiento = new List<AvisoDeMineriaVista>();
+            if (i.Conectado && i.ComportamientoAvisos is { } graves2)
+            {
+                _comportamientoAvisado.IntersectWith(graves2.Select(m => m.Clave));
+                foreach (AvisoDeMineriaVista m in graves2)
+                    if (_comportamientoAvisado.Add(m.Clave)) comportamiento.Add(m);
+            }
+            ComportamientoNuevo = comportamiento;
             // Wi-Fi sin cifrado: un aviso por conexión. Sin servicio no se cambia nada (no se repite el globo al volver).
             if (i.Conectado)
             {

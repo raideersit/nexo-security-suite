@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.16" />
     <ProjectReference Include="..\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
     <ProjectReference Include="..\Nexo.Native\Nexo.Native.csproj" />
     <!-- EventLogReader (lectura del registro de Seguridad) no viene en el framework base. Paquete oficial de Microsoft. -->

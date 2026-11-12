@@ -50,8 +50,12 @@ namespace Nexo.Ui.Tray.Nucleo
         int CopiaSospechosas = 0,
         bool CopiaFallida = false,
         IReadOnlyList<AvisoDeMineriaVista>? MineriaAvisos = null,
-        bool WifiSinCifrado = false)
+        bool WifiSinCifrado = false,
+        IReadOnlyList<AvisoDeMineriaVista>? ComportamientoAvisos = null)
     {
+        /// <summary>Hallazgos graves de comportamiento sospechoso (§2bc; misma forma que los de criptominería). Vacío si está apagado o no se pudo saber.</summary>
+        public IReadOnlyList<AvisoDeMineriaVista> Comportamiento => ComportamientoAvisos ?? Array.Empty<AvisoDeMineriaVista>();
+
         /// <summary>Hallazgos graves de criptominería según el servicio (vacío si está apagada o si no se pudo saber).</summary>
         public IReadOnlyList<AvisoDeMineriaVista> Mineria => MineriaAvisos ?? Array.Empty<AvisoDeMineriaVista>();
 

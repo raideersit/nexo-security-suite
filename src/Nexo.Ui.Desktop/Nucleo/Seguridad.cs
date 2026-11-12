@@ -40,7 +40,12 @@ namespace Nexo.Ui.Desktop.Nucleo
         /// Posible criptominería (§2au-§2aw): CPU alta sostenida en segundo plano y conexiones a servidores de minería. La hace el SERVICIO
         /// («mineria.estado»); la ventana solo lee. Solo observa: no detiene nada.
         /// </summary>
-        Mineria
+        Mineria,
+        /// <summary>
+        /// Análisis de comportamiento con ETW (§2ay-§2bc): procesos que juntan señales (sin firma, escriben en Inicio, crean servicios...). Lo hace el
+        /// SERVICIO («comportamiento.estado», necesita administrador); la ventana solo lee. Solo observa: no detiene nada.
+        /// </summary>
+        Comportamiento
     }
 
     /// <summary>
@@ -177,6 +182,14 @@ namespace Nexo.Ui.Desktop.Nucleo
                         Consulta<RevisionDeMineria> c = LectorDeMineriaDelServicio.Leer(r);
                         return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
                             : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), c.Valor.Nota, c.Valor.Nota is null ? c.Valor.Muestras : null));
+                    }
+                    case SeccionDeSeguridad.Comportamiento:
+                    {
+                        if (_pipe is null) return Consulta<RevisionDeSeccion>.Mal(LectorDeComportamientoDelServicio.SinServicio);
+                        RespuestaCruda r = await LlamadaPorPipe.LlamarAsync(_pipe, TimeSpan.FromSeconds(3), "comportamiento.estado", null, ct).ConfigureAwait(false);
+                        Consulta<RevisionDeComportamiento> c = LectorDeComportamientoDelServicio.Leer(r);
+                        return c.Error is not null ? Consulta<RevisionDeSeccion>.Mal(c.Error)
+                            : Consulta<RevisionDeSeccion>.Bien(new RevisionDeSeccion(seccion, c.Valor!.Analisis, _reloj(), c.Valor.Nota, c.Valor.Nota is null ? c.Valor.Eventos : null));
                     }
                     case SeccionDeSeguridad.Dispositivos:
                     {

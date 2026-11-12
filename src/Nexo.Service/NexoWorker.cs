@@ -187,6 +187,8 @@ namespace Nexo.Service
             modulos.Add(CrearCopia(reportes, perfil?.Puerta));
             // Anti-criptojacking (apagado por omisión; ver CrearMineria).
             modulos.Add(CrearMineria());
+            // Análisis de comportamiento con ETW (apagado por omisión; ver CrearComportamiento).
+            modulos.Add(CrearComportamiento());
             modulos.Add(new ModuloCuarentena(almacenQ, fuentes.Count == 1 ? escaneo : new ResultadosCombinados(fuentes.ToArray()), politica: politica));
             return modulos;
         }
@@ -264,6 +266,20 @@ namespace Nexo.Service
             string? archivo = _config["Nexo:Mineria:ListaDePools"] is { Length: > 0 } a ? a : null;
             var lector = new LectorDeMineriaWindows();
             var modulo = new ModuloMineria(lector.Tomar, ct => CargarListaDePools(archivo, ct), cada);
+            modulo.Iniciar();
+            return modulo;
+        }
+
+        /// <summary>
+        /// Análisis de comportamiento (ETW): APAGADO por omisión (Nexo:Comportamiento:Activo). Necesita administrador; si la sesión no
+        /// arranca, el estado lo dice. Solo observa.
+        /// </summary>
+        private IModuloDelServicio CrearComportamiento()
+        {
+            if (!bool.TryParse(_config["Nexo:Comportamiento:Activo"], out bool activo) || !activo) return new ModuloComportamientoApagado();
+            var puntuador = new Nexo.Modules.Threats.Comportamiento.PuntuadorDeComportamiento();
+            var enriquecedor = new EnriquecedorDeComportamiento(puntuador, EnriquecedorDeComportamiento.RutaDelProceso, EnriquecedorDeComportamiento.FirmaReal);
+            var modulo = new ModuloComportamiento(new SesionEtwWindows(enriquecedor), puntuador);
             modulo.Iniciar();
             return modulo;
         }
