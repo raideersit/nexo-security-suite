@@ -49,6 +49,7 @@ namespace Nexo.Service
         private readonly SemaphoreSlim _paso = new SemaphoreSlim(1, 1);
         private readonly object _candado = new object();
         private Task? _bucle;
+        private Task? _trabajoManual;             // la última copia manual en marcha o terminada (DisposeAsync la espera un poco)
         private DateTimeOffset? _ultimoInicio;
         private DateTimeOffset? _ultimoIntento;
         private ResultadoDeCopia? _ultimo;
@@ -176,6 +177,19 @@ namespace Nexo.Service
         {
             if (!await _paso.WaitAsync(0, ct).ConfigureAwait(false))
                 throw new ErrorDeComando(CopiaEnCurso, "ya hay una copia en marcha");
+            // Hallazgo de la prueba real en E: (2026-11-14): el servidor del pipe corta cada petición a los 30 s CANCELANDO su token, y una copia
+            // manual de unos GB no cabe en 30 s: se cancelaba a medias y no dejaba ninguna versión. Ahora la copia manual vive con el token del
+            // MÓDULO (se cancela al parar el servicio, no al vencer la petición) y la petición solo la espera: si vence, la copia sigue y
+            // «copia.estado» dice en_curso. El semáforo lo suelta el propio trabajo al terminar, no la petición.
+            Task<object> trabajo = Task.Run(() => HacerConPasoAsync(automatica, automatica ? ct : _cts.Token), CancellationToken.None);
+            _trabajoManual = automatica ? _trabajoManual : trabajo;
+            _ = trabajo.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            return await trabajo.WaitAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>Hace la copia teniendo ya el semáforo <c>_paso</c>; lo suelta al terminar.</summary>
+        private async Task<object> HacerConPasoAsync(bool automatica, CancellationToken ct)
+        {
             try
             {
                 DateTimeOffset ahora = _reloj();
@@ -331,6 +345,11 @@ namespace Nexo.Service
             {
                 try { await _bucle.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false); }
                 catch (TimeoutException) { }
+            }
+            if (_trabajoManual is { IsCompleted: false } manual)
+            {
+                try { await manual.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false); }
+                catch (Exception) { /* cancelada o ya fallida: no importa al apagar */ }
             }
             _cts.Dispose();
         }

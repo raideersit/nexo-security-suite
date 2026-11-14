@@ -91,6 +91,36 @@ namespace Nexo.Service.Demo
                 Check(!enMedio.Ok && enMedio.Codigo == ModuloCopia.CopiaEnCurso, "con una copia en curso, copia.descartar espera: error «copia en curso»");
                 puerta.Set(); await primera;
                 await lenta.DisposeAsync();
+
+                // ---- la petición vence (el servidor del pipe corta cada una a los 30 s) pero la copia manual SIGUE y termina.
+                // Hallazgo de la prueba real en E: (2026-11-14): antes la cancelaba a medias y no quedaba ninguna versión.
+                var puerta2 = new System.Threading.ManualResetEventSlim(false);
+                string destinoVence = Path.Combine(raiz, "vence");
+                var vence = new ModuloCopia(() => (new[] { docs }, Array.Empty<CarpetaSinSenuelo>()), destinoVence, 3, null, new EscritorFalso(), reloj: () => ahora,
+                                            copiar: (c, t, ct) => { puerta2.Wait(); return CopiaVersionada.Copiar(c, t, ct); }, proteger: _ => null);
+                using var peticion = new System.Threading.CancellationTokenSource();
+                Task<object?> larga = vence.ManejarAsync("copia.hacer", null, peticion.Token);
+                await Task.Delay(300);
+                peticion.Cancel();
+                bool seCancelo = false;
+                try { await larga; } catch (OperationCanceledException) { seCancelo = true; }
+                Check(seCancelo, "la petición vencida se cancela (el cliente recibe «tardó demasiado»)");
+                var durante = (await PedirSenuelos(vence, "copia.estado", null)).R!.Value;
+                Check(durante.GetProperty("en_curso").GetBoolean(), "aunque la petición venció, la copia SIGUE en curso (el estado lo dice)");
+                puerta2.Set();
+                for (int i = 0; i < 100; i++)
+                {
+                    var s = (await PedirSenuelos(vence, "copia.estado", null)).R!.Value;
+                    if (!s.GetProperty("en_curso").GetBoolean()) break;
+                    await Task.Delay(100);
+                }
+                var versiones = CopiaVersionada.Listar(destinoVence, out _);
+                Check(versiones.Count == 1 && CopiaVersionada.Verificar(destinoVence).Correcto,
+                      "la copia terminó sola y dejó una versión válida", versiones.Count.ToString());
+                var fin = (await PedirSenuelos(vence, "copia.estado", null)).R!.Value;
+                Check(!fin.GetProperty("en_curso").GetBoolean() && fin.GetProperty("ultima_correcta").ValueKind != JsonValueKind.Null,
+                      "el estado final: ya no está en curso y hay una copia correcta");
+                await vence.DisposeAsync();
             }
             finally { try { Directory.Delete(raiz, true); } catch { } }
         }
