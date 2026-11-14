@@ -19,8 +19,11 @@ namespace Nexo.Ui.Desktop.Nucleo
                                             string? AvisoDeProteccion = null);
 
     /// <summary>copia.hacer. <c>Exito == false</c> con <c>Error</c>: la copia no se hizo (disco ausente, fallo...).</summary>
+    /// <param name="SigueEnMarcha">
+    /// La petición venció (el servicio corta cada una a los 30 s) pero la copia continúa en el servicio: no es un fallo. El estado dirá «copiando ahora».
+    /// </param>
     public sealed record ResultadoDeHacerCopia(bool Exito, string? Error, int Archivos, int Nuevos, int Omitidos, bool Sospechosa, string? MotivoSospecha,
-                                               string? AvisoDeProteccion = null);
+                                               string? AvisoDeProteccion = null, bool SigueEnMarcha = false);
 
     /// <summary>copia.descartar. <c>Exito == false</c> con <c>Error</c>: no se dio por buena (no existe, ya no era sospechosa, disco ausente...).</summary>
     public sealed record ResultadoDeDescartar(bool Exito, string? Error);
@@ -86,8 +89,15 @@ namespace Nexo.Ui.Desktop.Nucleo
             }
         }
 
+        /// <summary>CodigoDeError.Tiempo de Nexo.Ipc (que es solo Windows; aquí no se referencia para poder probar el lector en Linux).</summary>
+        private const int CodigoTiempo = -32001;
+
         public static Consulta<ResultadoDeHacerCopia> Hacer(RespuestaCruda r)
         {
+            // Hallazgo de la prueba real en E: (2026-11-14): copiar a mano unos GB tarda más que los 30 s que el servicio da a una petición. Desde ese día
+            // la copia sigue en el servicio aunque la petición venza; aquí no se cuenta como fallo.
+            if (!r.Exito && r.Codigo == CodigoTiempo)
+                return Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(false, null, 0, 0, 0, false, null, SigueEnMarcha: true));
             if (!r.Exito) return Consulta<ResultadoDeHacerCopia>.Mal(string.IsNullOrEmpty(r.Error) ? "el servicio contestó con un error" : r.Error);
             if (r.Resultado is not JsonElement e || e.ValueKind != JsonValueKind.Object) return Consulta<ResultadoDeHacerCopia>.Mal("respuesta vacía del servicio");
             try
@@ -135,7 +145,8 @@ namespace Nexo.Ui.Desktop.Nucleo
         public async Task<Consulta<EstadoDeCopiaVista>> EstadoAsync(CancellationToken ct)
             => LectorDeCopia.Estado(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "copia.estado", null, ct).ConfigureAwait(false));
 
-        // «espera» es solo para conectar; la llamada puede tardar minutos (el servicio lee y hashea todo) y no tiene tope propio.
+        // «espera» es solo para conectar. La petición SÍ tiene tope: el servicio la corta a los 30 s (CodigoDeError.Tiempo), pero la copia manual
+        // sigue en el servicio y LectorDeCopia.Hacer lo trata como «sigue en marcha», no como fallo.
         public async Task<Consulta<ResultadoDeHacerCopia>> HacerAsync(CancellationToken ct)
             => LectorDeCopia.Hacer(await LlamadaPorPipe.LlamarAsync(_pipe, _espera, "copia.hacer", null, ct).ConfigureAwait(false));
 

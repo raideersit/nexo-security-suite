@@ -14,7 +14,8 @@ namespace Nexo.Ui.Desktop.Nucleo
     }
 
     /// <summary>Una respuesta del pipe sin depender de Nexo.Ipc (que es solo Windows): asi el lector se prueba en Linux.</summary>
-    public readonly record struct RespuestaCruda(bool Exito, string? Error, JsonElement? Resultado);
+    /// <param name="Codigo">Código de error del servicio (solo si falló y el camino lo rellena); permite distinguir, p. ej., «venció la petición» sin comparar texto.</param>
+    public readonly record struct RespuestaCruda(bool Exito, string? Error, JsonElement? Resultado, int? Codigo = null);
 
     /// <summary>escaneo.estado: si el motor (clamd) contesta.</summary>
     public sealed record EstadoDelMotor(bool Disponible, string? Motor, string? Version);

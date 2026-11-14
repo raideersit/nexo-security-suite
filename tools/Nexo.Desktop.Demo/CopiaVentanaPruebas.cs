@@ -111,6 +111,10 @@ namespace Nexo.Desktop.Demo
                 srv.AlHacer = Consulta<ResultadoDeHacerCopia>.Mal("el servicio no está en marcha");
                 Esperar(m.HacerAhoraAsync());
                 Check(m.Mensaje.StartsWith("No se pudo pedir la copia: el servicio no está en marcha"), "sin servicio: lo dice");
+                srv.AlHacer = Consulta<ResultadoDeHacerCopia>.Bien(new ResultadoDeHacerCopia(false, null, 0, 0, 0, false, null, SigueEnMarcha: true));
+                Esperar(m.HacerAhoraAsync());
+                Check(m.Mensaje.StartsWith("La copia sigue en marcha en el servicio") && !m.Mensaje.Contains("no se hizo") && !m.Mensaje.Contains("No se pudo"),
+                      "si la petición venció pero la copia sigue, la ventana no lo cuenta como fallo", m.Mensaje);
 
                 // Disco desconectado: no se puede copiar ni restaurar y no se lee la lista
                 srv.Estado = Consulta<EstadoDeCopiaVista>.Bien(EstadoCopia(copia, disponible: false, versiones: 0, ultima: ahora, ultimo: UltimoBueno()));
@@ -236,6 +240,16 @@ namespace Nexo.Desktop.Demo
                 Check(LectorDeCopia.Estado(Json("{\"activo\":true,\"destino\":\"E:\\\\\",\"destino_disponible\":true,\"versiones_a_conservar\":3,\"versiones_en_destino\":1,\"listas_ilegibles\":0,\"en_curso\":false,\"carpetas\":[],\"sin_copia\":[],\"nota\":\"n\",\"aviso_proteccion\":\"exFAT\"}")).Valor?.AvisoDeProteccion == "exFAT",
                       "lector: el estado trae el aviso de protección");
                 Check(LectorDeCopia.Hacer(Json("{\"exito\":true,\"archivos\":1,\"nuevos\":1,\"omitidos\":0,\"sospechosa\":false,\"aviso_proteccion\":\"exFAT\"}")).Valor?.AvisoDeProteccion == "exFAT", "lector: copia.hacer trae el aviso de protección");
+
+                // La petición vence a los 30 s (CodigoDeError.Tiempo = -32001) pero la copia sigue: se reconoce por el CÓDIGO, no por el texto.
+                Check(LectorDeCopia.Hacer(new RespuestaCruda(false, "la operacion tardo demasiado", null, -32001)).Valor is { SigueEnMarcha: true, Exito: false, Error: null },
+                      "lector: copia.hacer vencida (código -32001) = «sigue en marcha», no un error");
+                Check(LectorDeCopia.Hacer(new RespuestaCruda(false, "la operacion tardo demasiado", null)).Valor is null,
+                      "lector: el mismo texto SIN código no se confunde con el vencimiento");
+                Check(LectorDeCopia.Hacer(new RespuestaCruda(false, "hubo una copia hace menos de un minuto: espera un poco", null, -32013)).Valor is null,
+                      "lector: otro error del servicio (demasiado pronto) sigue siendo un error");
+                Check(LectorDeCopia.Hacer(Json("{\"exito\":true,\"archivos\":1,\"nuevos\":1,\"omitidos\":0,\"sospechosa\":false}")).Valor is { SigueEnMarcha: false, Exito: true },
+                      "lector: una copia terminada no dice «sigue en marcha»");
             }
 
             // ---- el lector con un JSON mal formado

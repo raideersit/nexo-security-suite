@@ -191,7 +191,7 @@ namespace Nexo.Ui.Desktop.Nucleo
             {
                 await using ClienteDePipe c = await ClienteDePipe.ConectarAsync(pipe, espera, ct).ConfigureAwait(false);
                 Respuesta r = await c.LlamarAsync(metodo, parametros, ct).ConfigureAwait(false);
-                return new RespuestaCruda(r.Exito, r.Error?.Mensaje, r.Resultado);
+                return new RespuestaCruda(r.Exito, r.Error?.Mensaje, r.Resultado, r.Error?.Codigo);
             }
             catch (Exception ex) when (ex is TimeoutException || ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
             {

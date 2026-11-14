@@ -137,6 +137,7 @@ namespace Nexo.Ui.Desktop
             catch (Exception ex) when (ex is not OperationCanceledException) { c = Consulta<ResultadoDeHacerCopia>.Mal("error inesperado (" + ex.GetType().Name + ")"); }
             _ocupado = false;
             Mensaje = c.Valor is not ResultadoDeHacerCopia r ? "No se pudo pedir la copia: " + c.Error + "."
+                    : r.SigueEnMarcha ? "La copia sigue en marcha en el servicio: tarda más de lo que espera esta ventana (con muchos archivos es normal). Mientras dure, el estado dirá «copiando ahora...»; el resultado queda en la lista de versiones."
                     : !r.Exito ? "La copia no se hizo: " + r.Error
                     : r.Sospechosa ? "Copia hecha, pero SOSPECHOSA: " + r.MotivoSospecha + SufijoDeProteccion(r.AvisoDeProteccion)
                     : "Copia hecha: " + r.Archivos + " archivos (" + r.Nuevos + " nuevos)" + (r.Omitidos > 0 ? ", " + r.Omitidos + " omitidos" : "") + "." + SufijoDeProteccion(r.AvisoDeProteccion);
