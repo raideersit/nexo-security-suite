@@ -31,6 +31,10 @@ namespace Nexo.Service.Demo
             string app = Path.Combine(datos, "app-aprobacion.exe");
             File.WriteAllBytes(app, new byte[] { 0x4D, 0x5A });
 
+            // Carpeta de cuarentena PROPIA: con el arnés como administrador, la rama elevada de abajo sí mueve malo.exe a cuarentena, y en la carpeta
+            // compartida contaminaba la prueba 6 («listar muestra las 2 entradas» veía 3). Sin elevar nunca llegaba a pasar, por eso no se veía.
+            string qAnterior = _carpetaQ;
+            _carpetaQ = Path.Combine(raiz, "cuarentena-ap");
             _aprobacion = "elevada";
             try
             {
@@ -88,7 +92,7 @@ namespace Nexo.Service.Demo
 
                 await host.StopAsync().ConfigureAwait(false);
             }
-            finally { _aprobacion = "ninguna"; }
+            finally { _aprobacion = "ninguna"; _carpetaQ = qAnterior; }
 
             // --- El modo 'ninguna' queda anotado: no pasa desapercibido ---
             bool avisoEnNota = LeerTodo(Notas(Path.Combine(raiz, "vault10"))).Contains("Aprobacion en modo 'ninguna'");

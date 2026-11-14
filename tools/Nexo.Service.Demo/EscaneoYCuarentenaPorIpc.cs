@@ -118,7 +118,9 @@ namespace Nexo.Service.Demo
             Respuesta pv = await c.LlamarAsync("cuarentena.previsualizar", new { escaneo = id }).ConfigureAwait(false);
             Check(pv.Exito && R(pv).GetProperty("elementos").GetInt32() == 2, "la vista previa propone las 2 detecciones");
             Check(File.Exists(malo1) && File.Exists(malo2) && !Directory.Exists(_carpetaQ) || Directory.GetFiles(_carpetaQ).Length == 0,
-                  "y previsualizar no mueve nada");
+                  "y previsualizar no mueve nada",
+                  "malo1=" + File.Exists(malo1) + " malo2=" + File.Exists(malo2) + " carpetaQ existe=" + Directory.Exists(_carpetaQ) + " archivos en Q: " +
+                  (Directory.Exists(_carpetaQ) ? string.Join(", ", Directory.GetFiles(_carpetaQ).Select(Path.GetFileName)) : "-"));
 
             // Un token de OTRA accion no vale para esta.
             Respuesta pr0 = await c.LlamarAsync("cuarentena.previsualizar-purga").ConfigureAwait(false);
@@ -134,7 +136,8 @@ namespace Nexo.Service.Demo
                   "el token de cuarentena sirve una sola vez");
 
             Respuesta lis = await c.LlamarAsync("cuarentena.listar").ConfigureAwait(false);
-            Check(R(lis).GetProperty("elementos").GetArrayLength() == 2, "listar muestra las 2 entradas");
+            Check(R(lis).GetProperty("elementos").GetArrayLength() == 2, "listar muestra las 2 entradas",
+                  "entradas: " + R(lis).GetProperty("elementos").GetArrayLength() + " | " + R(lis).GetProperty("elementos").GetRawText());
             string idQ = R(lis).GetProperty("elementos")[0].GetProperty("id").GetString()!;
             string rutaOrig = R(lis).GetProperty("elementos")[0].GetProperty("ruta_original").GetString()!;
 

@@ -81,9 +81,14 @@ namespace Nexo.Service.Demo
             Check(!sinId.Exito && sinId.Error!.Codigo == AccesoComoLlamador.SinIdentidad, "previsualizar con un cliente que no deja suplantarlo se RECHAZA (no se limpia como SYSTEM)");
 
             // --- Vista previa: solo las reglas de riesgo bajo, y no cambia nada ---
+            // La regla que pide administrador (z.log, 500 bytes) solo entra si el llamador ES administrador: sin elevar son 3 archivos y 600 bytes;
+            // como administrador, 4 y 1100. (Antes la prueba daba por hecho el caso sin elevar y fallaba al ejecutarla como administrador.)
+            int esperadosArchivos = EsAdmin ? 4 : 3;
+            long esperadosBytes = EsAdmin ? 1100 : 600;
             Respuesta pv = await c.LlamarAsync("limpieza.previsualizar").ConfigureAwait(false);
-            Check(pv.Exito && R(pv).GetProperty("total_archivos").GetInt32() == 3 && R(pv).GetProperty("total_bytes").GetInt64() == 600,
-                  "por omision solo entran las reglas de riesgo bajo: 3 archivos y 600 bytes", pv.Error?.Mensaje);
+            Check(pv.Exito && R(pv).GetProperty("total_archivos").GetInt32() == esperadosArchivos && R(pv).GetProperty("total_bytes").GetInt64() == esperadosBytes,
+                  "por omision solo entran las reglas de riesgo bajo: " + esperadosArchivos + " archivos y " + esperadosBytes + " bytes (" + (EsAdmin ? "llamador administrador: con la regla de admin" : "sin la regla de admin") + ")",
+                  pv.Exito ? "archivos=" + R(pv).GetProperty("total_archivos").GetInt32() + " bytes=" + R(pv).GetProperty("total_bytes").GetInt64() + " EsAdmin=" + EsAdmin : pv.Error?.Mensaje);
             Check(Directory.GetFiles(temp).Length == 4 && File.Exists(Path.Combine(_corpusLimpieza, "cache", "x.cache")), "y previsualizar NO borra nada");
             Check(!EsAdmin ? R(pv).GetProperty("reglas_sin_permisos").GetArrayLength() == 1 : true,
                   "la regla que pide administrador se salta si el llamador no lo es, y se dice");
@@ -121,9 +126,13 @@ namespace Nexo.Service.Demo
             File.WriteAllBytes(Path.Combine(temp, "b.tmp"), new byte[999]);
 
             Respuesta ap = await c.LlamarAsync("limpieza.aplicar", new { token }).ConfigureAwait(false);
-            Check(ap.Exito && R(ap).GetProperty("eliminados").GetInt32() == 2,
-                  "el rechazo por identidad no gasto el token; aplicar borra lo aprobado que sigue igual (2 de 3)", ap.Error?.Mensaje);
+            int esperadosEliminados = EsAdmin ? 3 : 2;   // a.tmp y c.tmp (b.tmp cambió de tamaño), y z.log solo si el llamador es administrador
+            Check(ap.Exito && R(ap).GetProperty("eliminados").GetInt32() == esperadosEliminados,
+                  "el rechazo por identidad no gasto el token; aplicar borra lo aprobado que sigue igual (" + esperadosEliminados + " de " + esperadosArchivos + ")",
+                  ap.Exito ? "eliminados=" + R(ap).GetProperty("eliminados").GetInt32() : ap.Error?.Mensaje);
             Check(!File.Exists(Path.Combine(temp, "a.tmp")) && !File.Exists(Path.Combine(temp, "c.tmp")), "se borraron a.tmp y c.tmp");
+            Check(File.Exists(Path.Combine(_corpusLimpieza, "sistema", "z.log")) == !EsAdmin,
+                  "la regla que pide administrador solo borra si el llamador es administrador (" + (EsAdmin ? "aqui lo es: se borro z.log" : "aqui no lo es: z.log sigue") + ")");
             Check(File.Exists(Path.Combine(temp, "b.tmp")), "b.tmp cambio de tamano desde la vista previa: NO se borra");
             Check(File.Exists(Path.Combine(temp, "nuevo.tmp")), "un archivo que aparecio despues de la vista previa NO se borra (solo lo aprobado)");
             Check(File.Exists(Path.Combine(temp, "importante.txt")) && File.Exists(Path.Combine(_corpusLimpieza, "cache", "x.cache")),
