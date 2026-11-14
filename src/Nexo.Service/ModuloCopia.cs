@@ -211,7 +211,7 @@ namespace Nexo.Service
                 (IReadOnlyList<string> carpetas, _) = _carpetas();
                 var cfg = new ConfiguracionDeCopia(carpetas.Where(Directory.Exists).ToList(), _destino, _versiones, ProtegerCarpeta: _proteger);
                 // La copia lee y hashea todo: fuera del hilo del pipe.
-                ResultadoDeCopia r = await Task.Run(() => _copiar(cfg, ahora, ct), ct).ConfigureAwait(false);
+                ResultadoDeCopia r = await CopiarVigilandoElDestinoAsync(cfg, ahora, ct).ConfigureAwait(false);
                 int? sosp = r.Correcto ? ContarSospechosas() : null;
                 lock (_candado)
                 {
@@ -236,6 +236,52 @@ namespace Nexo.Service
                 };
             }
             finally { _paso.Release(); }
+        }
+
+        /// <summary>Cada cuánto se comprueba que el destino sigue ahí mientras se copia. Interno: las pruebas lo acortan.</summary>
+        internal TimeSpan IntervaloDeVigilancia { get; set; } = TimeSpan.FromSeconds(3);
+        private const int FallosSeguidosParaAbortar = 2;
+
+        /// <summary>
+        /// Hallazgo de la prueba real en E: (2026-11-14): el USB se desconectó a mitad de una copia y el servicio se quedó «en curso» para siempre
+        /// (la escritura a un dispositivo que ya no existe no vuelve). Ahora un vigilante compite con la copia: si el destino falla
+        /// <see cref="FallosSeguidosParaAbortar"/> comprobaciones seguidas (una sola podría ser un tropiezo del USB), se da la copia por fallida,
+        /// se suelta el semáforo y el estado deja de decir «en curso». Se pide parar a la copia, pero un hilo atascado en el disco no se puede
+        /// forzar: queda huérfano y su resultado se descarta (nunca pisa el estado).
+        /// </summary>
+        private async Task<ResultadoDeCopia> CopiarVigilandoElDestinoAsync(ConfiguracionDeCopia cfg, DateTimeOffset ahora, CancellationToken ct)
+        {
+            using var vigia = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            Task<ResultadoDeCopia> copia = Task.Run(() => _copiar(cfg, ahora, vigia.Token), CancellationToken.None);
+            Task desaparecio = Task.Run(() => DestinoDesaparecioAsync(vigia.Token), CancellationToken.None);
+            Task primero = await Task.WhenAny(copia, desaparecio).ConfigureAwait(false);
+            if (primero != desaparecio || !desaparecio.IsCompletedSuccessfully)
+            {
+                // Terminó la copia (bien, mal o cancelada); el vigilante ya no hace falta.
+                vigia.Cancel();
+                return await copia.ConfigureAwait(false);
+            }
+            vigia.Cancel();
+            _ = copia.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            return new ResultadoDeCopia(false,
+                "El destino dejó de estar disponible a mitad de la copia (¿se desconectó el disco externo?). No quedó ninguna versión nueva: " +
+                "vuelve a copiar cuando el disco esté conectado y sano.", null, 0, 0, 0, false, null);
+        }
+
+        /// <summary>Termina (con éxito) cuando el destino falla varias comprobaciones seguidas; si se cancela, lanza OperationCanceledException.</summary>
+        private async Task DestinoDesaparecioAsync(CancellationToken ct)
+        {
+            int fallos = 0;
+            while (true)
+            {
+                await Task.Delay(IntervaloDeVigilancia, ct).ConfigureAwait(false);
+                bool disponible;
+                try { disponible = await Task.Run(() => _destinoDisponible(_destino), CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false); }
+                catch (TimeoutException) { disponible = false; }                                  // la propia comprobación se atascó: tampoco hay disco
+                catch (Exception e) when (e is not OperationCanceledException) { disponible = false; }
+                fallos = disponible ? 0 : fallos + 1;
+                if (fallos >= FallosSeguidosParaAbortar) return;
+            }
         }
 
         private async Task EscribirEventoAsync(ResultadoDeCopia r, CancellationToken ct)

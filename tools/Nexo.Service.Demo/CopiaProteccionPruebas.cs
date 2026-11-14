@@ -121,6 +121,50 @@ namespace Nexo.Service.Demo
                 Check(!fin.GetProperty("en_curso").GetBoolean() && fin.GetProperty("ultima_correcta").ValueKind != JsonValueKind.Null,
                       "el estado final: ya no está en curso y hay una copia correcta");
                 await vence.DisposeAsync();
+
+                // ---- el destino DESAPARECE a mitad de la copia (se cae el USB): no se queda «en curso» para siempre.
+                // Hallazgo de la prueba real en E: (2026-11-14): la escritura a un disco que ya no existe no vuelve; el servicio quedó en curso sin fin.
+                var puerta3 = new System.Threading.ManualResetEventSlim(false);
+                bool hayDisco = true;
+                var sinDisco = new ModuloCopia(() => (new[] { docs }, Array.Empty<CarpetaSinSenuelo>()), Path.Combine(raiz, "sin-disco"), 3, null, new EscritorFalso(), reloj: () => ahora,
+                                               copiar: (c, t, ct) => { puerta3.Wait(); return CopiaVersionada.Copiar(c, t, ct); },   // atascada, como el disco caído
+                                               destinoDisponible: _ => hayDisco, proteger: _ => null) { IntervaloDeVigilancia = TimeSpan.FromMilliseconds(50) };
+                Task<(bool Ok, int Codigo, JsonElement? R)> pedida = PedirSenuelos(sinDisco, "copia.hacer", null);
+                await Task.Delay(300);
+                Check((await PedirSenuelos(sinDisco, "copia.estado", null)).R!.Value.GetProperty("en_curso").GetBoolean(), "con el disco puesto, la copia (atascada) está en curso");
+                hayDisco = false;
+                bool termino = await Task.WhenAny(pedida, Task.Delay(10000)) == pedida;
+                Check(termino, "al desaparecer el destino, la copia NO se queda colgada");
+                if (termino)
+                {
+                    var rd = await pedida;
+                    Check(rd.Ok && !rd.R!.Value.GetProperty("exito").GetBoolean() && (rd.R.Value.GetProperty("error").GetString() ?? "").Contains("dejó de estar disponible"),
+                          "se da por fallida y dice que el destino dejó de estar disponible");
+                    var ed = (await PedirSenuelos(sinDisco, "copia.estado", null)).R!.Value;
+                    Check(!ed.GetProperty("en_curso").GetBoolean(), "el estado deja de decir «en curso»");
+                    Check(ed.GetProperty("ultimo").GetProperty("correcto").ValueKind == JsonValueKind.False && ed.GetProperty("ultima_correcta").ValueKind == JsonValueKind.Null,
+                          "y no cuenta como copia correcta");
+                }
+                puerta3.Set();                      // el hilo huérfano acaba (cancelado): no debe pisar el estado
+                await Task.Delay(400);
+                hayDisco = true;
+                var tras = (await PedirSenuelos(sinDisco, "copia.estado", null)).R!.Value;
+                Check(tras.GetProperty("ultima_correcta").ValueKind == JsonValueKind.Null && !tras.GetProperty("en_curso").GetBoolean(),
+                      "la copia huérfana que acaba después no pisa el estado ni lo deja en curso");
+                await sinDisco.DisposeAsync();
+
+                // ---- un solo tropiezo del destino NO aborta una copia sana (hacen falta varias comprobaciones seguidas)
+                var puerta4 = new System.Threading.ManualResetEventSlim(false);
+                int llamadas = 0;
+                var tropiezo = new ModuloCopia(() => (new[] { docs }, Array.Empty<CarpetaSinSenuelo>()), Path.Combine(raiz, "tropiezo"), 3, null, new EscritorFalso(), reloj: () => ahora,
+                                               copiar: (c, t, ct) => { puerta4.Wait(); return CopiaVersionada.Copiar(c, t, ct); },
+                                               destinoDisponible: _ => System.Threading.Interlocked.Increment(ref llamadas) != 3, proteger: _ => null) { IntervaloDeVigilancia = TimeSpan.FromMilliseconds(50) };
+                Task<(bool Ok, int Codigo, JsonElement? R)> sana = PedirSenuelos(tropiezo, "copia.hacer", null);
+                await Task.Delay(600);
+                puerta4.Set();
+                var rs = await sana;
+                Check(rs.Ok && rs.R!.Value.GetProperty("exito").GetBoolean() && llamadas >= 4, "un único fallo del destino no aborta una copia sana", "comprobaciones: " + llamadas);
+                await tropiezo.DisposeAsync();
             }
             finally { try { Directory.Delete(raiz, true); } catch { } }
         }
