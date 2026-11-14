@@ -2,7 +2,7 @@
 
 > **Documento histórico.** Describe el paso de Linux a Windows, que ya ocurrió: lo
 > que aquí figura como «sin verificar» se verificó casi por completo en Windows 10.
-> El traspaso vigente es [[CONTINUAR-EN-OTRO-EQUIPO]].
+> Este traspaso es histórico. El proyecto se continúa en un solo equipo y ya no se mantiene un documento de traspaso aparte.
 >
 > Texto original: el trabajo hasta aquí se hizo en Linux; nada se había ejecutado
 > nunca en Windows.

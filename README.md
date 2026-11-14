@@ -63,7 +63,6 @@ El repositorio es a la vez un vault de Obsidian. Ábrelo con Obsidian para naveg
 | `Salida 5 - Modulo de reportes y visualizacion.md`  | Esquema de notas, formato YAML, seguridad del vault                         |
 | `Salida 4 - Modulo de limpieza y optimizacion.md`   | Los 6 submódulos, rutas de Windows, guardia de rutas                        |
 | `Prompt *.md`                                       | Los prompts que generaron cada salida                                       |
-| `CONTINUAR-EN-OTRO-EQUIPO.md`                       | **Traspaso vigente**: qué está hecho, qué falta y cómo montar la VM         |
 | `CONTINUAR-EN-WINDOWS.md`                           | Traspaso anterior (Linux → Windows), conservado como historia               |
 
 ---
