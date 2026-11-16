@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- App de Android de Nexo (fase 0: prueba de concepto). Avalonia 11.3 + tema Classic, igual que la ventana de escritorio.
+         Va en NexoMovil.sln y NO en NexoAntivirus.sln: quien compile el escritorio no necesita .NET 10 ni la carga de trabajo de Android. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Ui.Movil</RootNamespace>
+    <AssemblyName>nexo-movil</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Identificador PROVISIONAL: no se puede cambiar una vez publicada la app (decision pendiente, Salida 7 §10). -->
+    <ApplicationId>io.github.raideersit.nexo</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.0.1</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Android" Version="11.3.0" />
+    <PackageReference Include="Classic.Avalonia.Theme" Version="11.3.0.3" />
+  </ItemGroup>
+
+</Project>
