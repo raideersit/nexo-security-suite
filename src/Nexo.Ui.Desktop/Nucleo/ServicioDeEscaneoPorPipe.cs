@@ -228,7 +228,24 @@ namespace Nexo.Ui.Desktop.Nucleo
         public LanzadorPorBandeja(string pipe, string? rutaDeLaBandeja = null)
         {
             _pipe = pipe;
-            _bandeja = rutaDeLaBandeja ?? Path.Combine(AppContext.BaseDirectory, "nexo-tray.exe");
+            _bandeja = rutaDeLaBandeja ?? Buscar(AppContext.BaseDirectory);
+        }
+
+        /// <summary>
+        /// Junto a la ventana (portátil) o, si no está, en la carpeta hermana «tray» (como lo deja el instalador: Nexo\desktop y Nexo\tray).
+        /// Da igual cuál se elija: la propia bandeja se niega a elevarse si su carpeta la puede modificar el usuario.
+        /// </summary>
+        internal static string Buscar(string carpetaDeLaVentana)
+        {
+            string junto = Path.Combine(carpetaDeLaVentana, "nexo-tray.exe");
+            if (File.Exists(junto)) return junto;
+            string? padre = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(carpetaDeLaVentana));
+            if (padre is not null)
+            {
+                string hermana = Path.Combine(padre, "tray", "nexo-tray.exe");
+                if (File.Exists(hermana)) return hermana;
+            }
+            return junto;   // no existe: el mensaje de error nombra el sitio donde se esperaba
         }
 
         public string? UltimoMotivo { get; private set; }
@@ -237,7 +254,7 @@ namespace Nexo.Ui.Desktop.Nucleo
         {
             if (!File.Exists(_bandeja))
             {
-                UltimoMotivo = "no se encontró nexo-tray.exe junto a la ventana (" + _bandeja + "); la aprobación se pide desde la bandeja";
+                UltimoMotivo = "no se encontró nexo-tray.exe (esperado en " + _bandeja + ", junto a la ventana o en la carpeta hermana «tray»); la aprobación se pide desde la bandeja";
                 return false;
             }
             var real = new LanzadorElevado(_pipe, _bandeja);
