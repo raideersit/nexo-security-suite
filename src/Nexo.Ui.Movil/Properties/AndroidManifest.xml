@@ -2,5 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
 	<!-- Para ver todas las apps instaladas (Salida 7 §5). Google Play pide declararlo; el APK propio, no. -->
 	<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 	<application android:label="Nexo" />
 </manifest>

@@ -11,6 +11,14 @@ public sealed partial class PantallaPruebas : UserControl
     {
         AvaloniaXamlLoader.Load(this);
         this.FindControl<Button>("MedirArgon")!.Click += async (_, _) => await MedirArgonAsync();
+        this.FindControl<Button>("Verificar")!.Click += async (_, _) =>
+        {
+            var salida = this.FindControl<TextBlock>("ResultadoSondas")!;
+            salida.Text = "Verificando...";
+            var lineas = await System.Threading.Tasks.Task.Run(() => Estado.SondasDeApi.Ejecutar(Android.App.Application.Context));
+            foreach (var l in lineas) Android.Util.Log.Info("NEXO", "SONDA " + l);
+            salida.Text = string.Join("\n\n", lineas);
+        };
     }
 
     /// <summary>Mide Argon2id con los perfiles de la boveda (Nexo.Modules.Identity.ParametrosDeClave): el normal y el minimo de OWASP.</summary>

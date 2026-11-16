@@ -23,7 +23,7 @@ En Windows, Nexo corre en modo usuario y por eso **detecta y reacciona, pero no 
 | Quiero… | Una app de Android sin root puede | Comentario |
 |---|---|---|
 | Saber qué apps hay instaladas, sus permisos y de dónde vienen | **Sí** | `PackageManager`; exige declarar `QUERY_ALL_PACKAGES` |
-| Leer el APK de cada app instalada y calcular su huella | **Sí** | Los APK instalados son legibles *(por verificar en Android 14+)* |
+| Leer el APK de cada app instalada y calcular su huella | **Sí** | Los APK instalados son legibles ✅ *(verificado: Android 13 en un teléfono real y Android 14 en emulador; ver «Verificación de las APIs dudosas»)* |
 | Leer los archivos privados de otra app | **No** | Es la base de la seguridad de Android |
 | Impedir que se instale una app | **No** | Solo enterarse después y avisar |
 | Desinstalar otra app | **Solo pidiéndoselo al usuario** | Android muestra su propio diálogo de confirmación |
@@ -139,8 +139,8 @@ Es la función más valiosa en un teléfono: casi todo el malware de Android **e
 | **Servicio de Accesibilidad activo** | Permite leer la pantalla y tocar por el usuario. Es la herramienta favorita de los troyanos bancarios |
 | **Administrador del dispositivo activo** | Puede impedir su propia desinstalación |
 | Permisos peligrosos **concedidos** (SMS, llamadas, micrófono, cámara, ubicación, contactos) | Que los pida no es grave; que los tenga concedidos sí |
-| Superposición de ventanas (`SYSTEM_ALERT_WINDOW`) | Pantallas falsas encima de la app del banco *(leer el estado en apps ajenas: por verificar)* |
-| Oyente de notificaciones | Puede leer los códigos de verificación que llegan por notificación *(por verificar)* |
+| Superposición de ventanas (`SYSTEM_ALERT_WINDOW`) | Pantallas falsas encima de la app del banco ✅ *(se lee con `AppOpsManager.CheckOpNoThrow`, verificado en Android 13)* |
+| Oyente de notificaciones | Puede leer los códigos de verificación que llegan por notificación ✅ *(`Settings.Secure` `enabled_notification_listeners`, verificado en Android 13)* |
 | Puede instalar otras apps (`REQUEST_INSTALL_PACKAGES`) | Es la forma en que un instalador malicioso trae más apps |
 | **Origen**: Play Store, otra tienda, navegador o archivo suelto | Una app instalada desde el navegador merece más atención |
 | Sin icono en el lanzador | Se esconde del usuario |
@@ -179,8 +179,8 @@ Una lista de comprobación, todo **solo lectura**:
 | Parche de seguridad al día (aviso si tiene más de 90 días) | `Build.VERSION.SECURITY_PATCH` |
 | Versión de Android con soporte | `Build.VERSION.SDK_INT` contra una tabla en el catálogo |
 | Opciones de desarrollador y depuración USB apagadas | `Settings.Global` (`DEVELOPMENT_SETTINGS_ENABLED`, `ADB_ENABLED`) |
-| Apps con permiso para «instalar apps desconocidas» | Ver §3.1 *(leer el estado concedido: por verificar)* |
-| Wi-Fi actual sin cifrado | `WifiInfo.getCurrentSecurityType` + `ModeloWifi` reutilizado. Se evalúa sin leer el nombre de la red, así que **no pide ubicación** *(por verificar)* |
+| Apps con permiso para «instalar apps desconocidas» | Ver §3.1 ✅ *(`AppOpsManager` con `request_install_packages`, verificado en Android 13)* |
+| Wi-Fi actual sin cifrado | `WifiInfo.getCurrentSecurityType` + `ModeloWifi` reutilizado. Se evalúa sin leer el nombre de la red, así que **no pide ubicación** *(por verificar: falta probarlo conectado a una red Wi-Fi)* |
 | Indicios de root | Binario `su`, compilación `test-keys`. Solo informativo |
 | Play Protect | No hay una API pública fiable para leerlo: un botón abre sus ajustes |
 
@@ -218,7 +218,7 @@ Así se cubre el *smishing* (phishing por SMS), que es el ataque más común en 
 ### 3.9 Reportes en Obsidian — **MVP**
 
 - `Nexo.Reports` (`netstandard2.0`) escribe las mismas notas markdown.
-- Bóveda de notas en `Documents/Nexo`, que la app de Obsidian para Android puede abrir *(escribir ahí sin `MANAGE_EXTERNAL_STORAGE`: por verificar)*.
+- Bóveda de notas en `Documents/Nexo`, que la app de Obsidian para Android puede abrir *(escribir ahí sin `MANAGE_EXTERNAL_STORAGE` ✅ verificado en Android 13 por `MediaStore` y por ruta directa; que Obsidian lea la carpeta sigue por verificar)*.
 - **Opcional y apagado por omisión:** muchos usuarios de teléfono no usan Obsidian. La app tiene su propio historial.
 - Tipos de evento nuevos: `app-instalada`, `app-a-revisar`, `huella-coincidente`, `chequeo-del-equipo`, `app-bloqueada`.
 - Nunca se escribe en el vault la lista completa de apps, solo las que salen «a revisar»: es información personal.
@@ -356,7 +356,26 @@ Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) 
 
 **Pantalla «Estado» (hecha, S20 FE):** inicio con el chequeo del equipo de §3.4 en solo lectura (bloqueo de pantalla, antigüedad del parche, versión de Android, opciones de desarrollador, depuración USB, indicios de root) y lista de secciones (Apps, Pruebas) con barra de título, botón «Atrás» de 48 dp y soporte de la tecla Atrás del sistema. Todas las lecturas funcionaron sin pedir permisos. Los avisos que mostró eran correctos (parche de 2023, Android 13 bajo la tabla provisional de soporte, opciones de desarrollador y depuración USB activas por las pruebas). Sin evaluar todavía: Wi-Fi sin cifrado, «instalar apps desconocidas» (ambos fase 1) y Play Protect (Android no deja leerlo). El arranque con esta pantalla midió 2,3 s la primera vez tras instalar (no se repitió en frío).
 
-**Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
+### Verificación de las APIs dudosas (2026-11-16)
+
+Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos peligrosos, en el S20 FE (Android 13, 106 apps de usuario y 417 de sistema) y, para lo de Android 14, en el emulador.
+
+| Punto | Resultado |
+|---|---|
+| Leer el APK de cada app y calcular su huella (§3.1, §3.2) | ✅ S20 FE: 106/106 apps de usuario y 417/417 de sistema, sin fallos. Emulador Android 14: 224/224 |
+| **Coste de esa huella** | ⚠ **58 s** para las 106 apps de usuario (8,5 GiB) y 36 s para las de sistema. Un escaneo completo en cada revisión no es aceptable |
+| Superposición concedida a otras apps | ✅ Se lee. 39 apps la piden, 2 la tienen concedida |
+| «Instalar apps desconocidas» concedido a otras apps | ✅ Se lee. 8 apps lo piden, 1 lo tiene concedido |
+| Oyentes de notificaciones | ✅ Se lee (5 activos) |
+| Servicios de Accesibilidad activos | ✅ Se lee con `Settings.Secure` y con `AccessibilityManager` (1 activo, igual en ambos) |
+| Administradores del dispositivo | ✅ Se lee (1 activo) |
+| Origen de instalación (`GetInstallSourceInfo`) | ✅ Play Store 95, archivo suelto o adb 6, tiendas de Samsung 4, instalador del sistema 1 |
+| Escribir en `Documents/Nexo` sin `MANAGE_EXTERNAL_STORAGE` | ✅ Por `MediaStore` y por ruta directa. Sin probar que Obsidian lo lea |
+| Wi-Fi sin cifrado sin pedir ubicación | ⏳ **Sin verificar**: el teléfono no estaba conectado a Wi-Fi |
+
+**Consecuencia para el diseño (§3.2):** la caché por `(paquete, versionCode, lastUpdateTime)` deja de ser una optimización y pasa a ser obligatoria. La primera pasada se hace en segundo plano (y mejor con el teléfono cargando), y después solo se hashean las apps nuevas o actualizadas.
+
+**Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, el Wi-Fi sin cifrado sin ubicación (hace falta una red Wi-Fi) y que Obsidian lea `Documents/Nexo`. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
 ---
 
