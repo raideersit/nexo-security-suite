@@ -1,14 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Nexo.Ui.Movil.PantallaPrincipal">
-    <DockPanel Margin="8">
-        <TextBlock DockPanel.Dock="Top" Text="Nexo Security Suite" FontSize="22" FontWeight="Bold" Margin="0,24,0,8" />
-        <TextBlock DockPanel.Dock="Top" Name="Resumen" TextWrapping="Wrap" Margin="0,0,0,8" />
-        <Button DockPanel.Dock="Top" Name="Releer" Content="Volver a leer las apps" MinHeight="48" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
-        <Button DockPanel.Dock="Top" Name="MedirArgon" Content="Medir Argon2id" MinHeight="48" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
-        <TextBlock DockPanel.Dock="Top" Name="ResultadoArgon" TextWrapping="Wrap" Margin="0,0,0,8" />
-        <ScrollViewer>
-            <TextBlock Name="Lista" TextWrapping="Wrap" />
-        </ScrollViewer>
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="8,28,8,8" Background="#000080">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Name="Atras" Content="&lt; Atras" MinHeight="48" MinWidth="88" Margin="0,0,8,0" />
+                <TextBlock Name="Titulo" Foreground="White" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </DockPanel>
+        </Border>
+        <ContentControl Name="Contenido" />
     </DockPanel>
 </UserControl>

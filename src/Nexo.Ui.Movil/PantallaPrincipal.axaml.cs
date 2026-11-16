@@ -1,86 +1,44 @@
-using System;
-using System.Diagnostics;
-using System.Linq;
-using Android.Content.PM;
-using Android.OS;
+using System.Collections.Generic;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
 namespace Nexo.Ui.Movil;
 
-/// <summary>Fase 0: lee la lista de apps con PackageManager y mide cuanto tarda.</summary>
+/// <summary>Contenedor: barra de titulo con Atras y una pila de pantallas (Estado es el inicio).</summary>
 public sealed partial class PantallaPrincipal : UserControl
 {
+    private readonly Stack<(string Titulo, Control Vista)> _pila = new();
+
     public PantallaPrincipal()
     {
         AvaloniaXamlLoader.Load(this);
-        this.FindControl<Button>("Releer")!.Click += (_, _) => Leer();
-        this.FindControl<Button>("MedirArgon")!.Click += async (_, _) => await MedirArgonAsync();
-        Leer();
+        this.FindControl<Button>("Atras")!.Click += (_, _) => Volver();
+        Ir("Nexo Security Suite", new PantallaEstado(
+            () => Ir("Apps instaladas", new PantallaApps()),
+            () => Ir("Pruebas", new PantallaPruebas())));
+        AttachedToVisualTree += (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this) is { } tl)
+                tl.BackRequested += (_, e) => { if (_pila.Count > 1) { Volver(); e.Handled = true; } };
+        };
     }
 
-    /// <summary>Mide Argon2id con los perfiles de la boveda (Nexo.Modules.Identity.ParametrosDeClave): el normal y el minimo de OWASP.</summary>
-    private async System.Threading.Tasks.Task MedirArgonAsync()
+    private void Ir(string titulo, Control vista)
     {
-        var salida = this.FindControl<TextBlock>("ResultadoArgon")!;
-        var boton = this.FindControl<Button>("MedirArgon")!;
-        boton.IsEnabled = false;
-        salida.Text = "Midiendo...";
-        var texto = await System.Threading.Tasks.Task.Run(() =>
-        {
-            var sb = new System.Text.StringBuilder();
-            foreach (var (nombre, memoria, iter, hilos) in new[] { ("Normal 64 MiB t=3 p=2", 64 * 1024, 3, 2), ("Minimo 19 MiB t=2 p=1", 19 * 1024, 2, 1) })
-            {
-                try
-                {
-                    var tiempos = new System.Collections.Generic.List<long>();
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var sw = Stopwatch.StartNew();
-                        using var a = new Konscious.Security.Cryptography.Argon2id(System.Text.Encoding.UTF8.GetBytes("contrasena de prueba"))
-                        { Salt = new byte[16], DegreeOfParallelism = hilos, Iterations = iter, MemorySize = memoria };
-                        a.GetBytes(32);
-                        tiempos.Add(sw.ElapsedMilliseconds);
-                    }
-                    sb.AppendLine($"{nombre}: {string.Join(" / ", tiempos)} ms");
-                }
-                catch (System.Exception ex) { sb.AppendLine($"{nombre}: fallo {ex.GetType().Name}: {ex.Message}"); }
-            }
-            return sb.ToString();
-        });
-        Android.Util.Log.Info("NEXO", "ARGON2 " + texto.Replace("\n", " | "));
-        salida.Text = texto;
-        boton.IsEnabled = true;
+        _pila.Push((titulo, vista));
+        Mostrar();
     }
 
-    private void Leer()
+    private void Volver()
     {
-        var resumen = this.FindControl<TextBlock>("Resumen")!;
-        var lista = this.FindControl<TextBlock>("Lista")!;
-        try
-        {
-            var contexto = Android.App.Application.Context;
-            var cronometro = Stopwatch.StartNew();
-            var gestor = contexto.PackageManager!;
-            // La sobrecarga con PackageInfoFlags.Of existe desde Android 13 (API 33); en 11 y 12 solo esta la antigua.
-#pragma warning disable CS0618
-            var paquetes = (OperatingSystem.IsAndroidVersionAtLeast(33)
-                ? gestor.GetInstalledPackages(PackageManager.PackageInfoFlags.Of((long)PackageInfoFlags.Permissions))
-                : gestor.GetInstalledPackages(PackageInfoFlags.Permissions)) ?? [];
-#pragma warning restore CS0618
-            cronometro.Stop();
+        if (_pila.Count > 1) { _pila.Pop(); Mostrar(); }
+    }
 
-            var deUsuario = paquetes.Where(p => p.ApplicationInfo is { } a && (a.Flags & ApplicationInfoFlags.System) == 0).ToList();
-            resumen.Text = $"Android {Build.VERSION.Release} (API {(int)Build.VERSION.SdkInt}), parche {Build.VERSION.SecurityPatch}\n"
-                         + $"{paquetes.Count} paquetes, {deUsuario.Count} instalados por el usuario.\n"
-                         + $"Lectura: {cronometro.ElapsedMilliseconds} ms.";
-            lista.Text = string.Join("\n", deUsuario.Select(p => $"{p.PackageName}  ({p.RequestedPermissions?.Count ?? 0} permisos)").OrderBy(s => s));
-        }
-        catch (System.Exception ex)
-        {
-            resumen.Text = "No se pudo leer la lista de apps: " + ex.Message;
-            lista.Text = "";
-        }
+    private void Mostrar()
+    {
+        var (titulo, vista) = _pila.Peek();
+        this.FindControl<TextBlock>("Titulo")!.Text = titulo;
+        this.FindControl<Button>("Atras")!.IsVisible = _pila.Count > 1;
+        this.FindControl<ContentControl>("Contenido")!.Content = vista;
     }
 }

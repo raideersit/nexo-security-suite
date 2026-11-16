@@ -325,7 +325,9 @@ Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) 
 | Arranque en frío, Release | 3,0–5,0 s (emulador; no representa a un teléfono) |
 | Botón con 48 dp de alto | ✅ Se ve bien en la captura; falta probarlo con un dedo |
 
-**Pendiente de la fase 0:** probar el tema táctil con el dedo, probar en un teléfono de gama media o baja, pantalla «Estado», y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
+**Pantalla «Estado» (hecha, S20 FE):** inicio con el chequeo del equipo de §3.4 en solo lectura (bloqueo de pantalla, antigüedad del parche, versión de Android, opciones de desarrollador, depuración USB, indicios de root) y lista de secciones (Apps, Pruebas) con barra de título, botón «Atrás» de 48 dp y soporte de la tecla Atrás del sistema. Todas las lecturas funcionaron sin pedir permisos. Los avisos que mostró eran correctos (parche de 2023, Android 13 bajo la tabla provisional de soporte, opciones de desarrollador y depuración USB activas por las pruebas). Sin evaluar todavía: Wi-Fi sin cifrado, «instalar apps desconocidas» (ambos fase 1) y Play Protect (Android no deja leerlo). El arranque con esta pantalla midió 2,3 s la primera vez tras instalar (no se repitió en frío).
+
+**Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
 ---
 
