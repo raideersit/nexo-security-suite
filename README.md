@@ -158,7 +158,13 @@ dotnet run --project src/Nexo.Ui.Desktop --framework net8.0-windows   # Windows:
 dotnet run --project src/Nexo.Ui.Desktop --framework net8.0           # Linux: misma ventana, dice que no hay servicio
 ```
 
-Usa Avalonia con el tema [Classic.Avalonia](https://github.com/BAndysc/Classic.Avalonia) (aspecto Windows 9x, sin animaciones ni transparencias). Escanear solo lee. Lo que cambia algo (poner en cuarentena, restaurar, eliminar los vencidos, el firewall, la limpieza) va en dos pasos: el servicio prepara el plan, la ventana lo muestra y solo si se acepta lo aplica con el token. Si hace falta aprobación de administrador, la pide **`nexo-tray.exe`**, que tiene que estar en la misma carpeta que `nexo-desktop.exe` (la ventana nunca se eleva a sí misma). En Linux el servicio todavía no existe, y la ventana lo dice en vez de aparentar un estado.
+Usa Avalonia con el tema [Classic.Avalonia](https://github.com/BAndysc/Classic.Avalonia) (aspecto Windows 9x, sin animaciones ni transparencias):
+
+![Pestaña «Estado» de la ventana principal con el tema Classic: estado general, tabla de módulos y barra de estado](docs/imagenes/ventana-estado.png)
+
+*La pestaña «Estado», dibujada por el arnés de pruebas con datos de ejemplo (no es un equipo real). Las otras 11 pestañas siguen el mismo estilo.*
+
+Escanear solo lee. Lo que cambia algo (poner en cuarentena, restaurar, eliminar los vencidos, el firewall, la limpieza) va en dos pasos: el servicio prepara el plan, la ventana lo muestra y solo si se acepta lo aplica con el token. Si hace falta aprobación de administrador, la pide **`nexo-tray.exe`**, que tiene que estar junto a `nexo-desktop.exe` o en la carpeta hermana `tray` (como la deja el instalador); la ventana nunca se eleva a sí misma. En Linux el servicio todavía no existe, y la ventana lo dice en vez de aparentar un estado.
 
 Para compilar los proyectos de Windows desde Linux hace falta `-p:EnableWindowsTargeting=true`.
 
