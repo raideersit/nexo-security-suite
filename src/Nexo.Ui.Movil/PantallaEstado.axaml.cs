@@ -8,7 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
-using Nexo.Ui.Movil.Estado;
+using Nexo.Modules.Threats.Movil;
 
 namespace Nexo.Ui.Movil;
 
@@ -78,19 +78,48 @@ public sealed partial class PantallaEstado : UserControl
         boton.IsVisible = atrasada;
     }
 
+    private static readonly Lazy<CatalogoDeSenales> Catalogo = new(CatalogoDeSenales.Embebido);
+    private DatosDelEquipo? _datos;
+
     private void Mostrar()
+    {
+        var contexto = Android.App.Application.Context;
+        var lector = new LectorDelEquipoAndroid(contexto);
+        _datos = lector.Leer();
+        Android.Util.Log.Info("NEXO", "EQUIPO wifi=" + _datos.Wifi + " (" + lector.DiagnosticoDeWifi + ")");
+        Pintar();
+        this.FindControl<Button>("AbrirPlayStore")!.Click += (_, _) =>
+        {
+            var i = contexto.PackageManager?.GetLaunchIntentForPackage("com.android.vending");
+            if (i is null) return;
+            i.AddFlags(ActivityFlags.NewTask);
+            contexto.StartActivity(i);
+        };
+        // Lo que depende de leer todas las apps (0,9 s en un S20 FE) se calcula aparte, sin frenar la pantalla.
+        _ = Task.Run(() =>
+        {
+            var apps = new LectorDeAppsAndroid(contexto).Leer();
+            var puntuador = new PuntuadorDeRiesgo(Catalogo.Value);
+            var instalan = apps.Where(a => !a.EsDeSistema && a.InstalaAppsConcedido)
+                .Select(a => new AppQueInstala(a.Nombre, a.Paquete, puntuador.Evaluar(a).Nivel)).ToList();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => { _datos = _datos! with { AppsQueInstalan = instalan }; Pintar(); });
+        });
+    }
+
+    private void Pintar()
     {
         var filas = this.FindControl<StackPanel>("Filas")!;
         var resumen = this.FindControl<TextBlock>("Resumen")!;
-        var lista = ChequeoEquipo.Ejecutar(Android.App.Application.Context, DateTime.Today);
-        var avisos = lista.Count(c => c.Nivel == Nivel.Aviso);
+        var lista = ChequeoDelEquipo.Evaluar(_datos!, DateTime.Today, Catalogo.Value);
+        var avisos = ChequeoDelEquipo.Avisos(lista);
         resumen.Text = avisos == 0 ? "Estado del equipo: sin avisos" : $"Estado del equipo: {avisos} aviso(s)";
+        filas.Children.Clear();
         foreach (var c in lista)
         {
             var (marca, color) = c.Nivel switch
             {
-                Nivel.Bien => ("[OK]", Brushes.DarkGreen),
-                Nivel.Aviso => ("[!]", Brushes.Firebrick),
+                NivelDeComprobacion.Bien => ("[OK]", Brushes.DarkGreen),
+                NivelDeComprobacion.Aviso => ("[!]", Brushes.Firebrick),
                 _ => ("[i]", Brushes.DimGray),
             };
             var fila = new Grid { ColumnDefinitions = new ColumnDefinitions("40,*"), MinHeight = 48 };
@@ -103,4 +132,5 @@ public sealed partial class PantallaEstado : UserControl
             filas.Children.Add(fila);
         }
     }
+
 }

@@ -5,6 +5,7 @@
         <StackPanel Margin="8" Spacing="6">
             <TextBlock Name="Resumen" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" />
             <StackPanel Name="Filas" Spacing="4" />
+            <Button Name="AbrirPlayStore" Content="Abrir Play Store (para revisar Play Protect)" MinHeight="48" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,0" />
             <TextBlock Text="Avisos" FontSize="18" FontWeight="Bold" Margin="0,16,0,0" />
             <CheckBox Name="AvisarAlInstalar" Content="Avisar cuando se instale o actualice una app" MinHeight="48" />
             <TextBlock Name="EstadoVigilancia" TextWrapping="Wrap" />

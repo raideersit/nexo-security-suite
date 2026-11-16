@@ -20,6 +20,8 @@ namespace Nexo.Modules.Threats.Apps
     {
         public int UmbralARevisar { get; }
         public int UmbralPrioritaria { get; }
+        public int ParcheMaximoDias { get; }
+        public int ApiMinimaConSoporte { get; }
         public IReadOnlyDictionary<string, Senal> Senales { get; }
         public IReadOnlyList<Combinacion> Combinaciones { get; }
         public IReadOnlyDictionary<string, AppConocida> AppsConocidas { get; }
@@ -56,9 +58,13 @@ namespace Nexo.Modules.Threats.Apps
             }
             var u = d.Umbrales ?? new();
             if (u.ARevisar < 1 || u.Prioritaria <= u.ARevisar) errores.Add($"umbrales incoherentes: aRevisar={u.ARevisar}, prioritaria={u.Prioritaria}");
+            var eq = d.Equipo ?? new();
+            if (eq.ParcheMaximoDias < 1 || eq.ParcheMaximoDias > 3650) errores.Add($"equipo: parcheMaximoDias {eq.ParcheMaximoDias} fuera de 1..3650");
+            if (eq.ApiMinimaConSoporte < 30 || eq.ApiMinimaConSoporte > 100) errores.Add($"equipo: apiMinimaConSoporte {eq.ApiMinimaConSoporte} fuera de 30..100");
             if (errores.Count > 0) throw new InvalidDataException("Catalogo de senales invalido: " + string.Join("; ", errores));
 
             UmbralARevisar = u.ARevisar; UmbralPrioritaria = u.Prioritaria;
+            ParcheMaximoDias = eq.ParcheMaximoDias; ApiMinimaConSoporte = eq.ApiMinimaConSoporte;
             Senales = senales; Combinaciones = combos; AppsConocidas = conocidas;
             var o = d.Origenes ?? new();
             TiendasOficiales = new HashSet<string>(o.TiendasOficiales ?? new());
@@ -98,11 +104,13 @@ namespace Nexo.Modules.Threats.Apps
         private sealed class Dto
         {
             public UmbralesDto? Umbrales { get; set; }
+            public EquipoDto? Equipo { get; set; }
             public List<SenalDto>? Senales { get; set; }
             public List<CombinacionDto>? Combinaciones { get; set; }
             public OrigenesDto? Origenes { get; set; }
             public List<AppConocidaDto>? AppsConocidas { get; set; }
         }
+        private sealed class EquipoDto { public int ParcheMaximoDias { get; set; } public int ApiMinimaConSoporte { get; set; } }
         private sealed class UmbralesDto { public int ARevisar { get; set; } public int Prioritaria { get; set; } }
         private sealed class SenalDto { public string? Id { get; set; } public int Peso { get; set; } public string? Motivo { get; set; } }
         private sealed class CombinacionDto { public string? Id { get; set; } public List<string>? Requiere { get; set; } public int Peso { get; set; } public string? Motivo { get; set; } }

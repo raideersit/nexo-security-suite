@@ -55,7 +55,7 @@ Igual que en Windows Nexo **complementa a Defender**, en Android **complementa a
 En Windows hay dos procesos (servicio como `LocalSystem` + ventana del usuario) porque el servicio tiene privilegios que la ventana no. En Android **no existe esa diferencia**: la app tiene sus permisos y nada más. Por eso:
 
 - Todo corre **en el mismo proceso**. No hace falta `Nexo.Ipc` ni el pipe.
-- El trabajo periódico (revisar apps nuevas, actualizar listas) lo agenda **WorkManager**, que Android respeta aunque la app esté cerrada.
+- El trabajo periódico (revisar apps nuevas, actualizar listas) lo agenda **JobScheduler** (lo que WorkManager usa por debajo, sin su paquete NuGet), que Android respeta aunque la app esté cerrada.
 - Solo el firewall (§3.6) necesita algo vivo todo el tiempo: el `VpnService`, que Android mantiene con una notificación fija.
 
 ### 1.3 Se mantiene «vista previa + token», con la huella en lugar del UAC
@@ -120,7 +120,7 @@ graph TD
 | 3.1 | Inventario y riesgo de apps | 1 (MVP) | Modelo de catálogo JSON de limpieza |
 | 3.2 | Huellas de malware conocido | 1 (MVP) | Descarga de listas de `AlmacenDeListas` |
 | 3.3 | Revisión al instalar o actualizar | 1 (MVP) | — |
-| 3.4 | Chequeo del equipo | 1 (MVP) | `ModeloWifi` |
+| 3.4 | Chequeo del equipo | 1 (MVP) | Evaluador propio (`ModeloWifi` es de Windows: perfiles XML y códigos DOT11) |
 | 3.5 | Enlaces, mensajes y QR por «Compartir» | 2 | Todo `Enlaces/` |
 | 3.6 | Firewall por app | 2 | — |
 | 3.7 | Bóveda y filtraciones | 3 | Todo `Boveda/` y `Filtraciones/` |
@@ -180,7 +180,7 @@ Una lista de comprobación, todo **solo lectura**:
 | Versión de Android con soporte | `Build.VERSION.SDK_INT` contra una tabla en el catálogo |
 | Opciones de desarrollador y depuración USB apagadas | `Settings.Global` (`DEVELOPMENT_SETTINGS_ENABLED`, `ADB_ENABLED`) |
 | Apps con permiso para «instalar apps desconocidas» | Ver §3.1 ✅ *(`AppOpsManager` con `request_install_packages`, verificado en Android 13)* |
-| Wi-Fi actual sin cifrado | `WifiInfo.getCurrentSecurityType` + `ModeloWifi` reutilizado. Se evalúa sin leer el nombre de la red, así que **no pide ubicación** *(por verificar: falta probarlo conectado a una red Wi-Fi)* |
+| Wi-Fi actual sin cifrado | `WifiInfo.getCurrentSecurityType`, evaluado por un modelo propio (`ModeloWifi` no sirve: es de Windows). Se evalúa sin leer el nombre de la red, así que **no pide ubicación** ✅ *(verificado en el emulador con Android 14, red abierta; falta una red Wi-Fi real)* |
 | Indicios de root | Binario `su`, compilación `test-keys`. Solo informativo |
 | Play Protect | No hay una API pública fiable para leerlo: un botón abre sus ajustes |
 
@@ -371,11 +371,11 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | Administradores del dispositivo | ✅ Se lee (1 activo) |
 | Origen de instalación (`GetInstallSourceInfo`) | ✅ Play Store 95, archivo suelto o adb 6, tiendas de Samsung 4, instalador del sistema 1 |
 | Escribir en `Documents/Nexo` sin `MANAGE_EXTERNAL_STORAGE` | ✅ Por `MediaStore` y por ruta directa. Sin probar que Obsidian lo lea |
-| Wi-Fi sin cifrado sin pedir ubicación | ⏳ **Sin verificar**: el teléfono no estaba conectado a Wi-Fi |
+| Wi-Fi sin cifrado sin pedir ubicación | ⏳ El S20 FE no estaba conectado a Wi-Fi. **Después se verificó en el emulador** (ver «Avance de la fase 1»). La fila «no conectado» de esta sonda era un falso negativo: sin ubicación, `NetworkId` vale −1 aunque haya conexión |
 
 **Consecuencia para el diseño (§3.2):** la caché por `(paquete, versionCode, lastUpdateTime)` deja de ser una optimización y pasa a ser obligatoria. La primera pasada se hace en segundo plano (y mejor con el teléfono cargando), y después solo se hashean las apps nuevas o actualizadas.
 
-**Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, el Wi-Fi sin cifrado sin ubicación (hace falta una red Wi-Fi) y que Obsidian lea `Documents/Nexo`. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
+**Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, el Wi-Fi en una red real (el emulador ya lo verificó) y que Obsidian lea `Documents/Nexo`. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
 ### Avance de la fase 1 (2026-11-16)
 
@@ -389,8 +389,31 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | App señuelo `tools/Nexo.Movil.Senuelo` | ✅ Pide Accesibilidad, SMS y superposición y no hace nada con ellos. Probada en el **emulador** (Android 14), no en el teléfono real |
 | §3.2 Huellas: calculador con caché, lista local, coincidencias | ✅ Portable (85 verificaciones en total en `Nexo.Movil.Demo`). Probado en emulador y en el S20 FE |
 | «Confío en esta app» (botón y almacén) | ⏳ El puntuador ya lo admite; falta el botón y guardarlo |
-| §3.3 revisión al instalar, §3.4 completo, §3.9 reportes, notificaciones | ⏳ Sin empezar |
+| §3.3 Revisión al instalar o actualizar | ✅ Vigilante portable (151 verificaciones en total), trabajo periódico, receptor, notificaciones e interruptor. Probado en emulador; **no en el S20 FE** |
+| §3.4 Chequeo del equipo | ✅ Evaluación portable y lector de Android. Probado en emulador y, en parte, en el S20 FE |
+| §3.9 reportes en Obsidian, notificaciones generales | ⏳ Sin empezar |
 | §3.2 **fuente de la lista de huellas** | ⏳ Bloqueada por una cuenta (ver abajo) |
+
+**§3.3 Revisión al instalar o actualizar (2026-11-16).**
+
+*Decisión que se aparta de este documento:* se usa `JobScheduler` y no WorkManager. WorkManager por debajo agenda con `JobScheduler`; usarlo directo da lo mismo y evita un paquete NuGet grande. También se decidió **no depender de `getChangedPackages`**: cada revisión compara la lista completa con la anterior (0,1–0,8 s), porque esa lista es la fuente de verdad y un aviso del sistema perdido no se recupera.
+
+| Medida (emulador Android 14) | Resultado |
+|---|---|
+| Línea base al activar el interruptor | 0 avisos por las apps que ya estaban |
+| Con Nexo **cerrado**: instalar el señuelo (coincide con la lista de prueba) → notificación | **976 s (16,3 min)**: el trabajo periódico de 15 min más la revisión (0,8 s) |
+| Con Nexo **abierto**: instalar el señuelo → notificación | **1,2 s**, por el receptor |
+| Actualizar Nexo mismo | El trabajo periódico sigue programado; la app actualizada cuenta como «actualizada» sin avisar por ella |
+| Notificación | Mostrada en el canal «Avisos de apps nuevas» |
+
+Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si sale «a revisar» o coincide con una huella; una **actualización solo avisa si empeoró** o si ahora coincide; no se repite el mismo aviso; las apps del sistema no se vigilan; «confío» silencia el riesgo pero **no** una coincidencia exacta; si falta el permiso de notificaciones el aviso **no se da por entregado** y se reintenta.
+
+**Lo que se sabe que NO está verificado en §3.3:** el comportamiento en el **S20 FE** (Samsung, el peor caso del documento); que el trabajo sobreviva a un **reinicio**; el diálogo real del permiso de notificaciones (en el emulador se concedió por adb); la guía de ahorro de batería cuando la revisión se atrasa (la lógica está probada, pero la advertencia nunca se vio en pantalla); y el botón «Ver» de la notificación. **Con la app cerrada, el aviso puede tardar unos 15 minutos o más**: no es instantáneo.
+
+**§3.4 Chequeo del equipo (2026-11-16).** La decisión de cada fila vive en `ChequeoDelEquipo` (portable, 30 verificaciones nuevas) y las lecturas en `LectorDelEquipoAndroid`. Los umbrales (90 días de parche, API mínima) salen del catálogo, que se valida al cargar. Un dato ilegible es «sin evaluar», nunca «bien». Cambios respecto al diseño: `ModeloWifi` **no se reutiliza** (es de Windows); se añadió la fila «Apps que pueden instalar otras apps», que cruza con la puntuación de §3.1 (solo es aviso si alguna de ellas tiene riesgo); y el botón de Play Protect abre **Play Store**, no los ajustes de Play Protect (no hay una forma pública y verificada de abrirlos).
+- ✅ **Wi-Fi sin cifrado, sin permiso de ubicación:** en el emulador (Android 14, red virtual abierta) Nexo leyó el tipo de seguridad y mostró el aviso, sin tener el permiso de ubicación. `NetworkId` vale −1 sin ubicación aunque haya conexión, así que la conexión se detecta por el estado, no por ese número. Falta una **red Wi-Fi real**; los demás tipos (WPA2, WPA3…) solo están probados con datos inventados.
+- La tabla de «versión de Android con soporte» es **provisional** (API 34 o más): Google no publica una fecha de fin por versión y no se contrastó con ninguna fuente. El mensaje lo dice.
+- «Apps que pueden instalar otras apps» no se vio en el S20 FE (en el emulador no hay ninguna).
 
 **Lo que enseñó el primer resultado real.** La primera corrida marcó a **AVG y Bitdefender**, dos antivirus legítimos instalados desde Play Store, porque necesitan Accesibilidad, superposición y SMS para proteger. Es el falso positivo de §9 («Alta» probabilidad) y apareció en el primer teléfono. Se corrigió con una lista de **apps conocidas** en el catálogo, con una regla de seguridad: **la excepción solo vale si la app vino de la tienda oficial**. Un APK suelto que se llame `com.antivirus` sigue marcado, porque un nombre de paquete por sí solo se puede falsificar (verificado en las pruebas). Resultado final en el teléfono real: 0 apps marcadas de 106.
 

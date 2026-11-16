@@ -28,6 +28,7 @@ namespace Nexo.Movil.Demo
             ProbarListasYCoincidencias();
             ProbarVigilante();
             ProbarEstadoDeVigilancia();
+            ProbarChequeoDelEquipo();
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? $"TODAS LAS VERIFICACIONES PASARON ({_total})" : $"{_fallos} VERIFICACIONES FALLIDAS de {_total}");
             return _fallos == 0 ? 0 : 1;
@@ -65,7 +66,7 @@ namespace Nexo.Movil.Demo
         private static void ProbarValidacionDelCatalogo()
         {
             Titulo("Un catalogo roto falla en voz alta");
-            const string Base = """{"umbrales":{"aRevisar":4,"prioritaria":7},"senales":[{"id":"a","peso":1,"motivo":"motivo de prueba largo"},{"id":"b","peso":1,"motivo":"motivo de prueba largo"}],"combinaciones":[],"origenes":{},"appsConocidas":[]}""";
+            const string Base = """{"umbrales":{"aRevisar":4,"prioritaria":7},"equipo":{"parcheMaximoDias":90,"apiMinimaConSoporte":34},"senales":[{"id":"a","peso":1,"motivo":"motivo de prueba largo"},{"id":"b","peso":1,"motivo":"motivo de prueba largo"}],"combinaciones":[],"origenes":{},"appsConocidas":[]}""";
             Check(Lanza(Base) is null, "el catalogo minimo valido carga");
             Check(Lanza(Base.Replace("\"requiere\"", "x").Replace("\"combinaciones\":[]", "\"combinaciones\":[{\"id\":\"c\",\"requiere\":[\"a\",\"zzz\"],\"peso\":2,\"motivo\":\"m\"}]"))?.Contains("zzz") == true, "combinacion con senal inexistente");
             Check(Lanza(Base.Replace("\"prioritaria\":7", "\"prioritaria\":3")) is not null, "umbrales al reves");

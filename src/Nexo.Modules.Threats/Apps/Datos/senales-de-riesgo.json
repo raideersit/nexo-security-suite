@@ -2,6 +2,7 @@
   "version": 1,
   "nota": "Las apps conocidas solo se excusan si vienen de la tienda oficial: un APK suelto con el mismo nombre de paquete NO recibe la excepcion. Catalogo REVISABLE de senales para puntuar apps de Android (Salida 7, 3.1). Una senal suelta casi nunca importa: lo que cuenta es la suma y las combinaciones. El resultado es «a revisar», nunca «es malware». Peso 0 = se muestra como contexto pero no suma.",
   "umbrales": { "aRevisar": 4, "prioritaria": 7 },
+  "equipo": { "parcheMaximoDias": 90, "apiMinimaConSoporte": 34, "nota": "apiMinimaConSoporte es PROVISIONAL: Google no publica una fecha de fin de soporte por version, y esta tabla no se ha contrastado con una fuente. Se revisa a mano." },
   "senales": [
     { "id": "accesibilidad", "peso": 3, "motivo": "Tiene un servicio de Accesibilidad activo: puede leer la pantalla y tocar por ti." },
     { "id": "administrador", "peso": 2, "motivo": "Es administradora del dispositivo: puede dificultar que la desinstales." },
