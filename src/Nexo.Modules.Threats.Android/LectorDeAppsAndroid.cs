@@ -80,6 +80,7 @@ namespace Nexo.Modules.Threats.Movil
                     SinIconoEnLanzador = !sistema && !conIcono.Contains(nombre),
                     FirmaDeDepuracion = firmaDep,
                     Apks = RutasDeApk(info),
+                    PrimeraInstalacionMs = p.FirstInstallTime,
                     VersionCode = p.LongVersionCode,
                     UltimaActualizacionMs = p.LastUpdateTime,
                 });

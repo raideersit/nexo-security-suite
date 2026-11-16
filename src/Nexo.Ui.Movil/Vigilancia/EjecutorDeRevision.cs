@@ -49,7 +49,11 @@ public static class EjecutorDeRevision
             var estado = EstadoDeVigilancia.Cargar(RutasDeNexo.Vigilancia(contexto), out var aviso);
             if (aviso != null) Android.Util.Log.Warn("NEXO", aviso);
             var ahora = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var r = Vigilante.Value.Revisar(apps, estado, ahora, huellas.Huellas, listas);
+            // «Confio en esta app»: se poda lo desinstalado (una app nueva con el mismo nombre no hereda la confianza) y se pasa al vigilante.
+            var confianza = AlmacenDeConfianza.Cargar(RutasDeNexo.Confiadas(contexto), out var avisoConfianza);
+            if (avisoConfianza != null) Android.Util.Log.Warn("NEXO", avisoConfianza);
+            if (confianza.Podar(apps) > 0) confianza.Guardar(RutasDeNexo.Confiadas(contexto));
+            var r = Vigilante.Value.Revisar(apps, estado, ahora, huellas.Huellas, listas, confianza.Vigentes(apps));
 
             int mostradas = 0;
             if (r.Alertas.Count > 0)

@@ -53,28 +53,40 @@ public sealed partial class PantallaApps : UserControl
         filas.Children.Clear();
         try
         {
-            var (resultados, avisos, leerMs, puntuarMs, modelos) = await Task.Run(() =>
+            var (resultados, avisos, leerMs, puntuarMs, modelos, almacen) = await Task.Run(() =>
             {
                 var lector = new LectorDeAppsAndroid(Android.App.Application.Context);
                 var t = Stopwatch.StartNew();
                 var apps = lector.Leer();
                 var leer = t.ElapsedMilliseconds;
                 t.Restart();
-                var res = Puntuador.Value.EvaluarTodas(apps);
+                var contexto = Android.App.Application.Context;
+                var almacen = AlmacenDeConfianza.Cargar(Vigilancia.RutasDeNexo.Confiadas(contexto), out var avisoConfianza);
+                if (avisoConfianza != null) lector.Avisos.Add(avisoConfianza);
+                if (almacen.Podar(apps) > 0) almacen.Guardar(Vigilancia.RutasDeNexo.Confiadas(contexto));
+                var res = Puntuador.Value.EvaluarTodas(apps, almacen.Vigentes(apps));
                 Android.Util.Log.Info("NEXO", "APPS tiempos " + string.Join(" ", lector.Tiempos.Select(k => k.Key + "=" + k.Value)));
-                return (res, lector.Avisos, leer, t.ElapsedMilliseconds, apps);
+                return (res, lector.Avisos, leer, t.ElapsedMilliseconds, apps, almacen);
             });
             var usuario = resultados.Where(r => r.Nivel != NivelDeRiesgo.NoEvaluada).ToList();
             int prio = usuario.Count(r => r.Nivel == NivelDeRiesgo.Prioritaria), rev = usuario.Count(r => r.Nivel == NivelDeRiesgo.ARevisar);
             int normales = usuario.Count(r => r.Nivel is NivelDeRiesgo.Normal or NivelDeRiesgo.Confiada);
-            resumen.Text = $"{usuario.Count} apps instaladas por ti: {prio} prioritarias, {rev} a revisar, {normales} normales.\n"
+            int confiadas = usuario.Count(r => r.Nivel == NivelDeRiesgo.Confiada);
+            normales -= confiadas;
+            resumen.Text = $"{usuario.Count} apps instaladas por ti: {prio} prioritarias, {rev} a revisar, {confiadas} de confianza, {normales} normales.\n"
                          + $"Lectura {leerMs} ms, puntuacion {puntuarMs} ms."
                          + (avisos.Count > 0 ? "\n" + string.Join("\n", avisos) : "");
             Android.Util.Log.Info("NEXO", $"APPS usuario={usuario.Count} prioritarias={prio} a_revisar={rev} normales={normales} leer_ms={leerMs} puntuar_ms={puntuarMs} avisos={avisos.Count}");
             foreach (var r in usuario.Where(r => r.Nivel is NivelDeRiesgo.Prioritaria or NivelDeRiesgo.ARevisar))
-                filas.Children.Add(Tarjeta(r));
+                filas.Children.Add(Tarjeta(r, modelos.First(m => m.Paquete == r.Paquete), almacen, () => _ = RevisarAsync()));
             if (prio + rev == 0)
                 filas.Children.Add(new TextBlock { Text = "Ninguna app tiene señales que revisar.", TextWrapping = TextWrapping.Wrap });
+            var deConfianza = usuario.Where(r => r.Nivel == NivelDeRiesgo.Confiada).ToList();
+            if (deConfianza.Count > 0)
+            {
+                filas.Children.Add(new TextBlock { Text = "Apps en las que confías", FontSize = 18, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 12, 0, 0) });
+                foreach (var r in deConfianza) filas.Children.Add(TarjetaDeConfianza(r, almacen, () => _ = RevisarAsync()));
+            }
             _ultimosResultados = resultados;
             var guardar = this.FindControl<Button>("GuardarRevision")!;
             guardar.IsVisible = Vigilancia.HistorialDeObsidian.Activado(Android.App.Application.Context);
@@ -146,7 +158,38 @@ public sealed partial class PantallaApps : UserControl
         return new Border { BorderBrush = Brushes.Firebrick, BorderThickness = new Avalonia.Thickness(2), Child = panel, HorizontalAlignment = HorizontalAlignment.Stretch };
     }
 
-    private static Control Tarjeta(ResultadoDeApp r)
+    /// <summary>El boton pide DOS toques: confiar quita a la app de las alertas, y no debe ser un toque por accidente.</summary>
+    private static Button BotonDeConfianza(string texto, string textoDeConfirmacion, Action alConfirmar)
+    {
+        var boton = new Button { Content = texto, MinHeight = 48, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
+        bool pedida = false;
+        boton.Click += (_, _) =>
+        {
+            if (!pedida) { pedida = true; boton.Content = textoDeConfirmacion; return; }
+            alConfirmar();
+        };
+        return boton;
+    }
+
+    private static Control TarjetaDeConfianza(ResultadoDeApp r, AlmacenDeConfianza almacen, Action alCambiar)
+    {
+        var panel = new StackPanel { Spacing = 2, Margin = new Avalonia.Thickness(6) };
+        panel.Children.Add(new TextBlock { Text = "DE CONFIANZA · " + r.Puntos + " pts", Foreground = Brushes.DarkGreen, FontWeight = FontWeight.Bold });
+        panel.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(r.Nombre) ? r.Paquete : r.Nombre, FontSize = 18, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = r.Paquete, Foreground = Brushes.DimGray, TextWrapping = TextWrapping.Wrap });
+        foreach (var m in r.Motivos) panel.Children.Add(new TextBlock { Text = "• " + m, TextWrapping = TextWrapping.Wrap });
+        var dejar = new Button { Content = "Dejar de confiar", MinHeight = 48, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
+        dejar.Click += (_, _) =>
+        {
+            almacen.DejarDeConfiar(r.Paquete);
+            almacen.Guardar(Vigilancia.RutasDeNexo.Confiadas(Android.App.Application.Context));
+            alCambiar();
+        };
+        panel.Children.Add(dejar);
+        return new Border { BorderBrush = Brushes.DarkGreen, BorderThickness = new Avalonia.Thickness(1), Child = panel, HorizontalAlignment = HorizontalAlignment.Stretch };
+    }
+
+    private static Control Tarjeta(ResultadoDeApp r, ModeloDeApp modelo, AlmacenDeConfianza almacen, Action alCambiar)
     {
         var (etiqueta, color) = r.Nivel == NivelDeRiesgo.Prioritaria ? ("A REVISAR CON PRIORIDAD", Brushes.Firebrick) : ("A REVISAR", Brushes.DarkGoldenrod);
         var panel = new StackPanel { Spacing = 2, Margin = new Avalonia.Thickness(6) };
@@ -154,6 +197,11 @@ public sealed partial class PantallaApps : UserControl
         panel.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(r.Nombre) ? r.Paquete : r.Nombre, FontSize = 18, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock { Text = r.Paquete, Foreground = Brushes.DimGray, TextWrapping = TextWrapping.Wrap });
         foreach (var m in r.Motivos) panel.Children.Add(new TextBlock { Text = "• " + m, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(BotonDeConfianza("Confío en esta app", "Toca otra vez para confirmar: confío en esta app", () =>
+        {
+            if (almacen.Confiar(modelo)) almacen.Guardar(Vigilancia.RutasDeNexo.Confiadas(Android.App.Application.Context));
+            alCambiar();
+        }));
         return new Border { BorderBrush = Brushes.Gray, BorderThickness = new Avalonia.Thickness(1), Child = panel, HorizontalAlignment = HorizontalAlignment.Stretch };
     }
 }

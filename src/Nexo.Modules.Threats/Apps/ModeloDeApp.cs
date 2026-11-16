@@ -30,6 +30,8 @@ namespace Nexo.Modules.Threats.Apps
         public bool FirmaDeDepuracion { get; init; }
         /// <summary>Rutas de los APK instalados (el base y los «split»). Para la huella (3.2).</summary>
         public IReadOnlyList<string> Apks { get; init; } = System.Array.Empty<string>();
+        /// <summary>Cuando se instalo POR PRIMERA VEZ. Android lo reinicia si la app se desinstala y se vuelve a instalar, y lo conserva en las actualizaciones: ata la confianza a UNA instalacion concreta.</summary>
+        public long PrimeraInstalacionMs { get; init; }
         public long VersionCode { get; init; }
         public long UltimaActualizacionMs { get; init; }
     }

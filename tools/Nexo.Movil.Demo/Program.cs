@@ -30,6 +30,7 @@ namespace Nexo.Movil.Demo
             ProbarEstadoDeVigilancia();
             ProbarChequeoDelEquipo();
             ProbarReportes();
+            ProbarConfianza();
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? $"TODAS LAS VERIFICACIONES PASARON ({_total})" : $"{_fallos} VERIFICACIONES FALLIDAS de {_total}");
             return _fallos == 0 ? 0 : 1;

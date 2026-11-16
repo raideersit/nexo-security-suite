@@ -392,7 +392,8 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | §3.3 Revisión al instalar o actualizar | ✅ Vigilante portable (151 verificaciones en total), trabajo periódico, receptor, notificaciones e interruptor. Probado en emulador; **no en el S20 FE** |
 | §3.4 Chequeo del equipo | ✅ Evaluación portable y lector de Android. Probado en emulador y, en parte, en el S20 FE |
 | §3.9 Reportes en Obsidian | ✅ Probado en emulador; **no en el S20 FE ni con Obsidian real** |
-| Botón «Confío en esta app» y notificaciones generales | ⏳ Sin empezar |
+| «Confío en esta app» | ✅ Probado en emulador; **no en el S20 FE** |
+| Notificaciones generales de la app | ⏳ Sin empezar |
 | §3.2 **fuente de la lista de huellas** | ⏳ Bloqueada por una cuenta (ver abajo) |
 
 **§3.3 Revisión al instalar o actualizar (2026-11-16).**
@@ -429,6 +430,20 @@ Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si
 **Un fallo propio que encontró esta prueba:** la fila «Apps que pueden instalar otras apps» del chequeo llevaba los **nombres** de esas apps y el evento los escribía en el vault, contra la regla de este documento. Primero se escribió la comprobación y falló; se corrigió con un texto aparte para el vault que solo dice cuántas son.
 
 **Sin verificar en §3.9:** que **Obsidian** abra y lea la carpeta `Documents/Nexo` (no hay Obsidian en el emulador; en Android 11+ puede exigir elegir la carpeta con el selector del sistema); la escritura en el **S20 FE** (Android 13) con este código (la fase 0 solo probó escribir un archivo suelto); y **la retención de 90 días** de las notas en Android. Conocido y sin corregir: el texto «Última revisión: hace X» de la pantalla Estado no se actualiza solo cuando una revisión ocurre con la pantalla abierta; se refresca al volver a entrar.
+
+**«Confío en esta app» (2026-11-16).** Botón de dos toques en cada tarjeta «a revisar», y una lista «Apps en las que confías» con «Dejar de confiar». Una app de confianza sale de «a revisar» y de los avisos, pero **conserva sus puntos y sus motivos**: no se esconde nada. **No silencia una coincidencia exacta con una huella conocida.**
+
+**Un agujero que encontró la prueba en el emulador.** La primera versión ataba la confianza al nombre del paquete y la borraba al desinstalar, pero **solo cuando ocurría una revisión entre la desinstalación y la reinstalación**. Al desinstalar el señuelo y reinstalarlo enseguida, sin abrir Nexo, la app nueva **heredó la confianza** (los tests de Linux no lo vieron porque simulaban la poda a mano). Se corrigió atando la confianza a **una instalación**: `(paquete, FirstInstallTime)`. Android reinicia esa fecha al reinstalar y la conserva al actualizar.
+
+| Prueba en el emulador | Resultado |
+|---|---|
+| Señuelo sin confianza | Prioritaria (15 puntos) |
+| Confiar (dos toques) | Pasa a «de confianza» con sus 15 puntos y 7 motivos |
+| Reiniciar Nexo | Sigue de confianza |
+| **Actualizar** el señuelo | Sigue de confianza |
+| **Desinstalar y reinstalar** sin abrir Nexo entre medias | Vuelve a «prioritaria»: no hereda la confianza |
+
+**Límites de «confío»:** la confianza no mira el certificado de firma, así que una actualización firmada por otra clave no es posible en Android, pero esta función no lo verifica por su cuenta. Una app de confianza que **empeora** al actualizarse **tampoco avisa** (solo una coincidencia con una huella conocida rompe la confianza). El formato guardado es nuevo y el anterior no se migra.
 
 **Lo que enseñó el primer resultado real.** La primera corrida marcó a **AVG y Bitdefender**, dos antivirus legítimos instalados desde Play Store, porque necesitan Accesibilidad, superposición y SMS para proteger. Es el falso positivo de §9 («Alta» probabilidad) y apareció en el primer teléfono. Se corrigió con una lista de **apps conocidas** en el catálogo, con una regla de seguridad: **la excepción solo vale si la app vino de la tienda oficial**. Un APK suelto que se llame `com.antivirus` sigue marcado, porque un nombre de paquete por sí solo se puede falsificar (verificado en las pruebas). Resultado final en el teléfono real: 0 apps marcadas de 106.
 
