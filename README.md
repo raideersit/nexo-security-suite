@@ -83,6 +83,20 @@ Todo cambio sigue el mismo camino: **vista previa → token → aprobación con 
 
 ---
 
+## Android (en diseño; fase 0 probada en un teléfono real)
+
+Hay una versión Android en preparación, en la rama `android-fase0`: una app C# con Avalonia y el mismo tema Classic. Está descrita en `Salida 7 - Version Android.md`, que también registra lo medido y lo que aún no se ha verificado. Hoy solo existe la prueba de concepto: pantalla «Estado» (chequeo del equipo) y lista de apps.
+
+### Inspiración: SwipeClean
+
+La parte de **limpieza de la galería** (revisar fotos con gestos y detectar duplicados) está inspirada en **[SwipeClean](https://github.com/raideersit/SwipeClean)**, una app Android mía, hecha en Kotlin, para limpiar la galería deslizando fotos: a la izquierda marca para eliminar, a la derecha conserva, y el borrado se confirma en un solo lote con la papelera del sistema.
+
+- Nexo **no incluye código de SwipeClean**: se reescribirá en C# dentro de Nexo, conservando sus decisiones de diseño (borrado por lote, papelera primero, historial de revisadas, acceso solo por `MediaStore`).
+- Lo que Nexo añade encima es la **detección de duplicados exactos por contenido**, con las mismas tres etapas del módulo de limpieza de escritorio, sin pedir acceso a todo el almacenamiento.
+- Está planificado para la fase 3 de Android. Detalles en §3.10 de la Salida 7.
+
+---
+
 ## Documentación
 
 El repositorio es a la vez un vault de Obsidian. Ábrelo con Obsidian para navegar los documentos con grafo y backlinks, o léelos como markdown normal.
@@ -93,6 +107,7 @@ El repositorio es a la vez un vault de Obsidian. Ábrelo con Obsidian para naveg
 | `Salida 6 - Analisis de viabilidad del proyecto.md` | **Léelo antes de programar nada**: horas reales, costos, 13 riesgos legales |
 | `Salida 5 - Modulo de reportes y visualizacion.md`  | Esquema de notas, formato YAML, seguridad del vault                         |
 | `Salida 4 - Modulo de limpieza y optimizacion.md`   | Los 6 submódulos, rutas de Windows, guardia de rutas                        |
+| `Salida 7 - Version Android.md`                     | Diseño de la versión Android, resultados de la fase 0, galería (SwipeClean) |
 | `Prompt *.md`                                       | Los prompts que generaron cada salida                                       |
 | `CONTINUAR-EN-WINDOWS.md`                           | Traspaso anterior (Linux → Windows), conservado como historia               |
 

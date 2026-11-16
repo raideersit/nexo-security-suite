@@ -102,7 +102,7 @@ graph TD
 |---|---|---|
 | `Nexo.Modules.Threats` | Existente, **se amplía** | Carpeta nueva `Apps/`: `ModeloDeApp`, `CatalogoDeSenales` (JSON), `PuntuadorDeRiesgo`, `ListaDeHuellas`, `ChequeoDelEquipo`. Todo portable, sin una línea de Android |
 | `Nexo.Modules.Threats.Android` | Nuevo | Lectores: `LectorDeAppsAndroid` (`PackageManager`), `LectorDeAjustes` (bloqueo, parche, depuración USB), `LectorDeWifiAndroid`, `CortafuegosVpn` (`VpnService`), `VigilanteDePaquetes` (WorkManager) |
-| `Nexo.Modules.Cleanup.Android` | Nuevo, **fase 3** | Almacenamiento compartido, Papelera de `MediaStore`, tamaños por app |
+| `Nexo.Modules.Cleanup.Android` | Nuevo, **fase 3** | Almacenamiento compartido, Papelera de `MediaStore`, tamaños por app y la galería (§3.10: lectura por `MediaStore`, historial de revisadas, borrado por lote) |
 | `Nexo.Ui.Movil` | Nuevo | La app Avalonia: actividad principal, navegación táctil, notificaciones, `BiometricPrompt`, destino de «Compartir» |
 | `tools/Nexo.Movil.Demo` | Nuevo | Pruebas de la lógica portable nueva; corren en Linux como las demás |
 
@@ -124,7 +124,8 @@ graph TD
 | 3.5 | Enlaces, mensajes y QR por «Compartir» | 2 | Todo `Enlaces/` |
 | 3.6 | Firewall por app | 2 | — |
 | 3.7 | Bóveda y filtraciones | 3 | Todo `Boveda/` y `Filtraciones/` |
-| 3.8 | Almacenamiento y duplicados | 3 | `DetectorDuplicados`, vista previa + token |
+| 3.8 | Almacenamiento y duplicados en archivos | 3 | `DetectorDuplicados`, vista previa + token |
+| 3.10 | Galería: revisión con gestos y duplicados | 3 | Idea y diseño de **SwipeClean**; `DetectorDuplicados` (las tres etapas) |
 | 3.9 | Reportes en Obsidian | 1 (MVP) | `Nexo.Reports` completo |
 
 ### 3.1 Inventario y riesgo de apps — **MVP**
@@ -209,7 +210,7 @@ Así se cubre el *smishing* (phishing por SMS), que es el ataque más común en 
 
 ### 3.8 Almacenamiento y duplicados — **fase 3**
 
-- **Duplicados** en el almacenamiento compartido con `DetectorDuplicados` tal cual. Requiere `MANAGE_EXTERNAL_STORAGE`, que se pide solo al entrar a esta pestaña.
+- **Duplicados en archivos que no son de la galería** (Descargas, documentos) con `DetectorDuplicados` tal cual. Requiere `MANAGE_EXTERNAL_STORAGE`, que se pide solo al entrar a esta pestaña. **Los de la galería van por §3.10 y no necesitan ese permiso.**
 - **Archivos grandes y APKs viejos en Descargas**: lo más útil para liberar espacio en un teléfono.
 - **Caché de otras apps:** no se puede borrar. Se muestra cuánto ocupa cada una (con permiso de uso, opcional) y un botón abre sus ajustes.
 - **Borrado con vista previa + token + huella.** Las fotos, videos y audio van a la **Papelera de `MediaStore`** (Android las guarda 30 días), el equivalente a la Papelera de Windows. Lo que no es multimedia no tiene papelera en Android: se avisa en la vista previa que ese borrado es definitivo.
@@ -221,6 +222,33 @@ Así se cubre el *smishing* (phishing por SMS), que es el ataque más común en 
 - **Opcional y apagado por omisión:** muchos usuarios de teléfono no usan Obsidian. La app tiene su propio historial.
 - Tipos de evento nuevos: `app-instalada`, `app-a-revisar`, `huella-coincidente`, `chequeo-del-equipo`, `app-bloqueada`.
 - Nunca se escribe en el vault la lista completa de apps, solo las que salen «a revisar»: es información personal.
+
+### 3.10 Galería: revisión con gestos y duplicados — **fase 3**
+
+**Origen.** Esta función viene de **[SwipeClean](https://github.com/raideersit/SwipeClean)**, una app Android propia (Kotlin + Jetpack Compose) para limpiar la galería deslizando fotos. SwipeClean queda como **prototipo y referencia**; en Nexo se **reescribe en C#** (la interfaz de Compose no se reutiliza) y se conservan sus decisiones de diseño, que coinciden con las de este documento.
+
+**Qué se conserva de SwipeClean**
+
+| Idea | Cómo queda en Nexo |
+|---|---|
+| Deslizar a la izquierda marca para eliminar; a la derecha conserva | Igual, con botones «Conservar» y «Marcar» como alternativa (accesibilidad y respaldo si el gesto no rinde en Avalonia) |
+| Nada se borra al deslizar: las decisiones se acumulan | Igual. Es la misma regla de «vista previa + confirmación» del resto de Nexo |
+| Borrado **por lote** con una sola llamada a `MediaStore.createTrashRequest`, un único diálogo del sistema | Igual. Papelera por defecto; borrado definitivo (`createDeleteRequest`) solo si el usuario lo activa |
+| La papelera **no libera espacio** hasta que Android la vacía | La interfaz dice «enviaste X a la papelera» y reserva «liberaste X» para el borrado definitivo |
+| Historial de fotos ya revisadas (por `mediaId`) | SQLite local. Lo conservado no vuelve a aparecer |
+| Acceso solo por `MediaStore` y `ContentUris`, nunca por rutas de archivo | Igual |
+
+**Lo nuevo en Nexo: duplicados exactos**
+
+- Las mismas tres etapas que `DetectorDuplicados`: agrupar por tamaño (`MediaStore.SIZE`, solo metadatos), hash de los primeros 8 KB y SHA-256 completo leyendo con `ContentResolver.OpenInputStream`. **Nunca por nombre ni por tamaño solo.**
+- Cada grupo se muestra junto en la pantalla de gestos, con una copia propuesta para conservar. La propuesta es solo una sugerencia: decide el usuario.
+- **Duplicados «parecidos»** (ráfagas, fotos reescaladas) quedan fuera de la primera versión. Pedirían un hash perceptual y dan falsos positivos; si se añaden, nunca se preseleccionan.
+
+**Permisos:** solo `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` y `READ_MEDIA_VISUAL_USER_SELECTED` (acceso parcial, Android 14+). Sin `MANAGE_EXTERNAL_STORAGE`.
+
+**Verificación (§7):** con un teléfono real, usando imágenes inofensivas que se copian a propósito para crear duplicados conocidos. Se comprueba que el lote lanza **un solo** diálogo y que el espacio no cambia hasta vaciar la papelera.
+
+**Sin verificar:** SwipeClean no se compiló ni se ejecutó al escribir esto; lo anterior sale de leer su README y su código. El gesto de deslizar en Avalonia sobre Android no está probado: se prototipa **al empezar la fase 3** y, si no rinde, se usan solo los botones.
 
 ---
 
@@ -253,7 +281,8 @@ Principio: **cada permiso se pide la primera vez que se usa la función que lo n
 | `USE_BIOMETRIC` | §1.3, §3.7 | Declarado |
 | `REQUEST_DELETE_PACKAGES` | §3.1 (pedir desinstalación) | Declarado; Android confirma cada vez |
 | `BIND_VPN_SERVICE` (del servicio) | §3.6 | Android pide permiso al encender el firewall |
-| `MANAGE_EXTERNAL_STORAGE` | §3.8 | Al entrar a Almacenamiento; opcional |
+| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED` | §3.10 | Al entrar a Galería; se admite acceso parcial |
+| `MANAGE_EXTERNAL_STORAGE` | §3.8 (archivos fuera de la galería) | Al entrar a Almacenamiento; opcional |
 | `PACKAGE_USAGE_STATS` | §3.8 (tamaño por app) | Opcional |
 
 **No se piden:** ubicación, SMS, contactos, cámara (el QR se lee de una imagen compartida), micrófono ni Accesibilidad. Que un antivirus pida Accesibilidad sería justo la señal que §3.1 marca como sospechosa.
@@ -293,7 +322,7 @@ La misma regla que el resto del proyecto: no se marca nada como hecho sin haberl
 | **0 — Prueba de concepto** | Proyecto `Nexo.Ui.Movil` vacío con Avalonia + Classic táctil en emulador y teléfono real. Leer la lista de apps. Medir tamaño del APK, arranque y Argon2id. Resolver los *(por verificar)* de §3.1 y §3.4 | La app arranca en menos de 2 s en un teléfono de gama media, el tema se usa con el dedo y la lista de apps se lee completa. **Si Avalonia en Android da problemas serios, se vuelve a esta decisión antes de seguir** |
 | **1 — MVP** | §3.1, §3.2, §3.3, §3.4, §3.9 y notificaciones | Las pruebas de §7 pasan en el teléfono real |
 | **2** | §3.5 «Compartir» y QR, §3.6 firewall | — |
-| **3** | §3.7 bóveda, §3.8 almacenamiento | — |
+| **3** | §3.7 bóveda, §3.8 almacenamiento, §3.10 galería (primero el prototipo del gesto en Avalonia) | — |
 
 Se trabaja en la rama `android`, separada de la ventana principal de escritorio.
 
@@ -351,3 +380,4 @@ Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) 
 2. **¿Google Play o solo GitHub?** Recomendación: solo GitHub en la v1.
 3. **¿Compartir el `Nucleo` de la ventana con el escritorio** (moverlo a un proyecto común) o copiarlo? Se decide en la fase 0 viendo cuánto cambia.
 4. **¿Un teléfono real para pruebas?** Hace falta al menos uno con Android 11 o superior. Mejor si es de una marca que mata tareas en segundo plano, porque así se prueba el peor caso.
+5. **¿Licencia para SwipeClean?** No tiene archivo `LICENSE`. Añadir MIT, como Nexo, antes de reutilizar su diseño o de enlazarlo desde el README.
