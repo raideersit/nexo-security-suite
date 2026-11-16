@@ -14,7 +14,10 @@ namespace Nexo.Modules.Threats.Apps
 
     public enum NivelDeComprobacion { Bien, Aviso, Info }
 
-    public sealed record Comprobacion(string Nombre, NivelDeComprobacion Nivel, string Detalle);
+    /// <param name="DetalleParaReporte">
+    /// Texto para el vault de Obsidian cuando el detalle de pantalla lleva datos personales (nombres de apps). null = se usa <paramref name="Detalle"/>.
+    /// </param>
+    public sealed record Comprobacion(string Nombre, NivelDeComprobacion Nivel, string Detalle, string? DetalleParaReporte = null);
 
     /// <summary>Seguridad de la red Wi-Fi actual, ya reducida a lo que importa (la traduccion desde los codigos de Android vive en el lector).</summary>
     public enum SeguridadDeWifi { NoConectado, NoEvaluable, Abierta, Wep, Cifrada, Desconocida }
@@ -108,9 +111,11 @@ namespace Nexo.Modules.Threats.Apps
             var nombres = string.Join(", ", apps.Take(MaximoDeNombres).Select(a => string.IsNullOrEmpty(a.Nombre) ? a.Paquete : a.Nombre))
                           + (apps.Count > MaximoDeNombres ? $" y {apps.Count - MaximoDeNombres} más" : "");
             var dudosas = apps.Where(a => a.Riesgo is NivelDeRiesgo.ARevisar or NivelDeRiesgo.Prioritaria).ToList();
+            // Para el vault solo la cantidad: los nombres de las apps instaladas son informacion personal.
+            var paraReporte = $"{apps.Count} con el permiso concedido" + (dudosas.Count > 0 ? $", {dudosas.Count} con señales de riesgo (los nombres no se guardan en el vault)." : " (los nombres no se guardan en el vault).");
             return dudosas.Count > 0
-                ? new("Apps que pueden instalar otras apps", NivelDeComprobacion.Aviso, $"{apps.Count} con el permiso concedido: {nombres}. {dudosas.Count} de ellas además tiene(n) señales de riesgo (ver «Apps instaladas»).")
-                : new("Apps que pueden instalar otras apps", NivelDeComprobacion.Info, $"{apps.Count} con el permiso concedido: {nombres}. Es normal en navegadores y gestores de archivos.");
+                ? new("Apps que pueden instalar otras apps", NivelDeComprobacion.Aviso, $"{apps.Count} con el permiso concedido: {nombres}. {dudosas.Count} de ellas además tiene(n) señales de riesgo (ver «Apps instaladas»).", paraReporte)
+                : new("Apps que pueden instalar otras apps", NivelDeComprobacion.Info, $"{apps.Count} con el permiso concedido: {nombres}. Es normal en navegadores y gestores de archivos.", paraReporte);
         }
     }
 }

@@ -115,6 +115,10 @@ namespace Nexo.Reports.Vault
             TipoEvento.DuplicadosDetectados => "Duplicados",
             TipoEvento.SaludDisco => "Disco",
             TipoEvento.ArchivoTriturado => "Triturado",
+            TipoEvento.AppInstalada => "App instalada",
+            TipoEvento.AppARevisar => "Apps a revisar",
+            TipoEvento.HuellaCoincidente => "Huella",
+            TipoEvento.ChequeoDelEquipo => "Chequeo del equipo",
             TipoEvento.ErrorModulo => "Error",
             _ => "Evento"
         };

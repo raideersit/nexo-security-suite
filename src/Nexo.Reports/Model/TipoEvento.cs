@@ -57,6 +57,12 @@ namespace Nexo.Reports.Model
         public const string ArchivoTriturado = "archivo-triturado";
         public const string InicioModificado = "inicio-modificado";
 
+        // --- Android (Salida 7) ---
+        public const string AppInstalada = "app-instalada";
+        public const string AppARevisar = "app-a-revisar";
+        public const string HuellaCoincidente = "huella-coincidente";
+        public const string ChequeoDelEquipo = "chequeo-del-equipo";
+
         // --- Sistema ---
         public const string ServicioIniciado = "servicio-iniciado";
         public const string ServicioDetenido = "servicio-detenido";

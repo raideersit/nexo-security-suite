@@ -391,7 +391,8 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | «Confío en esta app» (botón y almacén) | ⏳ El puntuador ya lo admite; falta el botón y guardarlo |
 | §3.3 Revisión al instalar o actualizar | ✅ Vigilante portable (151 verificaciones en total), trabajo periódico, receptor, notificaciones e interruptor. Probado en emulador; **no en el S20 FE** |
 | §3.4 Chequeo del equipo | ✅ Evaluación portable y lector de Android. Probado en emulador y, en parte, en el S20 FE |
-| §3.9 reportes en Obsidian, notificaciones generales | ⏳ Sin empezar |
+| §3.9 Reportes en Obsidian | ✅ Probado en emulador; **no en el S20 FE ni con Obsidian real** |
+| Botón «Confío en esta app» y notificaciones generales | ⏳ Sin empezar |
 | §3.2 **fuente de la lista de huellas** | ⏳ Bloqueada por una cuenta (ver abajo) |
 
 **§3.3 Revisión al instalar o actualizar (2026-11-16).**
@@ -414,6 +415,20 @@ Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si
 - ✅ **Wi-Fi sin cifrado, sin permiso de ubicación:** en el emulador (Android 14, red virtual abierta) Nexo leyó el tipo de seguridad y mostró el aviso, sin tener el permiso de ubicación. `NetworkId` vale −1 sin ubicación aunque haya conexión, así que la conexión se detecta por el estado, no por ese número. Falta una **red Wi-Fi real**; los demás tipos (WPA2, WPA3…) solo están probados con datos inventados.
 - La tabla de «versión de Android con soporte» es **provisional** (API 34 o más): Google no publica una fecha de fin por versión y no se contrastó con ninguna fuente. El mensaje lo dice.
 - «Apps que pueden instalar otras apps» no se vio en el S20 FE (en el emulador no hay ninguna).
+
+**§3.9 Reportes en Obsidian (2026-11-16).** Opcional y **apagado por omisión**. Usa la misma biblioteca `Nexo.Reports` que el escritorio y escribe en `Documents/Nexo`. Eventos nuevos: `app-instalada`, `huella-coincidente`, `app-a-revisar` y `chequeo-del-equipo` (`app-bloqueada` queda para el firewall, fase 2). La suite existente de `Nexo.Reports` sigue pasando.
+
+| Verificación | Resultado |
+|---|---|
+| Las notas se escriben con el `ReportWriter` real (en Linux y en el emulador Android 14) | ✅ Nota de evento, nota de la app y entrada del diario enlazada |
+| Un aviso de instalación genera su nota sin que el usuario haga nada más | ✅ Con el historial activado, el receptor escribió la nota en el mismo segundo del aviso |
+| Botón «Guardar el chequeo del equipo» y «Guardar esta revisión en Obsidian» | ✅ Probados en el emulador |
+| La nota de huella no lleva la huella completa y aclara que «no es un análisis» | ✅ |
+| **La lista de apps NO se filtra** | ✅ Con 100 apps normales y 1 dudosa, solo la dudosa llega a una nota. En el emulador, Nexo mismo (app normal) no aparece en ninguna nota |
+
+**Un fallo propio que encontró esta prueba:** la fila «Apps que pueden instalar otras apps» del chequeo llevaba los **nombres** de esas apps y el evento los escribía en el vault, contra la regla de este documento. Primero se escribió la comprobación y falló; se corrigió con un texto aparte para el vault que solo dice cuántas son.
+
+**Sin verificar en §3.9:** que **Obsidian** abra y lea la carpeta `Documents/Nexo` (no hay Obsidian en el emulador; en Android 11+ puede exigir elegir la carpeta con el selector del sistema); la escritura en el **S20 FE** (Android 13) con este código (la fase 0 solo probó escribir un archivo suelto); y **la retención de 90 días** de las notas en Android. Conocido y sin corregir: el texto «Última revisión: hace X» de la pantalla Estado no se actualiza solo cuando una revisión ocurre con la pantalla abierta; se refresca al volver a entrar.
 
 **Lo que enseñó el primer resultado real.** La primera corrida marcó a **AVG y Bitdefender**, dos antivirus legítimos instalados desde Play Store, porque necesitan Accesibilidad, superposición y SMS para proteger. Es el falso positivo de §9 («Alta» probabilidad) y apareció en el primer teléfono. Se corrigió con una lista de **apps conocidas** en el catálogo, con una regla de seguridad: **la excepción solo vale si la app vino de la tienda oficial**. Un APK suelto que se llame `com.antivirus` sigue marcado, porque un nombre de paquete por sí solo se puede falsificar (verificado en las pruebas). Resultado final en el teléfono real: 0 apps marcadas de 106.
 

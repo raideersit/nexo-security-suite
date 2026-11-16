@@ -22,6 +22,7 @@ public sealed partial class PantallaEstado : UserControl
         this.FindControl<Button>("IrPruebas")!.Click += (_, _) => irPruebas();
         Mostrar();
         PrepararAvisos();
+        PrepararHistorial();
     }
 
     private void PrepararAvisos()
@@ -54,6 +55,49 @@ public sealed partial class PantallaEstado : UserControl
         MostrarEstadoDeVigilancia();
         // Al volver a esta pantalla (por ejemplo desde «Apps») el texto se actualiza.
         AttachedToVisualTree += (_, _) => MostrarEstadoDeVigilancia();
+    }
+
+    private void PrepararHistorial()
+    {
+        var contexto = Android.App.Application.Context;
+        var caja = this.FindControl<CheckBox>("HistorialObsidian")!;
+        var texto = this.FindControl<TextBlock>("EstadoHistorial")!;
+        var guardar = this.FindControl<Button>("GuardarChequeo")!;
+        void Refrescar()
+        {
+            bool on = HistorialDeObsidian.Activado(contexto);
+            guardar.IsVisible = on;
+            texto.Text = on ? "Activado. Las notas van a " + HistorialDeObsidian.Carpeta() + ". Solo se guardan las apps que salen «a revisar», nunca la lista completa."
+                            : "Apagado. Si usas Obsidian, actívalo para guardar ahí los avisos y el chequeo.";
+        }
+        caja.IsChecked = HistorialDeObsidian.Activado(contexto);
+        Refrescar();
+        caja.IsCheckedChanged += (_, _) =>
+        {
+            try
+            {
+                if (caja.IsChecked == true) HistorialDeObsidian.Activar(contexto); else HistorialDeObsidian.Desactivar(contexto);
+                Refrescar();
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                caja.IsChecked = false;
+                HistorialDeObsidian.Desactivar(contexto);
+                texto.Text = "No se pudo escribir en " + HistorialDeObsidian.Carpeta() + ": " + ex.Message;
+            }
+        };
+        guardar.Click += async (_, _) =>
+        {
+            if (_datos is null) return;
+            var filas = ChequeoDelEquipo.Evaluar(_datos, DateTime.Today, Catalogo.Value);
+            try
+            {
+                await Task.Run(() => HistorialDeObsidian.Escribir(new[] { EventosDeApps.DelChequeo(filas) }));
+                texto.Text = "Chequeo guardado en " + HistorialDeObsidian.Carpeta() + ".";
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+            { texto.Text = "No se pudo guardar el chequeo: " + ex.Message; }
+        };
     }
 
     private void MostrarEstadoDeVigilancia()

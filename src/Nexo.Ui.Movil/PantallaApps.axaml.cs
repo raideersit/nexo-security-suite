@@ -20,11 +20,25 @@ public sealed partial class PantallaApps : UserControl
     private static readonly Lazy<PuntuadorDeRiesgo> Puntuador = new(() => new PuntuadorDeRiesgo(CatalogoDeSenales.Embebido()));
 
     private CancellationTokenSource? _cancelar;
+    private IReadOnlyList<ResultadoDeApp>? _ultimosResultados;
 
     public PantallaApps()
     {
         AvaloniaXamlLoader.Load(this);
         DetachedFromVisualTree += (_, _) => _cancelar?.Cancel();
+        this.FindControl<Button>("GuardarRevision")!.Click += async (_, _) =>
+        {
+            if (_ultimosResultados is null) return;
+            var texto = this.FindControl<TextBlock>("Resumen")!;
+            try
+            {
+                // Solo viajan al vault las apps «a revisar»: EventosDeApps no recibe ni escribe la lista completa.
+                await Task.Run(() => Vigilancia.HistorialDeObsidian.Escribir(new[] { EventosDeApps.RevisionDeApps(_ultimosResultados) }));
+                texto.Text += "\nRevisión guardada en " + Vigilancia.HistorialDeObsidian.Carpeta() + ".";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            { texto.Text += "\nNo se pudo guardar: " + ex.Message; }
+        };
         this.FindControl<Button>("Releer")!.Click += async (_, _) => await RevisarAsync();
         _ = RevisarAsync();
     }
@@ -61,6 +75,9 @@ public sealed partial class PantallaApps : UserControl
                 filas.Children.Add(Tarjeta(r));
             if (prio + rev == 0)
                 filas.Children.Add(new TextBlock { Text = "Ninguna app tiene señales que revisar.", TextWrapping = TextWrapping.Wrap });
+            _ultimosResultados = resultados;
+            var guardar = this.FindControl<Button>("GuardarRevision")!;
+            guardar.IsVisible = Vigilancia.HistorialDeObsidian.Activado(Android.App.Application.Context);
             await CalcularHuellasAsync(modelos, resultados, filas);
         }
         catch (Exception ex)

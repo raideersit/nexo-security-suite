@@ -66,6 +66,12 @@ public static class EjecutorDeRevision
                     Android.Util.Log.Warn("NEXO", $"REVISION {r.Alertas.Count} aviso(s) sin mostrar: falta el permiso de notificaciones");
                 }
             }
+            if (r.Alertas.Count > 0 && HistorialDeObsidian.Activado(contexto))
+            {
+                try { HistorialDeObsidian.Escribir(r.Alertas.Select(EventosDeApps.DeAlerta)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                { Android.Util.Log.Warn("NEXO", "HISTORIAL no se pudo escribir: " + ex.Message); }
+            }
             estado.Guardar(RutasDeNexo.Vigilancia(contexto));
             var res = new Resultado(true, r.EraLineaBase, r.Alertas.Count, mostradas, r.Nuevas, r.Actualizadas, r.Desinstaladas, reloj.ElapsedMilliseconds);
             Android.Util.Log.Info("NEXO", $"REVISION origen={origen} lineaBase={res.LineaBase} nuevas={res.Nuevas} actualizadas={res.Actualizadas} desinstaladas={res.Desinstaladas} alertas={res.Alertas} mostradas={res.Mostradas} ms={res.Ms}"
