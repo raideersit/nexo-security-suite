@@ -1,0 +1,12 @@
+using System.IO;
+using Android.Content;
+
+namespace Nexo.Ui.Movil.Vigilancia;
+
+/// <summary>Donde guarda Nexo sus archivos. Las listas van en la carpeta externa de la app para poder dejarlas por adb o por un explorador.</summary>
+public static class RutasDeNexo
+{
+    public static string Cache(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "huellas.json");
+    public static string Vigilancia(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "vigilancia.json");
+    public static string CarpetaDeListas(Context c) => Path.Combine(c.GetExternalFilesDir(null)?.AbsolutePath ?? c.FilesDir!.AbsolutePath, "listas");
+}

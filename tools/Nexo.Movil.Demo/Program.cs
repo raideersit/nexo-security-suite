@@ -26,6 +26,8 @@ namespace Nexo.Movil.Demo
             ProbarCacheFallosYCancelacion();
             ProbarPersistenciaDeCache();
             ProbarListasYCoincidencias();
+            ProbarVigilante();
+            ProbarEstadoDeVigilancia();
             Console.WriteLine();
             Console.WriteLine(_fallos == 0 ? $"TODAS LAS VERIFICACIONES PASARON ({_total})" : $"{_fallos} VERIFICACIONES FALLIDAS de {_total}");
             return _fallos == 0 ? 0 : 1;

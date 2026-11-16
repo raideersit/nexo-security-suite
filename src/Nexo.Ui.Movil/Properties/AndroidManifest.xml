@@ -3,5 +3,8 @@
 	<!-- Para ver todas las apps instaladas (Salida 7 §5). Google Play pide declararlo; el APK propio, no. -->
 	<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+	<!-- Avisos al instalar (Salida 7, 3.3): notificaciones (Android 13+) y que el trabajo periodico sobreviva a un reinicio. -->
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 	<application android:label="Nexo" />
 </manifest>

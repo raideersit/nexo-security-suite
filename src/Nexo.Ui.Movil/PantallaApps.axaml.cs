@@ -78,8 +78,8 @@ public sealed partial class PantallaApps : UserControl
         _cancelar = new CancellationTokenSource();
         var ct = _cancelar.Token;
         var contexto = Android.App.Application.Context;
-        var rutaCache = Path.Combine(contexto.FilesDir!.AbsolutePath, "huellas.json");
-        var carpetaListas = Path.Combine(contexto.GetExternalFilesDir(null)?.AbsolutePath ?? contexto.FilesDir.AbsolutePath, "listas");
+        var rutaCache = Vigilancia.RutasDeNexo.Cache(contexto);
+        var carpetaListas = Vigilancia.RutasDeNexo.CarpetaDeListas(contexto);
         texto.Text = "Huellas: calculando...";
         var progreso = new Progress<(int Hechas, int Total)>(p => texto.Text = $"Huellas: {p.Hechas}/{p.Total} apps...");
         try
