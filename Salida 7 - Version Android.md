@@ -377,6 +377,27 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 
 **Pendiente de la fase 0:** probar el tema táctil con el dedo (lo juzga el dueño del teléfono), repetir el arranque con la pantalla Estado, probar en un teléfono de gama media o baja, el Wi-Fi sin cifrado sin ubicación (hace falta una red Wi-Fi) y que Obsidian lea `Documents/Nexo`. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
+### Avance de la fase 1 (2026-11-16)
+
+**§3.1 Inventario y riesgo de apps: núcleo y lector hechos, falta lo que lo rodea.**
+
+| Pieza | Estado |
+|---|---|
+| `Nexo.Modules.Threats/Apps/` (modelo, catálogo JSON validado, puntuador) | ✅ Portable. 46 verificaciones en `tools/Nexo.Movil.Demo`, corren en Linux con apps inventadas |
+| `Nexo.Modules.Threats.Android/LectorDeAppsAndroid` | ✅ Probado en el S20 FE (Android 13): 106 apps de usuario leídas en 0,9 s, sin avisos de lectura |
+| Pantalla «Apps instaladas» con motivos | ✅ Probada en el S20 FE |
+| «Confío en esta app» (botón y almacén) | ⏳ El puntuador ya lo admite; falta el botón y guardarlo |
+| §3.2 huellas, §3.3 revisión al instalar, §3.4 completo, §3.9 reportes, notificaciones | ⏳ Sin empezar |
+
+**Lo que enseñó el primer resultado real.** La primera corrida marcó a **AVG y Bitdefender**, dos antivirus legítimos instalados desde Play Store, porque necesitan Accesibilidad, superposición y SMS para proteger. Es el falso positivo de §9 («Alta» probabilidad) y apareció en el primer teléfono. Se corrigió con una lista de **apps conocidas** en el catálogo, con una regla de seguridad: **la excepción solo vale si la app vino de la tienda oficial**. Un APK suelto que se llame `com.antivirus` sigue marcado, porque un nombre de paquete por sí solo se puede falsificar (verificado en las pruebas). Resultado final en el teléfono real: 0 apps marcadas de 106.
+
+**Límites que quedan:**
+- Solo AVG y Bitdefender están verificados en un teléfono; los demás nombres de paquete de la lista (otros antivirus y gestores de contraseñas) están **sin verificar** y así lo dice cada nota del catálogo.
+- Con 106 apps normales no se ha visto ninguna marcada «a revisar» de verdad: **la puntuación aún no se ha probado contra una app realmente sospechosa**. Eso es la app señuelo de §7 (`Nexo.Movil.Senuelo`), que sigue sin escribirse.
+- La excepción por tienda oficial confía en Google Play. Más adelante se puede reforzar fijando el certificado de cada app conocida.
+
+**Rendimiento:** la lectura bajó de 4,2 s a 0,9 s al dejar de cargar las etiquetas (nombres) de las 417 apps de sistema, que no se muestran. Las firmas de depuración cuestan 0,13 s.
+
 ---
 
 ## 9. Riesgos

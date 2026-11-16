@@ -27,4 +27,8 @@
     <PackageReference Include="Classic.Avalonia.Theme" Version="11.3.0.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Modules.Threats.Android\Nexo.Modules.Threats.Android.csproj" />
+  </ItemGroup>
+
 </Project>

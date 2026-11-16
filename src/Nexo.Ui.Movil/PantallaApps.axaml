@@ -3,9 +3,9 @@
              x:Class="Nexo.Ui.Movil.PantallaApps">
     <DockPanel Margin="8">
         <TextBlock DockPanel.Dock="Top" Name="Resumen" TextWrapping="Wrap" Margin="0,0,0,8" />
-        <Button DockPanel.Dock="Top" Name="Releer" Content="Volver a leer las apps" MinHeight="48" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+        <Button DockPanel.Dock="Top" Name="Releer" Content="Volver a revisar las apps" MinHeight="48" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
         <ScrollViewer>
-            <TextBlock Name="Lista" TextWrapping="Wrap" />
+            <StackPanel Name="Filas" Spacing="8" />
         </ScrollViewer>
     </DockPanel>
 </UserControl>

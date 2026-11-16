@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Lectores de Android para Nexo.Modules.Threats (Salida 7, 2). Va en NexoMovil.sln, no en NexoAntivirus.sln:
+         necesita .NET 10 y la carga de trabajo de Android. La logica de decision esta en Nexo.Modules.Threats (portable). -->
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Sin «Android» en el espacio de nombres: chocaria con Android.Content, Android.OS, etc. -->
+    <RootNamespace>Nexo.Modules.Threats.Movil</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
+</Project>

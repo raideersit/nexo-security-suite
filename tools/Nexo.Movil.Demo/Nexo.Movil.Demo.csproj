@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Arnes de la logica portable de la version Android (Salida 7): puntuacion de riesgo de apps, catalogo de senales.
+         Corre en Linux y en Windows con apps INVENTADAS; lo que habla con Android se prueba en el telefono. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Nexo.Movil.Demo</RootNamespace>
+    <AssemblyName>nexo-movil-demo</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nexo.Modules.Threats\Nexo.Modules.Threats.csproj" />
+  </ItemGroup>
+
+</Project>

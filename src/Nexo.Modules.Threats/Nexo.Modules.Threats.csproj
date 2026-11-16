@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Catalogo de senales de riesgo de apps de Android (Salida 7, 3.1): se puede revisar sin compilar. -->
+    <EmbeddedResource Include="Apps\Datos\senales-de-riesgo.json" LogicalName="senales-de-riesgo.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Lector de codigos QR (Apache-2.0, gratuito, sin dependencias). Solo recibe pixeles: abrir la imagen lo hace quien lo usa. -->
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>

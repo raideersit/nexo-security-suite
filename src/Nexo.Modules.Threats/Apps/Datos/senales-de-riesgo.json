@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "nota": "Las apps conocidas solo se excusan si vienen de la tienda oficial: un APK suelto con el mismo nombre de paquete NO recibe la excepcion. Catalogo REVISABLE de senales para puntuar apps de Android (Salida 7, 3.1). Una senal suelta casi nunca importa: lo que cuenta es la suma y las combinaciones. El resultado es «a revisar», nunca «es malware». Peso 0 = se muestra como contexto pero no suma.",
+  "umbrales": { "aRevisar": 4, "prioritaria": 7 },
+  "senales": [
+    { "id": "accesibilidad", "peso": 3, "motivo": "Tiene un servicio de Accesibilidad activo: puede leer la pantalla y tocar por ti." },
+    { "id": "administrador", "peso": 2, "motivo": "Es administradora del dispositivo: puede dificultar que la desinstales." },
+    { "id": "superposicion", "peso": 2, "motivo": "Puede dibujar encima de otras apps (por ejemplo, una pantalla falsa sobre la del banco)." },
+    { "id": "oyente_notificaciones", "peso": 2, "motivo": "Lee tus notificaciones, incluidos los codigos de verificacion." },
+    { "id": "instala_apps", "peso": 1, "motivo": "Puede instalar otras apps." },
+    { "id": "sms", "peso": 2, "motivo": "Tiene permiso concedido sobre tus SMS." },
+    { "id": "llamadas", "peso": 1, "motivo": "Tiene permiso concedido sobre el registro de llamadas." },
+    { "id": "camara", "peso": 0, "motivo": "Tiene la camara concedida." },
+    { "id": "microfono", "peso": 0, "motivo": "Tiene el microfono concedido." },
+    { "id": "ubicacion", "peso": 0, "motivo": "Tiene la ubicacion concedida." },
+    { "id": "contactos", "peso": 0, "motivo": "Tiene los contactos concedidos." },
+    { "id": "origen_navegador", "peso": 2, "motivo": "Se instalo desde el navegador, no desde una tienda." },
+    { "id": "origen_archivo", "peso": 1, "motivo": "Se instalo desde un archivo suelto, no desde una tienda." },
+    { "id": "origen_otra_tienda", "peso": 1, "motivo": "Se instalo desde una tienda que Nexo no conoce." },
+    { "id": "sin_icono", "peso": 1, "motivo": "No tiene icono en el lanzador: no se ve en el menu de apps." },
+    { "id": "firma_depuracion", "peso": 2, "motivo": "Esta firmada con un certificado de depuracion, que no se usa en apps publicadas." }
+  ],
+  "combinaciones": [
+    { "id": "accesibilidad_sms", "requiere": ["accesibilidad", "sms"], "peso": 3, "motivo": "Accesibilidad y SMS juntos son la base de muchos troyanos bancarios." },
+    { "id": "accesibilidad_superposicion", "requiere": ["accesibilidad", "superposicion"], "peso": 2, "motivo": "Accesibilidad mas superposicion permite poner pantallas falsas y tocarlas por ti." },
+    { "id": "notificaciones_sms", "requiere": ["oyente_notificaciones", "sms"], "peso": 2, "motivo": "Lee tus notificaciones y tus SMS: puede interceptar codigos de verificacion." },
+    { "id": "accesibilidad_origen_dudoso", "requiere": ["accesibilidad", "origen_navegador"], "peso": 2, "motivo": "Accesibilidad en una app que no vino de una tienda." }
+  ],
+  "origenes": {
+    "tiendasOficiales": ["com.android.vending"],
+    "tiendasConocidas": ["com.sec.android.app.samsungapps", "com.samsung.android.app.updatecenter", "com.amazon.venezia", "com.huawei.appmarket", "com.xiaomi.mipicks", "com.heytap.market", "com.sec.android.easyMover"],
+    "navegadores": ["com.android.chrome", "org.mozilla.firefox", "com.brave.browser", "com.sec.android.app.sbrowser", "com.microsoft.emmx", "com.opera.browser"],
+    "instaladoresDeArchivo": ["com.google.android.packageinstaller", "com.android.packageinstaller", "com.samsung.android.packageinstaller"]
+  },
+  "appsConocidas": [
+    { "paquete": "com.x8bit.bitwarden", "permite": ["accesibilidad", "superposicion"], "nota": "Gestor de contrasenas: usa Accesibilidad para autocompletar. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.onepassword.android", "permite": ["accesibilidad"], "nota": "Gestor de contrasenas. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.kunzisoft.keepass.free", "permite": ["accesibilidad"], "nota": "Gestor de contrasenas. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.antivirus", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "AVG AntiVirus: un antivirus necesita estos permisos para proteger. Verificado en un telefono real (Android 13)." },
+    { "paquete": "com.bitdefender.security", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "Bitdefender Mobile Security: igual que AVG. Verificado en un telefono real (Android 13)." },
+    { "paquete": "com.avast.android.mobilesecurity", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "Avast Mobile Security. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.kms.free", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "Kaspersky. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.symantec.mobilesecurity", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "Norton Mobile Security. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "com.eset.ems2.gp", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "ESET Mobile Security. Nombre de paquete sin verificar en un telefono." },
+    { "paquete": "org.malwarebytes.antimalware", "permite": ["accesibilidad", "superposicion", "sms", "oyente_notificaciones", "llamadas", "administrador"], "nota": "Malwarebytes. Nombre de paquete sin verificar en un telefono." }
+  ]
+}
