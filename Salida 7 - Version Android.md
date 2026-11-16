@@ -387,8 +387,10 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | `Nexo.Modules.Threats.Android/LectorDeAppsAndroid` | ✅ Probado en el S20 FE (Android 13): 106 apps de usuario leídas en 0,9 s, sin avisos de lectura |
 | Pantalla «Apps instaladas» con motivos | ✅ Probada en el S20 FE |
 | App señuelo `tools/Nexo.Movil.Senuelo` | ✅ Pide Accesibilidad, SMS y superposición y no hace nada con ellos. Probada en el **emulador** (Android 14), no en el teléfono real |
+| §3.2 Huellas: calculador con caché, lista local, coincidencias | ✅ Portable (85 verificaciones en total en `Nexo.Movil.Demo`). Probado en emulador y en el S20 FE |
 | «Confío en esta app» (botón y almacén) | ⏳ El puntuador ya lo admite; falta el botón y guardarlo |
-| §3.2 huellas, §3.3 revisión al instalar, §3.4 completo, §3.9 reportes, notificaciones | ⏳ Sin empezar |
+| §3.3 revisión al instalar, §3.4 completo, §3.9 reportes, notificaciones | ⏳ Sin empezar |
+| §3.2 **fuente de la lista de huellas** | ⏳ Bloqueada por una cuenta (ver abajo) |
 
 **Lo que enseñó el primer resultado real.** La primera corrida marcó a **AVG y Bitdefender**, dos antivirus legítimos instalados desde Play Store, porque necesitan Accesibilidad, superposición y SMS para proteger. Es el falso positivo de §9 («Alta» probabilidad) y apareció en el primer teléfono. Se corrigió con una lista de **apps conocidas** en el catálogo, con una regla de seguridad: **la excepción solo vale si la app vino de la tienda oficial**. Un APK suelto que se llame `com.antivirus` sigue marcado, porque un nombre de paquete por sí solo se puede falsificar (verificado en las pruebas). Resultado final en el teléfono real: 0 apps marcadas de 106.
 
@@ -406,6 +408,25 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | Sin nada concedido | 3 | Normal |
 
 La puntuación responde al estado real del sistema, y Nexo mismo (firmado con la clave de depuración e instalado por adb) se queda en «normal». Quitar la Accesibilidad con `settings delete` funciona; `settings put … ""` da error y no sirve. **No se probó en el S20 FE** porque activar un servicio de Accesibilidad por adb habría tocado la configuración de AVG, que ya usa uno.
+
+**§3.2 Huellas (2026-11-16).**
+
+| Medida | Resultado |
+|---|---|
+| S20 FE, primera pasada, 106 apps de usuario (con los *split*) | **35,6 s**, 11,2 GiB leídos, 0 fallos |
+| S20 FE, segunda pasada con la caché | **36 ms**, 106 de 106 desde la caché |
+| Emulador: reinstalar una app | Solo esa se recalcula (1 calculada, 1 de caché) |
+| Emulador: desinstalar una app | Se borra de la caché |
+| Emulador: lista con la huella del señuelo (APK inofensivo compilado por nosotros, §7) | Coincidencia encontrada, con el nombre de la lista y del archivo |
+
+- La caché es por `(paquete, versionCode, lastUpdateTime)` y además compara el **tamaño de cada archivo**, para detectar un APK cambiado sin subir la versión. Un JSON dañado o con huellas inválidas no se usa: se empieza de cero y se avisa. Si se cancela a mitad, lo calculado queda guardado y se reanuda.
+- Solo se hashean apps de **usuario**; las de sistema no (en la fase 0 costaron 36 s más y las firma el fabricante).
+- El mensaje de una coincidencia dice que es «idéntica, byte a byte» a una huella de la lista y que **no es un análisis de la app**. Un archivo que coincide y una app con muchos puntos de riesgo son señales independientes: el señuelo coincidió con la lista sin tener permisos de riesgo concedidos, y salió «normal» en la puntuación.
+
+**Bloqueo: la fuente de la lista.** Las URL de exportación abiertas de MalwareBazaar **ya no existen** (devuelven *410 Gone*). Su página de exportación indica ahora que **todas las exportaciones exigen una Auth-Key** gratuita, obtenida con una cuenta en abuse.ch, y que se pide como parámetro de la URL. Eso lo tiene que crear el dueño del proyecto. Mientras tanto Nexo funciona con **listas locales** (`.txt` o `.csv` en `Android/data/<app>/files/listas/`).
+- El formato CSV de MalwareBazaar es un **supuesto**: no se pudo bajar una lista real para comprobarlo. Las pruebas usan un CSV inventado, y así está dicho en el código.
+- Tampoco se verificó la licencia CC0 que mencionaba este documento.
+- La descarga automática y la «consulta en línea opcional» siguen sin escribirse.
 
 **Rendimiento:** la lectura bajó de 4,2 s a 0,9 s al dejar de cargar las etiquetas (nombres) de las 417 apps de sistema, que no se muestran. Las firmas de depuración cuestan 0,13 s.
 

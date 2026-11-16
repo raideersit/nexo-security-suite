@@ -79,12 +79,22 @@ namespace Nexo.Modules.Threats.Movil
                     InstalaAppsConcedido = pedidos.Contains("android.permission.REQUEST_INSTALL_PACKAGES") && PermiteOp(ops, "android:request_install_packages", info.Uid, nombre),
                     SinIconoEnLanzador = !sistema && !conIcono.Contains(nombre),
                     FirmaDeDepuracion = firmaDep,
+                    Apks = RutasDeApk(info),
                     VersionCode = p.LongVersionCode,
                     UltimaActualizacionMs = p.LastUpdateTime,
                 });
             }
             Tiempos["por_app"] = reloj.ElapsedMilliseconds; Tiempos["instalador"] = msInstalador; Tiempos["firma"] = msFirma;
             return lista;
+        }
+
+        /// <summary>El APK base y los «split» (Android App Bundle) de una app: todos cuentan para la huella.</summary>
+        private static IReadOnlyList<string> RutasDeApk(ApplicationInfo info)
+        {
+            var l = new List<string>();
+            if (!string.IsNullOrEmpty(info.SourceDir)) l.Add(info.SourceDir);
+            if (info.SplitSourceDirs is { } splits) l.AddRange(splits.Where(x => !string.IsNullOrEmpty(x)));
+            return l;
         }
 
         private HashSet<string> Intentar(string que, Func<HashSet<string>> f)

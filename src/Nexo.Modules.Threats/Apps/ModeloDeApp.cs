@@ -28,6 +28,8 @@ namespace Nexo.Modules.Threats.Apps
         public bool InstalaAppsConcedido { get; init; }
         public bool SinIconoEnLanzador { get; init; }
         public bool FirmaDeDepuracion { get; init; }
+        /// <summary>Rutas de los APK instalados (el base y los «split»). Para la huella (3.2).</summary>
+        public IReadOnlyList<string> Apks { get; init; } = System.Array.Empty<string>();
         public long VersionCode { get; init; }
         public long UltimaActualizacionMs { get; init; }
     }
