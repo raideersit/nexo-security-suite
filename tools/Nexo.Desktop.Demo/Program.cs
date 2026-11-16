@@ -1441,6 +1441,7 @@ namespace Nexo.Desktop.Demo
             {
                 w?.Close();
                 try { System.IO.Directory.Delete(dirEnlaces, true); } catch (System.IO.IOException) { }
+                try { System.IO.Directory.Delete(dirContrasenas, true); } catch (System.IO.IOException) { }
             }
         }
     }
