@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
+	<!-- Permisos de riesgo PEDIDOS a proposito. La app no los usa para nada. -->
+	<uses-permission android:name="android.permission.READ_SMS" />
+	<uses-permission android:name="android.permission.RECEIVE_SMS" />
+	<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+	<application android:label="Señuelo de Nexo" />
+</manifest>

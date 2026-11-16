@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- SENUELO de pruebas (Salida 7, 7): una app que PIDE Accesibilidad, SMS y superposicion y NO HACE NADA con ellos.
+         Sirve para comprobar que la puntuacion de Nexo marca un perfil de riesgo real. No es malware: no lee, no envia, no dibuja.
+         Va en NexoMovil.sln; no se distribuye. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Nexo.Movil.Senuelo</RootNamespace>
+    <AssemblyName>nexo-movil-senuelo</AssemblyName>
+    <ApplicationId>io.github.raideersit.nexo.senuelo</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.0.1</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+  </PropertyGroup>
+
+</Project>

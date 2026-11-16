@@ -386,6 +386,7 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | `Nexo.Modules.Threats/Apps/` (modelo, catálogo JSON validado, puntuador) | ✅ Portable. 46 verificaciones en `tools/Nexo.Movil.Demo`, corren en Linux con apps inventadas |
 | `Nexo.Modules.Threats.Android/LectorDeAppsAndroid` | ✅ Probado en el S20 FE (Android 13): 106 apps de usuario leídas en 0,9 s, sin avisos de lectura |
 | Pantalla «Apps instaladas» con motivos | ✅ Probada en el S20 FE |
+| App señuelo `tools/Nexo.Movil.Senuelo` | ✅ Pide Accesibilidad, SMS y superposición y no hace nada con ellos. Probada en el **emulador** (Android 14), no en el teléfono real |
 | «Confío en esta app» (botón y almacén) | ⏳ El puntuador ya lo admite; falta el botón y guardarlo |
 | §3.2 huellas, §3.3 revisión al instalar, §3.4 completo, §3.9 reportes, notificaciones | ⏳ Sin empezar |
 
@@ -393,8 +394,18 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 
 **Límites que quedan:**
 - Solo AVG y Bitdefender están verificados en un teléfono; los demás nombres de paquete de la lista (otros antivirus y gestores de contraseñas) están **sin verificar** y así lo dice cada nota del catálogo.
-- Con 106 apps normales no se ha visto ninguna marcada «a revisar» de verdad: **la puntuación aún no se ha probado contra una app realmente sospechosa**. Eso es la app señuelo de §7 (`Nexo.Movil.Senuelo`), que sigue sin escribirse.
 - La excepción por tienda oficial confía en Google Play. Más adelante se puede reforzar fijando el certificado de cada app conocida.
+
+**Prueba con el señuelo (emulador, 2026-11-16).** Se instaló desde archivo (adb), se le concedieron SMS y superposición y se activó su servicio de Accesibilidad. Nexo lo marcó «a revisar con prioridad» con 15 puntos y los 7 motivos esperados, incluida la firma de depuración, que se detectó sola. Control negativo, quitando de a uno:
+
+| Estado del señuelo | Puntos | Nivel |
+|---|---|---|
+| Accesibilidad + SMS + superposición | 15 | Prioritaria |
+| Sin SMS | 10 | Prioritaria |
+| Sin SMS ni superposición | 6 | A revisar |
+| Sin nada concedido | 3 | Normal |
+
+La puntuación responde al estado real del sistema, y Nexo mismo (firmado con la clave de depuración e instalado por adb) se queda en «normal». Quitar la Accesibilidad con `settings delete` funciona; `settings put … ""` da error y no sirve. **No se probó en el S20 FE** porque activar un servicio de Accesibilidad por adb habría tocado la configuración de AVG, que ya usa uno.
 
 **Rendimiento:** la lectura bajó de 4,2 s a 0,9 s al dejar de cargar las etiquetas (nombres) de las 417 apps de sistema, que no se muestran. Las firmas de depuración cuestan 0,13 s.
 
