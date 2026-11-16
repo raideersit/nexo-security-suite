@@ -52,6 +52,37 @@ Todo funciona en **modo usuario**. Sin un driver de kernel firmado —fuera de a
 
 ---
 
+## Mapa del proyecto
+
+![Grafo del proyecto: cada nodo es una nota (proyecto, función, concepto o interfaz) y cada línea un enlace](docs/mapa/grafo.svg)
+
+Cada punto es una página de [`docs/mapa`](docs/mapa/README.md) (proyectos, funciones, conceptos e interfaces) y cada línea, un enlace entre ellas. Empieza por [Arquitectura general](docs/mapa/01%20Arquitectura/Arquitectura%20general.md) o por el [mapa de funciones](docs/mapa/03%20Funciones/Mapa%20de%20funciones.md).
+
+Así se reparte el trabajo entre procesos:
+
+```mermaid
+graph LR
+  subgraph Usuario
+    V[Ventana principal]
+    T[Bandeja]
+    B[Navegador + extensión]
+    H[Host de autocompletado]
+  end
+  subgraph SYSTEM
+    S[NexoService]
+  end
+  V -- pipe --> S
+  T -- pipe --> S
+  B --> H
+  S --> W[(Vault de Obsidian)]
+  S --> OS[Windows: firewall, USN, ETW, WMI, WireGuard]
+  T -. UAC .-> S
+```
+
+Todo cambio sigue el mismo camino: **vista previa → token → aprobación con UAC → aplicar** ([detalle](docs/mapa/01%20Arquitectura/Vista%20previa%2C%20token%20y%20aprobaci%C3%B3n.md)). Las páginas de `docs/mapa` son una copia para GitHub de la bóveda de Obsidian del proyecto (fotografía del 2026-11-15).
+
+---
+
 ## Documentación
 
 El repositorio es a la vez un vault de Obsidian. Ábrelo con Obsidian para navegar los documentos con grafo y backlinks, o léelos como markdown normal.
