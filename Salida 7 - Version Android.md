@@ -299,19 +299,27 @@ Se trabaja en la rama `android`, separada de la ventana principal de escritorio.
 
 ### Resultados de la fase 0 (parciales, 2026-11-16)
 
-Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica). **No hay teléfono real todavía**, así que el criterio de «menos de 2 s en gama media» queda **sin verificar**.
+Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) y en un **Samsung Galaxy S20 FE con Android 13** (teléfono real, APK Release `arm64`). El S20 FE es de gama alta de 2020, más rápido que uno de gama media: el resultado es optimista para ese criterio.
+
+| Medida en el S20 FE | Resultado |
+|---|---|
+| Arranque en frío, Release (4 pruebas) | 1,3–1,5 s ✅ (< 2 s) |
+| Lectura de apps con `PackageManager` | ✅ 523 paquetes, 106 de usuario, en 39 ms |
+| APK Release `arm64` | 14 MB |
+| Fallos en logcat | Ninguno |
+
 
 | Medida | Resultado |
 |---|---|
 | Avalonia 11.3 + Classic arranca y dibuja en Android | ✅ Sin fallos en logcat |
-| Lectura de apps con `PackageManager` | ✅ 224 paquetes en 136 ms (el emulador solo tiene 1 app de usuario, así que la lista completa de apps reales no se ha comprobado) |
+| Lectura de apps con `PackageManager` | ✅ 224 paquetes en 136 ms (el emulador solo tiene 1 app de usuario) |
 | APK Debug | 66 MB (no representativo) |
 | APK Release, `android-x64`, recortado | 15 MB (un solo ABI; el APK de un teléfono real será `arm64`, tamaño por medir) |
 | Arranque en frío, Debug | 4,8–6,9 s |
-| Arranque en frío, Release | 3,0–5,0 s (emulador; no sirve para decidir el criterio de 2 s) |
+| Arranque en frío, Release | 3,0–5,0 s (emulador; no representa a un teléfono) |
 | Botón con 48 dp de alto | ✅ Se ve bien en la captura; falta probarlo con un dedo |
 
-**Pendiente de la fase 0:** teléfono real (arranque, lista completa de apps, tema táctil), Argon2id en un teléfono, pantalla «Estado», y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
+**Pendiente de la fase 0:** probar el tema táctil con el dedo, Argon2id en el teléfono, probar en un teléfono de gama media o baja, pantalla «Estado», y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
 ---
 
