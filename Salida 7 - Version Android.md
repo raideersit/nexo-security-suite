@@ -307,6 +307,12 @@ Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) 
 | Lectura de apps con `PackageManager` | ✅ 523 paquetes, 106 de usuario, en 39 ms |
 | APK Release `arm64` | 14 MB |
 | Fallos en logcat | Ninguno |
+| Argon2id perfil normal (64 MiB, t=3, p=2), 3 pruebas | 1,04–1,15 s (en escritorio ~0,3 s) |
+| Argon2id mínimo OWASP (19 MiB, t=2, p=1), 3 pruebas | 0,42–0,45 s |
+
+**Argon2id:** el perfil normal tarda unas 3,5 veces más que en el PC, pero es aceptable para desbloquear una bóveda. En un teléfono de gama baja podría pasar de 3 s, sin medir. Como los parámetros van dentro del archivo, una bóveda creada en el escritorio se abre en el teléfono sin cambios. Decisión provisional: mantener el perfil normal y no bajar de él en el móvil; si la gama baja resulta demasiado lenta, usar el mínimo OWASP como suelo para bóvedas creadas en el teléfono.
+
+**Observación:** AVG, instalado en el teléfono de pruebas, marcó el APK de Nexo como «app sospechosa» (firma de depuración, sin reputación). Es el falso positivo que el propio diseño advierte para apps desconocidas; hay que contar con él al distribuir el APK.
 
 
 | Medida | Resultado |
@@ -319,7 +325,7 @@ Medido en el emulador de Android 14 (API 34, x86_64, sin aceleración gráfica) 
 | Arranque en frío, Release | 3,0–5,0 s (emulador; no representa a un teléfono) |
 | Botón con 48 dp de alto | ✅ Se ve bien en la captura; falta probarlo con un dedo |
 
-**Pendiente de la fase 0:** probar el tema táctil con el dedo, Argon2id en el teléfono, probar en un teléfono de gama media o baja, pantalla «Estado», y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
+**Pendiente de la fase 0:** probar el tema táctil con el dedo, probar en un teléfono de gama media o baja, pantalla «Estado», y los *(por verificar)* de §3.1 y §3.4. Aviso del compilador: `libSkiaSharp.so` y `libHarfBuzzSharp.so` no tienen páginas de 16 KB, que Android 16 exigirá; hay que vigilar nuevas versiones de esos paquetes.
 
 ---
 
