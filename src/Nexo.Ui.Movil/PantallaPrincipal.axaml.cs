@@ -4,7 +4,7 @@ using Avalonia.Markup.Xaml;
 
 namespace Nexo.Ui.Movil;
 
-/// <summary>Contenedor: barra de titulo con Atras y una pila de pantallas (Estado es el inicio).</summary>
+/// <summary>Contenedor: barra de titulo con Atras y una pila de pantallas (Inicio es la raiz).</summary>
 public sealed partial class PantallaPrincipal : UserControl
 {
     private readonly Stack<(string Titulo, Control Vista)> _pila = new();
@@ -13,9 +13,13 @@ public sealed partial class PantallaPrincipal : UserControl
     {
         AvaloniaXamlLoader.Load(this);
         this.FindControl<Button>("Atras")!.Click += (_, _) => Volver();
-        Ir("Nexo Security Suite", new PantallaEstado(
-            () => Ir("Apps instaladas", new PantallaApps()),
-            () => Ir("Pruebas", new PantallaPruebas())));
+        Ir("Nexo Security Suite", new PantallaInicio(
+            irEstado: () => Ir("Estado del equipo", new PantallaEstado()),
+            irApps: () => Ir("Apps instaladas", new PantallaApps()),
+            irAvisos: () => Ir("Avisos al instalar", new PantallaAvisos()),
+            irHistorial: () => Ir("Historial para Obsidian", new PantallaHistorial()),
+            irAjustes: () => Ir("Ajustes", new PantallaAjustes(() => Ir("Apps instaladas", new PantallaApps()))),
+            irPruebas: () => Ir("Pruebas", new PantallaPruebas())));
         AttachedToVisualTree += (_, _) =>
         {
             if (TopLevel.GetTopLevel(this) is { } tl)

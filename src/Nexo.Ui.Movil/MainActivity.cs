@@ -27,6 +27,8 @@ public sealed class MainActivity : AvaloniaMainActivity<App>
     {
         base.OnCreate(savedInstanceState);
         Actual = this;
+        // Si los avisos estan activados pero Android perdio el trabajo periodico, se reprograma al abrir la app.
+        ConfiguracionDeVigilancia.Reparar(this);
         // Camino «instantaneo» de la revision al instalar: solo mientras la app esta abierta.
         _receptor = new ReceptorDeInstalacion();
         RegisterReceiver(_receptor, ReceptorDeInstalacion.Filtro());

@@ -298,6 +298,20 @@ Principio: **cada permiso se pide la primera vez que se usa la función que lo n
 
 ---
 
+### Interfaz v2 (2026-11-16): «Panel de control» táctil
+
+La primera interfaz se sentía incómoda: «Estado» era un scroll de 9 filas iguales, los interruptores quedaban enterrados al final y las casillas eran diminutas. Se hicieron tres maquetas (A «Panel de control», B «Lista con detalle», C «Barra inferior»). **El dueño del proyecto no llegó a elegir**; se implementó la A porque era la recomendada y se pidió seguir adelante. **Es una decisión provisional**, en la rama `android-ui-v2`.
+
+- **Inicio:** una tarjeta con lo más importante («4 avisos» y qué mirar primero) y seis mosaicos de 132 px (Estado, Apps, Avisos, Historial, Ajustes, Pruebas) con contador. Cabe entero en una pantalla.
+- **Pantallas aparte** para el chequeo, los avisos, el historial y los ajustes. Los interruptores son de dos mitades **NO | SÍ**, con la mitad activa en azul. (El botón de dos estados del tema Classic solo cambia a un gris punteado casi igual al estado apagado: se vio en el emulador y se reemplazó.)
+- Medidas: objetivos de 48 px o más, letra de 16 px (14 px la secundaria), marcas ✓ ! i de 30 px alineadas arriba en las filas de varias líneas.
+- **Se mantiene** el estilo retro (gris clásico, biseles, barra azul).
+- **No verificado:** el tacto en un teléfono real. Solo se ha visto en el emulador (Android 14).
+
+**Un fallo de fondo que encontró esta prueba (§3.3):** con el interruptor de avisos en «SÍ», Android había **perdido el trabajo periódico** (el emulador se había apagado de golpe) y los avisos no llegaban, sin ninguna señal. Ahora se repara solo en dos momentos: al abrir la app y al **arrancar el teléfono** (`ReceptorDeArranque`, `BOOT_COMPLETED`). Verificado en el emulador: al reiniciar sin abrir Nexo, el receptor se ejecutó y reprogramó el trabajo. **No verificado en el S20 FE ni en otras marcas.** (`adb` no puede enviar `BOOT_COMPLETED`, por eso se probó con un reinicio real.)
+
+---
+
 ## 7. Verificación — ejecutada, no afirmada
 
 La misma regla que el resto del proyecto: no se marca nada como hecho sin haberlo ejecutado.

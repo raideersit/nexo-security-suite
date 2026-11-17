@@ -18,6 +18,23 @@ public static class ConfiguracionDeVigilancia
     public static void Activar(Context c)
     {
         Prefs(c).Edit()!.PutBoolean("avisar_al_instalar", true)!.PutLong("activada_desde_ms", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())!.Apply();
+        Programar(c);
+    }
+
+    /// <summary>
+    /// Si el interruptor esta activo pero Android perdio el trabajo (reinicio, apagado brusco, algunas marcas), lo vuelve a programar.
+    /// Sin esto los avisos quedarian «activados» en pantalla y no llegarian nunca. Devuelve true si tuvo que reprogramarlo.
+    /// </summary>
+    public static bool Reparar(Context c)
+    {
+        if (!Activada(c) || TrabajoProgramado(c)) return false;
+        Programar(c);
+        Android.Util.Log.Warn("NEXO", "REVISION el trabajo periodico no estaba programado y se reprogramo");
+        return true;
+    }
+
+    private static void Programar(Context c)
+    {
         var programador = (JobScheduler)c.GetSystemService(Context.JobSchedulerService)!;
         var constructor = new JobInfo.Builder(IdDelTrabajo, new ComponentName(c, Java.Lang.Class.FromType(typeof(TareaDeRevision))));
         constructor.SetPeriodic(15 * 60 * 1000L);   // el minimo que permite Android
