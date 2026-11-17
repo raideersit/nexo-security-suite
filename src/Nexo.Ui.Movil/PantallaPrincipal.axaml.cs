@@ -23,7 +23,11 @@ public sealed partial class PantallaPrincipal : UserControl
         AttachedToVisualTree += (_, _) =>
         {
             if (TopLevel.GetTopLevel(this) is { } tl)
+            {
                 tl.BackRequested += (_, e) => { if (_pila.Count > 1) { Volver(); e.Handled = true; } };
+                // Barras del sistema en el gris clasico: el tema claro pone iconos OSCUROS, que se leen bien sobre gris (sobre azul no se veian).
+                if (tl.InsetsManager is { } insets) insets.SystemBarColor = Avalonia.Media.Color.Parse("#D4D0C8");
+            }
         };
     }
 

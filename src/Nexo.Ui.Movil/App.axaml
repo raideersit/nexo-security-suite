@@ -2,8 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:classic="clr-namespace:Classic.Avalonia.Theme;assembly=Classic.Avalonia.Theme"
              x:Class="Nexo.Ui.Movil.App"
-             RequestedThemeVariant="Default">
+             RequestedThemeVariant="Light">
     <Application.Styles>
         <classic:ClassicTheme />
+        <!-- Sin barra lateral de desplazamiento: en el telefono se desliza con el dedo y la barra solo estorbaba. El desplazamiento sigue funcionando. -->
+        <Style Selector="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
     </Application.Styles>
 </Application>

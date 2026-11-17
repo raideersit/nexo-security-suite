@@ -306,7 +306,10 @@ La primera interfaz se sentía incómoda: «Estado» era un scroll de 9 filas ig
 - **Pantallas aparte** para el chequeo, los avisos, el historial y los ajustes. Los interruptores son de dos mitades **NO | SÍ**, con la mitad activa en azul. (El botón de dos estados del tema Classic solo cambia a un gris punteado casi igual al estado apagado: se vio en el emulador y se reemplazó.)
 - Medidas: objetivos de 48 px o más, letra de 16 px (14 px la secundaria), marcas ✓ ! i de 30 px alineadas arriba en las filas de varias líneas.
 - **Se mantiene** el estilo retro (gris clásico, biseles, barra azul).
-- **No verificado:** el tacto en un teléfono real. Solo se ha visto en el emulador (Android 14).
+- **Sin barra lateral de desplazamiento** (a pedido del dueño): se desliza con el dedo y la barra solo estorbaba.
+- **Tema claro forzado.** En el S20 FE, con el teléfono en modo oscuro, el fondo salía gris oscuro y el texto negro casi no se leía; no se vio en el emulador porque estaba en modo claro. El estilo retro es claro, así que la app ya no sigue el modo oscuro del sistema.
+- **Barras del sistema** (estado y navegación) en el gris clásico, con los iconos oscuros del tema claro. Se probó azul con iconos claros, pero Android siguió poniendo iconos oscuros y no se veían.
+- **Verificado en el S20 FE:** la interfaz se ve bien (palabras del dueño), la barra lateral ya no aparece y «Apps que pueden instalar otras apps» muestra una app real (un navegador). **No verificado:** el tacto con el dedo, que lo juzga el dueño.
 
 **Un fallo de fondo que encontró esta prueba (§3.3):** con el interruptor de avisos en «SÍ», Android había **perdido el trabajo periódico** (el emulador se había apagado de golpe) y los avisos no llegaban, sin ninguna señal. Ahora se repara solo en dos momentos: al abrir la app y al **arrancar el teléfono** (`ReceptorDeArranque`, `BOOT_COMPLETED`). Verificado en el emulador: al reiniciar sin abrir Nexo, el receptor se ejecutó y reprogramó el trabajo. **No verificado en el S20 FE ni en otras marcas.** (`adb` no puede enviar `BOOT_COMPLETED`, por eso se probó con un reinicio real.)
 
