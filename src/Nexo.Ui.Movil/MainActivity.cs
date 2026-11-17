@@ -103,7 +103,14 @@ public sealed class MainActivity : AvaloniaMainActivity<App>
 
     public void PedirPermisoDeNotificaciones()
     {
-        if (OperatingSystem.IsAndroidVersionAtLeast(33) && !Notificador.PuedeNotificar(this))
-            RequestPermissions(new[] { "android.permission.POST_NOTIFICATIONS" }, 7);
+        if (!OperatingSystem.IsAndroidVersionAtLeast(33) || Notificador.PuedeNotificar(this)) return;
+        GetSharedPreferences("nexo", FileCreationMode.Private)!.Edit()!.PutBoolean("permiso_notificaciones_pedido", true)!.Apply();
+        RequestPermissions(new[] { "android.permission.POST_NOTIFICATIONS" }, 7);
     }
+
+    /// <summary>
+    /// Si Nexo ya pidio el permiso alguna vez. Android no lo dice: «no mostrar la explicacion» vale igual para «nunca se pidio» que para
+    /// «se nego dos veces y ya no sale el dialogo». Con esto se distingue, y en el segundo caso se lleva al usuario a los ajustes.
+    /// </summary>
+    public bool YaSePidioElPermiso => GetSharedPreferences("nexo", FileCreationMode.Private)!.GetBoolean("permiso_notificaciones_pedido", false);
 }

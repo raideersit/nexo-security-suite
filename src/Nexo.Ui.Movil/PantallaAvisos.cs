@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Android.Content;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Nexo.Modules.Threats.Apps;
 using Nexo.Ui.Movil.Interfaz;
@@ -10,134 +13,184 @@ using Nexo.Ui.Movil.Vigilancia;
 
 namespace Nexo.Ui.Movil;
 
-/// <summary>Avisos al instalar o actualizar una app (§3.3): un interruptor grande, la ultima revision y la ayuda para el ahorro de bateria.</summary>
+/// <summary>
+/// Los tres avisos de Nexo (§3.3 y notificaciones generales) con el estilo «Classic tactil v2»: un titular que dice si Nexo esta vigilando
+/// (o que lo impide, con el boton para arreglarlo), una tarjeta por aviso con su interruptor y su estado, y el acceso a los canales de Android.
+/// </summary>
 public sealed class PantallaAvisos : UserControl
 {
-    private readonly TextBlock _estado = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
-    private readonly TextBlock _estadoGeneral = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
-    private readonly Button _bateria;
+    private readonly TextBlock _titular = Retro.Texto("", 24, true);
+    private readonly TextBlock _resumen = Retro.Texto("", Retro.Cuerpo);
+    private readonly Button _permiso, _bateria;
+    private readonly TextBlock _estadoApps = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
+    private readonly TextBlock _estadoEquipo = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
+    private readonly TextBlock _estadoResumen = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
+    private readonly Border _franjaApps = new(), _franjaEquipo = new(), _franjaResumen = new();
 
     public PantallaAvisos()
     {
         var contexto = Android.App.Application.Context;
-        var raiz = new StackPanel { Margin = new Avalonia.Thickness(12), Spacing = 12 };
 
-        var fila = Retro.FilaConInterruptor("Avisar al instalar una app", "También avisa si una app se actualiza y empeora.", ConfiguracionDeVigilancia.Activada(contexto), activado =>
-        {
-            if (activado)
+        _permiso = Retro.BotonGrande("Dar permiso de notificaciones", PedirPermiso, destacado: true);
+        _bateria = Retro.BotonGrande("Excluir a Nexo del ahorro de batería", () => Abrir(new Intent(Android.Provider.Settings.ActionIgnoreBatteryOptimizationSettings)), destacado: true);
+        var cabecera = new StackPanel { Spacing = 8 };
+        cabecera.Children.Add(_titular);
+        cabecera.Children.Add(_resumen);
+        cabecera.Children.Add(_permiso);
+        cabecera.Children.Add(_bateria);
+
+        var raiz = new StackPanel { Margin = new Thickness(12), Spacing = 12 };
+        raiz.Children.Add(Retro.Hundido(cabecera, 14));
+
+        raiz.Children.Add(TarjetaDeAviso(_franjaApps, "Avisar al instalar una app", "Cuando se instala una app con señales de riesgo o que coincide con una huella conocida. También si una app se actualiza y empeora.",
+            ConfiguracionDeVigilancia.Activada(contexto), _estadoApps, activado =>
             {
-                MainActivity.Actual?.PedirPermisoDeNotificaciones();
-                ConfiguracionDeVigilancia.Activar(contexto);
-                // La linea base se toma AHORA: lo que ya esta instalado no genera avisos, lo que llegue despues si.
-                _ = Task.Run(() =>
+                if (activado)
                 {
-                    try { EjecutorDeRevision.Ejecutar(contexto, "activacion"); }
-                    finally { Dispatcher.UIThread.Post(Mostrar); }
-                });
-            }
-            else ConfiguracionDeVigilancia.Desactivar(contexto);
-            Mostrar();
-        }, out _);
-        raiz.Children.Add(Retro.Hundido(fila, 8));
-        raiz.Children.Add(_estado);
+                    MainActivity.Actual?.PedirPermisoDeNotificaciones();
+                    ConfiguracionDeVigilancia.Activar(contexto);
+                    // La linea base se toma AHORA: lo que ya esta instalado no genera avisos, lo que llegue despues si.
+                    EnSegundoPlano("activacion", () => EjecutorDeRevision.Ejecutar(contexto, "activacion"));
+                }
+                else ConfiguracionDeVigilancia.Desactivar(contexto);
+            }));
 
-        // Notificaciones generales: cada una con su canal en los ajustes de Android.
-        var filaEquipo = Retro.FilaConInterruptor("Avisar si el equipo empeora",
-            "Si se quita el bloqueo de pantalla, se enciende la depuración USB, te conectas a una Wi-Fi sin cifrado o el parche se queda antiguo. Lo que ya está mal hoy no avisa: se ve en «Estado».",
-            ConfiguracionDeVigilancia.EquipoActivado(contexto), activado =>
+        raiz.Children.Add(TarjetaDeAviso(_franjaEquipo, "Avisar si el equipo empeora", "Si se quita el bloqueo de pantalla, se enciende la depuración USB, te conectas a una Wi-Fi sin cifrado o el parche se queda antiguo. Lo que ya está mal hoy no avisa: se ve en «Estado».",
+            ConfiguracionDeVigilancia.EquipoActivado(contexto), _estadoEquipo, activado =>
             {
                 if (activado)
                 {
                     MainActivity.Actual?.PedirPermisoDeNotificaciones();
                     ConfiguracionDeVigilancia.ActivarEquipo(contexto);
-                    _ = Task.Run(() =>
-                    {
-                        try { EjecutorDelEquipo.Ejecutar(contexto, "activacion-equipo", lineaBaseEquipo: true); }
-                        catch (Exception ex) { Android.Util.Log.Error("NEXO", "EQUIPO-REVISION fallo al activar: " + ex); }
-                        finally { Dispatcher.UIThread.Post(Mostrar); }
-                    });
+                    EnSegundoPlano("activacion-equipo", () => EjecutorDelEquipo.Ejecutar(contexto, "activacion-equipo", lineaBaseEquipo: true));
                 }
                 else ConfiguracionDeVigilancia.DesactivarEquipo(contexto);
-                Mostrar();
-            }, out _);
-        raiz.Children.Add(Retro.Hundido(filaEquipo, 8));
+            }));
 
-        var filaResumen = Retro.FilaConInterruptor("Resumen semanal",
-            "Una notificación sin sonido cada 7 días: cuántas apps hay a revisar y cuántos avisos tiene el equipo. Sin nombres de apps.",
-            ConfiguracionDeVigilancia.ResumenActivado(contexto), activado =>
+        raiz.Children.Add(TarjetaDeAviso(_franjaResumen, "Resumen semanal", "Una notificación sin sonido cada 7 días: cuántas apps hay a revisar y cuántos avisos tiene el equipo. Sin nombres de apps.",
+            ConfiguracionDeVigilancia.ResumenActivado(contexto), _estadoResumen, activado =>
             {
                 if (activado)
                 {
                     MainActivity.Actual?.PedirPermisoDeNotificaciones();
                     ConfiguracionDeVigilancia.ActivarResumen(contexto);
-                    _ = Task.Run(() =>
-                    {
-                        try { EjecutorDelEquipo.Ejecutar(contexto, "activacion-resumen", reiniciarResumen: true); }
-                        catch (Exception ex) { Android.Util.Log.Error("NEXO", "EQUIPO-REVISION fallo al activar el resumen: " + ex); }
-                        finally { Dispatcher.UIThread.Post(Mostrar); }
-                    });
+                    EnSegundoPlano("activacion-resumen", () => EjecutorDelEquipo.Ejecutar(contexto, "activacion-resumen", reiniciarResumen: true));
                 }
                 else ConfiguracionDeVigilancia.DesactivarResumen(contexto);
-                Mostrar();
-            }, out _);
-        raiz.Children.Add(Retro.Hundido(filaResumen, 8));
-        raiz.Children.Add(_estadoGeneral);
+            }));
 
-        _bateria = Retro.BotonGrande("Abrir ajustes de ahorro de batería", () =>
+        raiz.Children.Add(Retro.Texto("Con Nexo cerrado, un aviso puede tardar unos 15 a 20 minutos: Android decide cuándo corre la revisión.", Retro.Secundario, false, Retro.Gris));
+        // Sonido, vibracion o silencio de cada tipo de aviso: lo decide el usuario en Android, canal por canal.
+        raiz.Children.Add(Retro.FilaQueNavega("Sonido de cada aviso", "Ajustes de notificaciones de Android: cada tipo de aviso se puede silenciar o hacer sonar por separado.", () =>
         {
-            var i = new Intent(Android.Provider.Settings.ActionIgnoreBatteryOptimizationSettings);
-            i.AddFlags(ActivityFlags.NewTask);
-            contexto.StartActivity(i);
-        });
-        _bateria.IsVisible = false;
-        raiz.Children.Add(_bateria);
+            var i = new Intent(Android.Provider.Settings.ActionAppNotificationSettings);
+            i.PutExtra(Android.Provider.Settings.ExtraAppPackage, contexto.PackageName);
+            Abrir(i);
+        }));
 
         Content = new ScrollViewer { Content = raiz };
         Mostrar();
-        // Al volver de otra pantalla o del dialogo del permiso, el texto se actualiza (antes seguia diciendo «falta el permiso» aunque ya estuviera concedido).
+        // Al volver de otra pantalla o del dialogo del permiso, todo se actualiza (antes seguia diciendo «falta el permiso» aunque ya estuviera concedido).
         Action alReanudar = () => Dispatcher.UIThread.Post(Mostrar);
         AttachedToVisualTree += (_, _) => { MainActivity.Reanudada += alReanudar; Mostrar(); };
         DetachedFromVisualTree += (_, _) => MainActivity.Reanudada -= alReanudar;
     }
 
+    /// <summary>Tarjeta con franja (verde encendido, gris apagado), el interruptor y una linea de estado debajo.</summary>
+    private Control TarjetaDeAviso(Border franja, string titulo, string detalle, bool activado, TextBlock estado, Action<bool> alCambiar)
+    {
+        var p = new StackPanel { Spacing = 4, Margin = new Thickness(12, 8) };
+        p.Children.Add(Retro.FilaConInterruptor(titulo, detalle, activado, a => { alCambiar(a); Mostrar(); }, out _));
+        p.Children.Add(estado);
+        var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("10,*") };
+        rejilla.Children.Add(franja);
+        Grid.SetColumn(p, 1);
+        rejilla.Children.Add(p);
+        return new Border { Background = Brushes.White, BorderBrush = Retro.GrisClaro, BorderThickness = new Thickness(2), Child = rejilla };
+    }
+
+    private void EnSegundoPlano(string origen, Action trabajo) => _ = Task.Run(() =>
+    {
+        try { trabajo(); }
+        catch (Exception ex) { Android.Util.Log.Error("NEXO", $"AVISOS fallo al activar ({origen}): " + ex); }
+        finally { Dispatcher.UIThread.Post(Mostrar); }
+    });
+
     private void Mostrar()
     {
-        MostrarGeneral();
-        MostrarApps();
-    }
-
-    /// <summary>Estado de las notificaciones generales: cuando se reviso el equipo, cuando toca el proximo resumen y si falta el permiso.</summary>
-    private void MostrarGeneral()
-    {
-        var contexto = Android.App.Application.Context;
-        bool equipo = ConfiguracionDeVigilancia.EquipoActivado(contexto), resumen = ConfiguracionDeVigilancia.ResumenActivado(contexto);
-        if (!equipo && !resumen) { _estadoGeneral.Text = ""; _estadoGeneral.IsVisible = false; return; }
-        var estado = EstadoDelEquipo.Cargar(RutasDeNexo.Equipo(contexto), out _);
+        var c = Android.App.Application.Context;
+        bool apps = ConfiguracionDeVigilancia.Activada(c), equipo = ConfiguracionDeVigilancia.EquipoActivado(c), resumen = ConfiguracionDeVigilancia.ResumenActivado(c);
         var ahora = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var lineas = new List<string>();
-        if (equipo) lineas.Add("Equipo: " + Retro.HaceCuanto(estado.UltimaRevisionMs, ahora).ToLowerInvariant());
-        if (resumen && estado.UltimoResumenMs is { } ultimo)
+        var vigilancia = EstadoDeVigilancia.Cargar(RutasDeNexo.Vigilancia(c), out _);
+        var delEquipo = EstadoDelEquipo.Cargar(RutasDeNexo.Equipo(c), out _);
+
+        _franjaApps.Background = apps ? Retro.Verde : Retro.GrisClaro;
+        _franjaEquipo.Background = equipo ? Retro.Verde : Retro.GrisClaro;
+        _franjaResumen.Background = resumen ? Retro.Verde : Retro.GrisClaro;
+
+        _estadoApps.Text = apps ? Retro.HaceCuanto(vigilancia.UltimaRevisionMs, ahora) : "Apagado: Nexo solo revisa las apps cuando abres «Apps».";
+        _estadoEquipo.Text = !equipo ? "Apagado."
+            : Retro.HaceCuanto(delEquipo.UltimaRevisionMs, ahora) + (delEquipo.EnAviso.Count > 0 ? $" Ya avisado: {string.Join(", ", delEquipo.EnAviso)}." : "");
+        _estadoResumen.Text = !resumen ? "Apagado."
+            : delEquipo.UltimoResumenMs is { } ultimo
+                ? "Próximo resumen: desde el " + DateTimeOffset.FromUnixTimeMilliseconds(ultimo + (long)VigilanteDelEquipo.Semana.TotalMilliseconds).ToLocalTime().ToString("dd-MM-yyyy") + "."
+                : "La semana empieza a contar en la próxima revisión.";
+
+        int encendidos = new[] { apps, equipo, resumen }.Count(x => x);
+        bool permiso = Notificador.PuedeNotificar(c);
+        // Atrasada: la revision mas reciente de lo que este encendido lleva mas de 24 h sin correr.
+        long? ultima = new[] { apps ? vigilancia.UltimaRevisionMs : null, equipo || resumen ? delEquipo.UltimaRevisionMs : null }.Max();
+        bool atrasada = encendidos > 0 && VigilanteDeInstalaciones.EstaAtrasada(ultima, apps ? ConfiguracionDeVigilancia.ActivadaDesdeMs(c) : 0, ahora, TimeSpan.FromHours(24));
+
+        _permiso.IsVisible = encendidos > 0 && !permiso;
+        _bateria.IsVisible = atrasada && permiso;
+        if (encendidos == 0)
         {
-            var proximo = DateTimeOffset.FromUnixTimeMilliseconds(ultimo + (long)VigilanteDelEquipo.Semana.TotalMilliseconds).ToLocalTime();
-            lineas.Add("Próximo resumen: desde el " + proximo.ToString("dd-MM-yyyy") + " (cuando corra la revisión periódica).");
+            _titular.Text = "Avisos apagados"; _titular.Foreground = Brushes.Black;
+            _resumen.Text = "Nexo solo revisa cuando abres «Apps» o «Estado». Enciende abajo lo que quieras que vigile.";
         }
-        // Si «avisar al instalar» esta encendido, esa seccion ya muestra la falta del permiso: no se repite.
-        if (!Notificador.PuedeNotificar(contexto) && !ConfiguracionDeVigilancia.Activada(contexto)) lineas.Add("⚠ Falta el permiso de notificaciones: no se podrá mostrar ningún aviso.");
-        _estadoGeneral.Text = string.Join("\n", lineas);
-        _estadoGeneral.IsVisible = true;
+        else if (!permiso)
+        {
+            _titular.Text = "No puede avisarte"; _titular.Foreground = Retro.Rojo;
+            _resumen.Text = "Falta el permiso de notificaciones: Nexo revisa, pero ningún aviso llegará a la pantalla.";
+        }
+        else if (atrasada)
+        {
+            _titular.Text = "La revisión está atrasada"; _titular.Foreground = Retro.Rojo;
+            _resumen.Text = "Hace más de 24 h que no se revisa: el sistema o el fabricante puede estar deteniendo a Nexo en segundo plano.";
+        }
+        else
+        {
+            _titular.Text = "Nexo está vigilando"; _titular.Foreground = Retro.Verde;
+            _resumen.Text = $"{encendidos} de 3 avisos encendidos. " + Retro.HaceCuanto(ultima, ahora);
+        }
     }
 
-    private void MostrarApps()
+    /// <summary>
+    /// Pide el permiso. Si Android ya no muestra el dialogo (el usuario lo nego dos veces), lleva a los ajustes de notificaciones de Nexo,
+    /// que es el unico sitio donde se puede conceder a mano.
+    /// </summary>
+    private static void PedirPermiso()
     {
-        var contexto = Android.App.Application.Context;
-        if (!ConfiguracionDeVigilancia.Activada(contexto)) { _estado.Text = "Apagado: Nexo solo revisa cuando abres «Apps»."; _bateria.IsVisible = false; return; }
-        var estado = EstadoDeVigilancia.Cargar(RutasDeNexo.Vigilancia(contexto), out _);
-        var ahora = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var lineas = new List<string> { Retro.HaceCuanto(estado.UltimaRevisionMs, ahora) };
-        bool atrasada = VigilanteDeInstalaciones.EstaAtrasada(estado.UltimaRevisionMs, ConfiguracionDeVigilancia.ActivadaDesdeMs(contexto), ahora, TimeSpan.FromHours(24));
-        if (atrasada) lineas.Add("⚠ Hace más de 24 h que no se revisa: el sistema o el fabricante puede estar deteniendo a Nexo en segundo plano. Excluye a Nexo del ahorro de batería.");
-        if (!Notificador.PuedeNotificar(contexto)) lineas.Add("⚠ Falta el permiso de notificaciones: no se podrá mostrar ningún aviso.");
-        _estado.Text = string.Join("\n", lineas);
-        _bateria.IsVisible = atrasada;
+        var actividad = MainActivity.Actual;
+        // Sale el dialogo si nunca se pidio, o si se nego una sola vez (Android pide entonces «explicar» y deja volver a preguntar).
+        if (actividad is not null && OperatingSystem.IsAndroidVersionAtLeast(33)
+            && (!actividad.YaSePidioElPermiso || actividad.ShouldShowRequestPermissionRationale("android.permission.POST_NOTIFICATIONS")))
+        {
+            Android.Util.Log.Info("NEXO", "AVISOS permiso: dialogo");
+            actividad.PedirPermisoDeNotificaciones();
+            return;
+        }
+        Android.Util.Log.Info("NEXO", "AVISOS permiso: ajustes (el dialogo ya no sale)");
+        var c = Android.App.Application.Context;
+        var i = new Intent(Android.Provider.Settings.ActionAppNotificationSettings);
+        i.PutExtra(Android.Provider.Settings.ExtraAppPackage, c.PackageName);
+        Abrir(i);
+    }
+
+    private static void Abrir(Intent i)
+    {
+        i.AddFlags(ActivityFlags.NewTask);
+        Android.App.Application.Context.StartActivity(i);
     }
 }
