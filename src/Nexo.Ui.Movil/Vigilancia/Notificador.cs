@@ -22,8 +22,11 @@ public static class Notificador
         gestor.CreateNotificationChannel(new NotificationChannel(Canal, "Avisos de apps nuevas", NotificationImportance.Default)
         { Description = "Avisa cuando se instala o actualiza una app que conviene revisar." });
 
-        var abrir = c.PackageManager!.GetLaunchIntentForPackage(c.PackageName!);
-        abrir?.AddFlags(ActivityFlags.NewTask | ActivityFlags.ClearTop);
+        // «Ver» abre la pantalla Apps en la tarjeta de ESTA app (no solo el inicio de Nexo). Intent explicito: solo lo recibe MainActivity.
+        var abrir = new Intent(c, typeof(MainActivity));
+        abrir.PutExtra(MainActivity.ExtraPaquete, a.Paquete);
+        abrir.AddFlags(ActivityFlags.NewTask | ActivityFlags.SingleTop | ActivityFlags.ClearTop);
+        // Un requestCode por paquete: con UpdateCurrent, cada notificacion conserva su propio paquete en el extra.
         var pi = PendingIntent.GetActivity(c, a.Paquete.GetHashCode(), abrir, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
 
         var n = new Notification.Builder(c, Canal)

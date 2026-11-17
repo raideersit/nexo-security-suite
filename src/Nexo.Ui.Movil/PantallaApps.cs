@@ -37,8 +37,15 @@ public sealed class PantallaApps : UserControl
     private int _aRevisar, _coincidencias;
     private bool _listo;
 
-    public PantallaApps()
+    // «Ver» de una notificacion: el paquete cuya tarjeta se marca y se pone a la vista. Null si se entro desde el inicio.
+    private readonly string? _destacar;
+    private bool _destacada;
+    private readonly TextBlock _avisoDestacar = Retro.Texto("", Retro.Cuerpo);
+
+    public PantallaApps(string? destacar = null)
     {
+        _destacar = destacar;
+        _avisoDestacar.IsVisible = false;
         _releer = Retro.BotonGrande("Revisar de nuevo", () => _ = RevisarAsync(), destacado: true);
         _guardar = Retro.BotonGrande("Guardar esta revisión en Obsidian", GuardarRevision);
         _guardar.IsVisible = false;
@@ -47,6 +54,7 @@ public sealed class PantallaApps : UserControl
         cabecera.Children.Add(_titular);
         cabecera.Children.Add(_resumen);
         cabecera.Children.Add(_huellas);
+        cabecera.Children.Add(_avisoDestacar);
 
         var raiz = new StackPanel { Margin = new Thickness(12), Spacing = 12 };
         raiz.Children.Add(Retro.Hundido(cabecera, 14));
@@ -98,6 +106,8 @@ public sealed class PantallaApps : UserControl
         _huellas.Text = "";
         _pie.Text = "";
         _filas.Children.Clear();
+        _destacada = false;
+        _avisoDestacar.IsVisible = false;
         try
         {
             var (resultados, avisos, leerMs, puntuarMs, modelos, almacen) = await Task.Run(() =>
@@ -127,7 +137,7 @@ public sealed class PantallaApps : UserControl
             Android.Util.Log.Info("NEXO", $"APPS usuario={usuario.Count} prioritarias={prio} a_revisar={rev} normales={normales} leer_ms={leerMs} puntuar_ms={puntuarMs} avisos={avisos.Count}");
 
             foreach (var r in usuario.Where(r => r.Nivel is NivelDeRiesgo.Prioritaria or NivelDeRiesgo.ARevisar))
-                _filas.Children.Add(TarjetaARevisar(r, modelos.First(m => m.Paquete == r.Paquete), almacen));
+                _filas.Children.Add(Destacar(r.Paquete, TarjetaARevisar(r, modelos.First(m => m.Paquete == r.Paquete), almacen)));
             if (_aRevisar == 0)
                 _filas.Children.Add(Retro.Texto("Ninguna app tiene señales de riesgo. Si instalas una nueva y activas «Avisos», Nexo te avisará.", Retro.Cuerpo));
             var deConfianza = usuario.Where(r => r.Nivel == NivelDeRiesgo.Confiada).ToList();
@@ -136,6 +146,7 @@ public sealed class PantallaApps : UserControl
             _ultimosResultados = resultados;
             _guardar.IsVisible = HistorialDeObsidian.Activado(Android.App.Application.Context);
             await CalcularHuellasAsync(modelos, resultados);
+            ExplicarSiNoSeDestaco(resultados);
         }
         catch (Exception ex) { _titular.Text = "No se pudo revisar las apps"; _resumen.Text = ex.Message; }
         _releer.IsEnabled = true;
@@ -172,7 +183,7 @@ public sealed class PantallaApps : UserControl
             var coincidencias = BuscadorDeCoincidencias.Buscar(res.Huellas.Values, listas);
             var nombres = resultados.ToDictionary(r => r.Paquete, r => r.Nombre);
             for (int i = coincidencias.Count - 1; i >= 0; i--)
-                _filas.Children.Insert(0, TarjetaDeCoincidencia(coincidencias[i], nombres));
+                _filas.Children.Insert(0, Destacar(coincidencias[i].Paquete, TarjetaDeCoincidencia(coincidencias[i], nombres)));
             _coincidencias = coincidencias.Count;
             PonerTitular();
             var r2 = res.Resumen;
@@ -185,6 +196,44 @@ public sealed class PantallaApps : UserControl
         }
         catch (OperationCanceledException) { /* salio de la pantalla: lo calculado ya quedo en la cache */ }
         catch (Exception ex) { _huellas.Text = "Huellas: no se pudieron calcular: " + ex.Message; }
+    }
+
+    /// <summary>
+    /// Si la tarjeta es de la app del aviso, la marca (borde negro grueso y «DEL AVISO») y la pone a la vista. Solo la primera:
+    /// una coincidencia de huella llega despues y va arriba, pero si ya se marco la tarjeta de riesgo no se mueve la vista otra vez.
+    /// </summary>
+    private Control Destacar(string paquete, Border tarjeta)
+    {
+        if (_destacada || _destacar is null || paquete != _destacar) return tarjeta;
+        _destacada = true;
+        tarjeta.BorderBrush = Brushes.Black;
+        tarjeta.BorderThickness = new Thickness(4);
+        var envoltura = new StackPanel { Spacing = 0 };
+        envoltura.Children.Add(new Border
+        {
+            Background = Brushes.Black,
+            Padding = new Thickness(10, 4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = Retro.Texto("DEL AVISO", Retro.Secundario, true, Brushes.White),
+        });
+        envoltura.Children.Add(tarjeta);
+        // Se espera al diseño (layout) para que BringIntoView sepa donde quedo la tarjeta dentro del ScrollViewer.
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => envoltura.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
+        Android.Util.Log.Info("NEXO", "VER destacada=" + paquete);
+        return envoltura;
+    }
+
+    /// <summary>La app del aviso puede no tener tarjeta: se desinstalo, el usuario confio en ella, o ya no tiene señales. Se dice, en vez de abrir la lista sin explicacion.</summary>
+    private void ExplicarSiNoSeDestaco(IReadOnlyList<ResultadoDeApp> resultados)
+    {
+        if (_destacar is null || _destacada) return;
+        var r = resultados.FirstOrDefault(x => x.Paquete == _destacar);
+        var nombre = r is null || string.IsNullOrEmpty(r.Nombre) ? _destacar : r.Nombre;
+        _avisoDestacar.Text = r is null ? $"La app del aviso ({_destacar}) ya no está instalada."
+            : r.Nivel == NivelDeRiesgo.Confiada ? $"«{nombre}», la app del aviso, está entre las apps en las que confías."
+            : $"«{nombre}», la app del aviso, ya no tiene señales de riesgo ni coincide con una huella.";
+        _avisoDestacar.IsVisible = true;
+        Android.Util.Log.Info("NEXO", "VER sin_tarjeta=" + _destacar + " instalada=" + (r is not null));
     }
 
     /// <summary>Tarjeta con franja de color a la izquierda: rojo, ambar o verde segun el caso.</summary>
@@ -245,7 +294,7 @@ public sealed class PantallaApps : UserControl
         return boton;
     }
 
-    private Control TarjetaARevisar(ResultadoDeApp r, ModeloDeApp modelo, AlmacenDeConfianza almacen)
+    private Border TarjetaARevisar(ResultadoDeApp r, ModeloDeApp modelo, AlmacenDeConfianza almacen)
     {
         bool prioridad = r.Nivel == NivelDeRiesgo.Prioritaria;
         var color = prioridad ? Retro.Rojo : Ambar;
@@ -256,7 +305,7 @@ public sealed class PantallaApps : UserControl
         return Tarjeta(color, p);
     }
 
-    private static Control TarjetaDeCoincidencia(Coincidencia c, IReadOnlyDictionary<string, string> nombres)
+    private static Border TarjetaDeCoincidencia(Coincidencia c, IReadOnlyDictionary<string, string> nombres)
     {
         var p = new StackPanel { Spacing = 6, Margin = new Thickness(12) };
         p.Children.Add(Retro.Texto("COINCIDE CON UNA HUELLA CONOCIDA", Retro.Secundario, true, Retro.Rojo));

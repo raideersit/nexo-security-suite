@@ -22,6 +22,9 @@ public sealed partial class PantallaPrincipal : UserControl
             irPruebas: () => Ir("Pruebas", new PantallaPruebas())));
         AttachedToVisualTree += (_, _) =>
         {
+            // «Ver» de una notificacion: en frio llega como pendiente; con la app abierta, por el evento.
+            MainActivity.AppPedida += AbrirAppPedida;
+            if (MainActivity.TomarPaquetePendiente() is { } pendiente) AbrirApp(pendiente);
             if (TopLevel.GetTopLevel(this) is { } tl)
             {
                 tl.BackRequested += (_, e) => { if (_pila.Count > 1) { Volver(); e.Handled = true; } };
@@ -29,6 +32,17 @@ public sealed partial class PantallaPrincipal : UserControl
                 if (tl.InsetsManager is { } insets) insets.SystemBarColor = Avalonia.Media.Color.Parse("#D4D0C8");
             }
         };
+        DetachedFromVisualTree += (_, _) => MainActivity.AppPedida -= AbrirAppPedida;
+    }
+
+    private void AbrirAppPedida(string paquete) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => AbrirApp(paquete));
+
+    /// <summary>Vuelve al inicio y abre «Apps instaladas» en la tarjeta de ese paquete. Atras lleva al inicio, no a donde estaba.</summary>
+    private void AbrirApp(string paquete)
+    {
+        while (_pila.Count > 1) _pila.Pop();
+        Ir("Apps instaladas", new PantallaApps(destacar: paquete));
     }
 
     private void Ir(string titulo, Control vista)
