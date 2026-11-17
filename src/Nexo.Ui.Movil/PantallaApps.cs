@@ -236,15 +236,7 @@ public sealed class PantallaApps : UserControl
         Android.Util.Log.Info("NEXO", "VER sin_tarjeta=" + _destacar + " instalada=" + (r is not null));
     }
 
-    /// <summary>Tarjeta con franja de color a la izquierda: rojo, ambar o verde segun el caso.</summary>
-    private static Border Tarjeta(IBrush franja, Control contenido)
-    {
-        var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("10,*") };
-        rejilla.Children.Add(new Border { Background = franja });
-        Grid.SetColumn(contenido, 1);
-        rejilla.Children.Add(contenido);
-        return new Border { Background = Brushes.White, BorderBrush = Retro.GrisClaro, BorderThickness = new Thickness(2), Child = rejilla };
-    }
+    private static Border Tarjeta(IBrush franja, Control contenido) => Retro.Tarjeta(franja, contenido);
 
     private static Control Cabecera(string etiqueta, IBrush color, ResultadoDeApp r)
     {
@@ -318,7 +310,7 @@ public sealed class PantallaApps : UserControl
     /// <summary>«Apps en las que confías (N)»: plegada, se abre al tocar. Cada una conserva sus puntos y motivos, y se puede dejar de confiar.</summary>
     private Control SeccionDeConfianza(IReadOnlyList<ResultadoDeApp> apps, AlmacenDeConfianza almacen)
     {
-        var contenido = new StackPanel { Spacing = 10, IsVisible = false };
+        var contenido = new StackPanel { Spacing = 10 };
         foreach (var r in apps)
         {
             var p = new StackPanel { Spacing = 8, Margin = new Thickness(12) };
@@ -332,16 +324,6 @@ public sealed class PantallaApps : UserControl
             }));
             contenido.Children.Add(Tarjeta(Retro.Verde, p));
         }
-        var titulo = new TextBlock { Text = $"Apps en las que confías ({apps.Count})  ▸", FontSize = Retro.Cuerpo, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Left };
-        var boton = new Button { Content = titulo, MinHeight = 56, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 6) };
-        boton.Click += (_, _) =>
-        {
-            contenido.IsVisible = !contenido.IsVisible;
-            titulo.Text = $"Apps en las que confías ({apps.Count})  " + (contenido.IsVisible ? "▾" : "▸");
-        };
-        var seccion = new StackPanel { Spacing = 10, Margin = new Thickness(0, 6, 0, 0) };
-        seccion.Children.Add(boton);
-        seccion.Children.Add(contenido);
-        return seccion;
+        return Retro.SeccionPlegable($"Apps en las que confías ({apps.Count})", contenido);
     }
 }

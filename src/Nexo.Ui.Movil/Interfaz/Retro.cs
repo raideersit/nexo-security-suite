@@ -180,6 +180,33 @@ public static class Retro
         return fila;
     }
 
+    /// <summary>Tarjeta del estilo «Classic tactil v2»: fondo blanco, borde gris y una franja de color a la izquierda (rojo, ambar, verde o gris).</summary>
+    public static Border Tarjeta(IBrush franja, Control contenido)
+    {
+        var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("10,*") };
+        rejilla.Children.Add(new Border { Background = franja });
+        Grid.SetColumn(contenido, 1);
+        rejilla.Children.Add(contenido);
+        return new Border { Background = Brushes.White, BorderBrush = GrisClaro, BorderThickness = new Thickness(2), Child = rejilla };
+    }
+
+    /// <summary>Boton ancho «Titulo (N) ▸» que despliega <paramref name="contenido"/>. Para lo que esta bien o no se pudo evaluar: a mano, sin tapar lo importante.</summary>
+    public static Control SeccionPlegable(string titulo, Control contenido, bool abierta = false)
+    {
+        contenido.IsVisible = abierta;
+        var texto = new TextBlock { Text = titulo + "  " + (abierta ? "▾" : "▸"), FontSize = Cuerpo, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Left, TextWrapping = TextWrapping.Wrap };
+        var boton = new Button { Content = texto, MinHeight = 56, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 6) };
+        boton.Click += (_, _) =>
+        {
+            contenido.IsVisible = !contenido.IsVisible;
+            texto.Text = titulo + "  " + (contenido.IsVisible ? "▾" : "▸");
+        };
+        var seccion = new StackPanel { Spacing = 10, Margin = new Thickness(0, 6, 0, 0) };
+        seccion.Children.Add(boton);
+        seccion.Children.Add(contenido);
+        return seccion;
+    }
+
     public static Control FilaQueNavega(string titulo, string? detalle, Action alTocar)
     {
         var texto = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
