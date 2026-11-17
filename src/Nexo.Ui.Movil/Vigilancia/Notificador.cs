@@ -18,7 +18,8 @@ public static class Notificador
     public const string CanalEquipo = "estado_del_equipo";
     public const string CanalResumen = "resumen_semanal";
 
-    private const int IdResumen = 9001;
+    // Ids estables (ver IdDeNotificacion): el mismo en la app abierta y en el trabajo periodico, asi un aviso nuevo REEMPLAZA al anterior.
+    private static readonly int IdResumen = IdDeNotificacion.De("resumen");
 
     /// <summary>En Android 13+ hay que tener concedido POST_NOTIFICATIONS; antes no se pide.</summary>
     public static bool PuedeNotificar(Context c) =>
@@ -40,7 +41,8 @@ public static class Notificador
     {
         CrearCanales(c);
         // «Ver» abre la pantalla Apps en la tarjeta de ESTA app (no solo el inicio de Nexo).
-        var pi = Abrir(c, Destino.App(a.Paquete), a.Paquete.GetHashCode());
+        int id = IdDeNotificacion.De(Destino.App(a.Paquete));
+        var pi = Abrir(c, Destino.App(a.Paquete), id);
         var n = new Notification.Builder(c, Canal)
             .SetSmallIcon(Android.Resource.Drawable.IcDialogInfo)
             .SetContentTitle(a.Titulo)
@@ -50,14 +52,14 @@ public static class Notificador
             .SetAutoCancel(true)
             .AddAction(new Notification.Action.Builder(Icon.CreateWithResource(c, Android.Resource.Drawable.IcMenuView), "Ver", pi).Build())
             .Build();
-        Gestor(c).Notify(a.Paquete.GetHashCode(), n);
+        Gestor(c).Notify(id, n);
     }
 
     /// <summary>Una notificacion por fila del chequeo (con su propio id): si empeoran dos cosas, se ven las dos.</summary>
     public static void MostrarEquipo(Context c, AvisoDelEquipo a)
     {
         CrearCanales(c);
-        int id = ("equipo:" + a.Fila).GetHashCode();
+        int id = IdDeNotificacion.De("equipo:" + a.Fila);
         var pi = Abrir(c, Destino.Estado, id);
         var n = new Notification.Builder(c, CanalEquipo)
             .SetSmallIcon(Android.Resource.Drawable.IcDialogAlert)

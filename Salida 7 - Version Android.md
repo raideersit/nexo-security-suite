@@ -453,7 +453,7 @@ Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si
 - Sin permiso de notificaciones, el aviso del equipo **no se da por entregado** y el resumen no se marca como mostrado: se reintenta (igual que en §3.3).
 - El destino de «Ver» pasó de ser un paquete a un destino general (`app:<paquete>`, `estado`, `inicio`).
 - **«Ver» ahora borra la notificación.** El botón de una notificación no la borra solo (`SetAutoCancel` vale únicamente para tocar el cuerpo), así que quedaba en la cortina y se podía volver a tocar un aviso viejo creyendo que era el nuevo. El id viaja en el intent y `MainActivity` la borra. ✅ Repetido en el S20 FE con el señuelo tras el cambio de destino: `VER destino=app:…` → `VER destacada=…` y 0 avisos de apps en la cortina.
-- **Conocido, sin corregir:** el id de la notificación de una app sale de `string.GetHashCode()`, que en .NET cambia en cada proceso. Dos avisos de la misma app desde procesos distintos no se reemplazan: se ven dos (pasó en las pruebas de «Ver»).
+- **Avisos duplicados, corregido.** El id de cada notificación salía de `string.GetHashCode()`, que en .NET cambia en cada proceso: dos avisos de la misma app desde procesos distintos (la app abierta y el trabajo periódico) no se reemplazaban y se veían dos. Ahora es `IdDeNotificacion` (FNV-1a de 32 bits sobre UTF-8, portable, 6 verificaciones con los vectores publicados; 232 en total). ✅ S20 FE: el señuelo avisó desde dos procesos (receptor con Nexo abierto y trabajo forzado con Nexo matado) y quedó **1** aviso en la cortina; «Ver», pulsado por `adb` sobre el botón real, abrió su tarjeta y lo borró.
 
 | Prueba en el S20 FE | Resultado |
 |---|---|

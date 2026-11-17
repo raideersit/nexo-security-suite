@@ -91,6 +91,19 @@ namespace Nexo.Movil.Demo
             finally { File.Delete(ruta); }
         }
 
+        private static void ProbarIdDeNotificacion()
+        {
+            Titulo("Id de notificacion: estable entre procesos (FNV-1a de 32 bits)");
+            // Vectores publicados de FNV-1a 32: un valor fijo prueba que no depende del proceso (string.GetHashCode si dependia).
+            Check(IdDeNotificacion.De("") == unchecked((int)0x811C9DC5u), "vector oficial: \"\" = 0x811C9DC5");
+            Check(IdDeNotificacion.De("a") == unchecked((int)0xE40C292Cu), "vector oficial: \"a\" = 0xE40C292C");
+            Check(IdDeNotificacion.De("foobar") == unchecked((int)0xBF9CF968u), "vector oficial: \"foobar\" = 0xBF9CF968");
+            Check(IdDeNotificacion.De("app:io.github.raideersit.nexo.senuelo") == IdDeNotificacion.De("app:io.github.raideersit.nexo.senuelo"), "la misma clave da el mismo id");
+            var claves = new[] { "app:com.a", "app:com.b", "equipo:Depuración USB", "equipo:Wi-Fi actual", "resumen", "app:io.github.raideersit.nexo.senuelo" };
+            Check(claves.Select(IdDeNotificacion.De).Distinct().Count() == claves.Length, "claves distintas dan ids distintos");
+            Check(IdDeNotificacion.De("equipo:Depuración USB") != IdDeNotificacion.De("equipo:Depuracion USB"), "usa UTF-8: la tilde cuenta");
+        }
+
         private static void ProbarResumenSemanal()
         {
             Titulo("Resumen semanal: cuando toca");
