@@ -447,7 +447,14 @@ Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si
 
 **Prueba 9 en el S20 FE (Android 13, 2026-11-17): aviso con Nexo cerrado, sin forzar nada.** ✅ Nexo cerrado desde recientes (sin proceso ni ventana), teléfono bloqueado y en reposo (`mWakefulness=Dozing` antes y después). Se instaló el señuelo a las 18:17:43; el trabajo periódico corrió solo y mostró el aviso a las 18:30:59: **13 min 18 s** (8,1 s de revisión). Android había anunciado la siguiente ejecución entre 10 y 25 min. El registro se guardó con un `logcat` continuo desde el PC.
 - **Límite de la medida:** el teléfono estaba **conectado por USB, es decir, cargando**, y Android relaja el ahorro de batería al cargar. Falta repetirla **sin cable**, que es el peor caso real en un Samsung.
-- Sigue sin verificar en el S20 FE que el trabajo sobreviva a un **reinicio** del teléfono.
+
+**Reinicio en el S20 FE (2026-11-17).** ✅ Con los tres avisos encendidos, `adb reboot` a las 19:16:48 y sistema arrancado a las 19:17:25. Sin abrir Nexo:
+- Antes del primer desbloqueo el trabajo figura como `no-component` (el almacenamiento de la app sigue cifrado); tras desbloquear, `waiting`: **el trabajo persistido sobrevivió al reinicio por sí solo**.
+- `ReceptorDeArranque` se ejecutó a las **19:19:50**, unos 2,5 min después del arranque: Samsung entrega `BOOT_COMPLETED` app por app y Nexo estaba en el puesto #312 de la cola. Leyó los tres interruptores y no tuvo que reprogramar (`reprogramado=False`). Es la red de seguridad para cuando Android pierde el trabajo; esta vez no hizo falta.
+- Señuelo instalado a las 19:20:06; el trabajo periódico avisó solo a las **19:39:08 (19 min 2 s)** y siguió corriendo (19:47, 19:57). El historial de batería (`dumpsys batterystats --history`) muestra el cable **desconectado desde las 19:35:59**: el aviso llegó sin cargar, aunque con solo 3 min sin cable, antes de que Android active el reposo profundo (*Doze*), que exige más tiempo quieto.
+- El cable USB se desconectó y reconectó solo varias veces durante la prueba (`lsusb` cambiaba de número de dispositivo). Por eso el registro se leyó con `logcat -d` cada 20 s en vez de una captura continua.
+
+**Sigue sin verificar:** el aviso con el teléfono **horas** sin cable y en reposo profundo, y el caso en que Android pierde el trabajo y lo recupera `ReceptorDeArranque` (en el S20 FE solo se vio el camino en que no hacía falta).
 
 **Notificaciones generales (S20 FE, Android 13, 2026-11-17).** Dos interruptores nuevos en la pantalla «Avisos» (antes «Avisos al instalar»), **apagados por omisión**, atendidos por el mismo trabajo periódico de §3.3, que queda programado mientras haya al menos uno encendido. La decisión vive en `VigilanteDelEquipo` (portable, 31 verificaciones nuevas en `Nexo.Movil.Demo`, 226 en total); el teléfono solo lee, muestra y guarda `equipo.json`.
 
