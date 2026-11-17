@@ -411,7 +411,7 @@ Sonda propia en la pantalla «Pruebas» (`Estado/SondasDeApi.cs`), sin permisos 
 | §3.4 Chequeo del equipo | ✅ Evaluación portable y lector de Android. Probado en emulador y, en parte, en el S20 FE |
 | §3.9 Reportes en Obsidian | ✅ Probado en emulador; **no en el S20 FE ni con Obsidian real** |
 | «Confío en esta app» | ✅ Probado en emulador; **no en el S20 FE** |
-| Notificaciones generales de la app | ⏳ Sin empezar |
+| Notificaciones generales de la app | ✅ «El equipo empeora» y «resumen semanal», con un canal por tipo. Probado en el S20 FE (ver abajo) |
 | §3.2 **fuente de la lista de huellas** | ⏳ Bloqueada por una cuenta (ver abajo) |
 
 **§3.3 Revisión al instalar o actualizar (2026-11-16).**
@@ -444,6 +444,26 @@ Reglas (probadas en Linux): la primera vez solo se anota; una app nueva avisa si
 - `am force-stop` (o «Forzar detención» en Ajustes) **borra el trabajo programado**: es lo normal en Android. Nexo lo reprograma al volver a abrirse (`Reparar`), y entre medio no hay avisos.
 - Norton, instalado en el teléfono, también marcó al señuelo como malware al instalarlo.
 - Al instalar a mano con `adb install` una compilación Debug hay que pasar `-p:EmbedAssembliesIntoApk=true`; sin eso el APK no lleva los ensamblados (*Fast Deployment*) y la app se cierra al abrir.
+
+**Notificaciones generales (S20 FE, Android 13, 2026-11-17).** Dos interruptores nuevos en la pantalla «Avisos» (antes «Avisos al instalar»), **apagados por omisión**, atendidos por el mismo trabajo periódico de §3.3, que queda programado mientras haya al menos uno encendido. La decisión vive en `VigilanteDelEquipo` (portable, 31 verificaciones nuevas en `Nexo.Movil.Demo`, 226 en total); el teléfono solo lee, muestra y guarda `equipo.json`.
+
+- **Avisar si el equipo empeora.** Avisa cuando una fila del chequeo de §3.4 **pasa a «Aviso»**, una vez. Al encenderlo se toma una línea base: lo que ya está mal no avisa (se ve en «Estado»). Solo «Bien» rearma una fila; «Info» (no se pudo leer, sin Wi-Fi) no la rearma, porque un dato ilegible no es «bien». Así una Wi-Fi abierta avisa una vez, y desconectarse no basta para que vuelva a avisar; pasar por una red cifrada sí. Una notificación por fila; «Ver» abre «Estado del equipo».
+- **Resumen semanal.** Cada 7 días, cuando corre el trabajo periódico: apps de usuario, cuántas a revisar, cuántas de confianza y cuántos avisos tiene el equipo. **Sin nombres de apps** (se ve en la pantalla bloqueada). Encenderlo no muestra uno al instante; si el reloj retrocede, la semana vuelve a empezar en vez de avisar cada 15 minutos. Tocarlo abre el inicio.
+- **Canales:** «Avisos de apps nuevas», «Estado del equipo» (importancia normal) y «Resumen semanal» (**baja: sin sonido**, decisión del dueño). Se crean al abrir la app, así aparecen en los ajustes de Android antes del primer aviso. Cambiar después la importancia por omisión de un canal no afecta a los teléfonos donde ya existe.
+- Sin permiso de notificaciones, el aviso del equipo **no se da por entregado** y el resumen no se marca como mostrado: se reintenta (igual que en §3.3).
+- El destino de «Ver» pasó de ser un paquete a un destino general (`app:<paquete>`, `estado`, `inicio`).
+- **«Ver» ahora borra la notificación.** El botón de una notificación no la borra solo (`SetAutoCancel` vale únicamente para tocar el cuerpo), así que quedaba en la cortina y se podía volver a tocar un aviso viejo creyendo que era el nuevo. El id viaja en el intent y `MainActivity` la borra. ✅ Repetido en el S20 FE con el señuelo tras el cambio de destino: `VER destino=app:…` → `VER destacada=…` y 0 avisos de apps en la cortina.
+- **Conocido, sin corregir:** el id de la notificación de una app sale de `string.GetHashCode()`, que en .NET cambia en cada proceso. Dos avisos de la misma app desde procesos distintos no se reemplazan: se ven dos (pasó en las pruebas de «Ver»).
+
+| Prueba en el S20 FE | Resultado |
+|---|---|
+| Encender «el equipo empeora» con 4 filas ya en aviso (parche, versión, opciones de desarrollador, depuración USB) | ✅ Línea base con las 4, **0 notificaciones** |
+| Canales en los ajustes de Android | ✅ Los tres, con importancia 3, 3 y 2 |
+| Apagar las opciones de desarrollador (`settings put global development_settings_enabled 0`) y forzar el trabajo | ✅ La fila vuelve a «Bien», 0 avisos |
+| Encenderlas otra vez y forzar el trabajo | ✅ 1 notificación «Cambió algo en tu teléfono: Opciones de desarrollador»; «Ver» abrió «Estado del equipo» (`VER destino=estado`) |
+| Resumen: fecha del último puesta 8 días atrás en `equipo.json` y trabajo forzado | ✅ «Resumen semanal: hay cosas que mirar», sin sonido, texto legible; tocarlo abrió el inicio (`VER destino=inicio`) |
+
+**Sin verificar:** el resumen esperando una semana real (se adelantó la fecha a mano); el reintento sin permiso de notificaciones (probado solo en Linux); las filas Wi-Fi abierta, bloqueo de pantalla y parche antiguo en el teléfono (probadas solo con datos inventados); y cualquier marca que no sea Samsung. Las notificaciones generales **no** escriben en el historial de Obsidian.
 
 **§3.4 Chequeo del equipo (2026-11-16).** La decisión de cada fila vive en `ChequeoDelEquipo` (portable, 30 verificaciones nuevas) y las lecturas en `LectorDelEquipoAndroid`. Los umbrales (90 días de parche, API mínima) salen del catálogo, que se valida al cargar. Un dato ilegible es «sin evaluar», nunca «bien». Cambios respecto al diseño: `ModeloWifi` **no se reutiliza** (es de Windows); se añadió la fila «Apps que pueden instalar otras apps», que cruza con la puntuación de §3.1 (solo es aviso si alguna de ellas tiene riesgo); y el botón de Play Protect abre **Play Store**, no los ajustes de Play Protect (no hay una forma pública y verificada de abrirlos).
 - ✅ **Wi-Fi sin cifrado, sin permiso de ubicación:** en el emulador (Android 14, red virtual abierta) Nexo leyó el tipo de seguridad y mostró el aviso, sin tener el permiso de ubicación. `NetworkId` vale −1 sin ubicación aunque haya conexión, así que la conexión se detecta por el estado, no por ese número. Falta una **red Wi-Fi real**; los demás tipos (WPA2, WPA3…) solo están probados con datos inventados.

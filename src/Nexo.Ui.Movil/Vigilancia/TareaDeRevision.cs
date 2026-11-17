@@ -14,8 +14,11 @@ public sealed class TareaDeRevision : JobService
         var contexto = ApplicationContext!;
         _ = Task.Run(() =>
         {
+            // Cada parte por separado: si falla la revision de apps, el chequeo del equipo y el resumen siguen corriendo (y al reves).
             try { EjecutorDeRevision.Ejecutar(contexto, "trabajo"); }
             catch (Exception ex) { Android.Util.Log.Error("NEXO", "REVISION fallo en el trabajo: " + ex); }
+            try { EjecutorDelEquipo.Ejecutar(contexto, "trabajo"); }
+            catch (Exception ex) { Android.Util.Log.Error("NEXO", "EQUIPO-REVISION fallo en el trabajo: " + ex); }
             finally { JobFinished(parametros, false); }
         });
         return true;

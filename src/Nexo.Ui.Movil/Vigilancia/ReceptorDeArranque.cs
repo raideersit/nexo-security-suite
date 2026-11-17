@@ -12,6 +12,6 @@ public sealed class ReceptorDeArranque : BroadcastReceiver
     {
         if (contexto is null || intent?.Action != Intent.ActionBootCompleted) return;
         bool reprogramado = ConfiguracionDeVigilancia.Reparar(contexto);
-        Android.Util.Log.Info("NEXO", $"ARRANQUE recibido: avisos activados={ConfiguracionDeVigilancia.Activada(contexto)} reprogramado={reprogramado}");
+        Android.Util.Log.Info("NEXO", $"ARRANQUE recibido: apps={ConfiguracionDeVigilancia.Activada(contexto)} equipo={ConfiguracionDeVigilancia.EquipoActivado(contexto)} resumen={ConfiguracionDeVigilancia.ResumenActivado(contexto)} reprogramado={reprogramado}");
     }
 }
