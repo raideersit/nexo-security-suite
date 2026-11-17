@@ -51,7 +51,10 @@ public sealed class PantallaAvisos : UserControl
 
         Content = new ScrollViewer { Content = raiz };
         Mostrar();
-        AttachedToVisualTree += (_, _) => Mostrar();
+        // Al volver de otra pantalla o del dialogo del permiso, el texto se actualiza (antes seguia diciendo «falta el permiso» aunque ya estuviera concedido).
+        Action alReanudar = () => Dispatcher.UIThread.Post(Mostrar);
+        AttachedToVisualTree += (_, _) => { MainActivity.Reanudada += alReanudar; Mostrar(); };
+        DetachedFromVisualTree += (_, _) => MainActivity.Reanudada -= alReanudar;
     }
 
     private void Mostrar()

@@ -21,6 +21,15 @@ public sealed class MainActivity : AvaloniaMainActivity<App>
     /// <summary>Para que la pantalla «Estado» pueda pedir el permiso de notificaciones.</summary>
     public static MainActivity? Actual { get; private set; }
 
+    /// <summary>Se dispara cada vez que la app vuelve al primer plano (por ejemplo al cerrarse el dialogo de un permiso): las pantallas refrescan lo que dependia de el.</summary>
+    public static event Action? Reanudada;
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        Reanudada?.Invoke();
+    }
+
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder) => base.CustomizeAppBuilder(builder);
 
     protected override void OnCreate(Bundle? savedInstanceState)
