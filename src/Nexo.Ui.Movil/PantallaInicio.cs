@@ -23,10 +23,10 @@ public sealed class PantallaInicio : UserControl
     private readonly TextBlock _revision = Retro.Texto("", Retro.Secundario, false, Retro.Gris);
     private readonly Border _iconoEstado = new();
     private readonly Button _botonPrincipal;
-    private readonly Retro.MosaicoEnPantalla _estado, _apps, _avisos, _historial;
+    private readonly Retro.MosaicoEnPantalla _estado, _apps, _avisos, _historial, _firewall;
     private readonly Action _irEstado;
 
-    public PantallaInicio(Action irEstado, Action irApps, Action irAvisos, Action irHistorial, Action irAjustes, Action irRevisar)
+    public PantallaInicio(Action irEstado, Action irApps, Action irAvisos, Action irHistorial, Action irAjustes, Action irRevisar, Action irFirewall)
     {
         _irEstado = irEstado;
         _botonPrincipal = Retro.BotonGrande("Ver los avisos", irEstado, destacado: true);
@@ -52,10 +52,12 @@ public sealed class PantallaInicio : UserControl
         var ajustes = Retro.Mosaico(Retro.IconoEngranaje, "Ajustes", "Apps de confianza", irAjustes);
         // «Revisar» ocupa el lugar de «Pruebas» (que paso a Ajustes): enlaces, SMS y QR, tambien desde «Compartir».
         var revisar = Retro.Mosaico(Retro.IconoLupa, "Revisar", "Enlaces, SMS y QR", irRevisar);
+        // Rejilla de 2x4: «Firewall» en el 7.º; el 8.º queda libre para la boveda (fase 3) y no se dibuja.
+        _firewall = Retro.Mosaico(Retro.IconoMuro, "Firewall", DetalleDelFirewall(), irFirewall);
 
-        var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), ColumnSpacing = 12, RowSpacing = 12 };
+        var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"), ColumnSpacing = 12, RowSpacing = 12 };
         void Poner(Retro.MosaicoEnPantalla m, int fila, int col) { Grid.SetRow(m.Boton, fila); Grid.SetColumn(m.Boton, col); rejilla.Children.Add(m.Boton); }
-        Poner(_estado, 0, 0); Poner(_apps, 0, 1); Poner(_avisos, 1, 0); Poner(_historial, 1, 1); Poner(revisar, 2, 0); Poner(ajustes, 2, 1);
+        Poner(_estado, 0, 0); Poner(_apps, 0, 1); Poner(_avisos, 1, 0); Poner(_historial, 1, 1); Poner(revisar, 2, 0); Poner(ajustes, 2, 1); Poner(_firewall, 3, 0);
 
         var raiz = new StackPanel { Margin = new Avalonia.Thickness(12), Spacing = 12 };
         raiz.Children.Add(Retro.Hundido(interior, 14));
@@ -68,6 +70,7 @@ public sealed class PantallaInicio : UserControl
 
     private void Refrescar()
     {
+        _firewall.Detalle.Text = DetalleDelFirewall();
         var contexto = Android.App.Application.Context;
         var datos = EquipoAhora.Leer();
         var lista = EquipoAhora.Evaluar(datos);
@@ -99,5 +102,12 @@ public sealed class PantallaInicio : UserControl
                 Retro.PonerInsignia(_apps, marcadas);
             });
         });
+    }
+
+    /// <summary>Lo que el servicio bloquea AHORA (no lo que dicen las reglas).</summary>
+    private static string DetalleDelFirewall()
+    {
+        int n = Firewall.ServicioFirewall.Bloqueando.Count;
+        return n == 0 ? "Apagado" : n == 1 ? "1 bloqueada" : $"{n} bloqueadas";
     }
 }

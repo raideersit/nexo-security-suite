@@ -568,7 +568,26 @@ La puntuación responde al estado real del sistema, y Nexo mismo (firmado con la
 
 **Sin verificar:** compartir una **imagen** desde la Galería (sí el selector), compartir desde **WhatsApp** o la app de Mensajes, «Pegar», el campo «Remitente», un enlace real de las listas descargadas, y cómo se ven las tarjetas de resultado (el dueño dijo «funcionó todo»; el registro confirma lo de la tabla).
 
-**§3.6 Firewall por app:** sin empezar; va en un plan aparte.
+**§3.6 Firewall por app: hecho y probado en el S20 FE (2026-11-17).** Plan aprobado por el dueño, con dos decisiones: el mosaico «Firewall» en una rejilla de 2×4 (el 8.º queda libre para la bóveda), y las apps del sistema bloqueables tras un interruptor con aviso.
+
+- **Cómo funciona:** `ServicioFirewall` (`VpnService`) crea una VPN con **solo las apps bloqueadas** (`AddAllowedApplication`), con rutas IPv4 e IPv6 por defecto, y **nunca lee el túnel**: lo que esas apps envían entra y no sale. Las demás apps no pasan por la VPN. No hay `startForeground`: el sistema mantiene vivo el servicio mientras la VPN existe (verificado, ver abajo).
+- **El riesgo principal, cubierto con lógica portable:** un `VpnService.Builder` sin `AddAllowedApplication` mete a **todas** las apps en el túnel y deja el teléfono sin internet. `PlanDeFirewallMovil` (portable, 15 verificaciones; 247 en total en `Nexo.Movil.Demo`) decide qué paquetes entran y si se crea la VPN. Con cero apps válidas (ninguna marcada, solo Nexo o solo desinstaladas) la VPN **no se crea** y, si existía, se cierra. Las reglas se guardan en `firewall.json`; un archivo dañado o de versión desconocida queda **apagado**.
+- **Al cambiar la lista** se crea el túnel nuevo antes de cerrar el anterior, para que no haya un instante sin bloqueo.
+- **`OnRevoke`** (el usuario apaga la VPN en Ajustes, u otra VPN toma el control) apaga las reglas y las marca como revocadas: la pantalla lo dice en rojo. **Al reiniciar**, `ReceptorDeArranque` repone el firewall solo si el consentimiento de VPN sigue vigente; si no, lo deja apagado y revocado.
+- La pantalla lista solo las apps que piden `INTERNET`, con buscador por nombre o paquete. Las bloqueadas van arriba. El titular dice lo que el **servicio** bloquea ahora, no lo que dicen las reglas.
+
+| Prueba en el S20 FE (Android 13) | Resultado |
+|---|---|
+| Bloquear Samsung Internet (`com.sec.android.app.sbrowser`, app del sistema) y encender | ✅ Diálogo de VPN de Android aceptado; `dumpsys connectivity`: «VPN CONNECTED» en `tun0` con `UIDs: [10313-10313]` (solo Samsung Internet) |
+| Samsung Internet y Chrome con la misma página | ✅ Samsung Internet **no carga**; Chrome **sí** |
+| Desmarcar Samsung Internet con el firewall encendido | ✅ VPN cerrada (`motivo=sin_apps_validas`), ninguna VPN activa, Samsung Internet vuelve a cargar; la pantalla dice «Marca al menos una app» |
+| Apagar la VPN desde Ajustes de Android | ✅ `OnRevoke`: reglas apagadas y marcadas como revocadas, sin VPN; pantalla en rojo «El firewall se apagó» |
+| Reinicio con el firewall encendido, sin abrir Nexo | ✅ `ARRANQUE firewall: se repone` a las 22:05:08 (unos 2,5 min después del arranque, por la cola de Samsung) y VPN creada al segundo siguiente |
+| 15 min con el teléfono bloqueado | ✅ La VPN siguió activa en todas las lecturas (cada 30 s); al final, el teléfono en reposo (`Dozing`) y el proceso de Nexo vivo |
+
+**Observado:** en el S20 FE **no aparece la llave de VPN** en la barra de estado. Samsung la muestra en la cortina o en los ajustes rápidos, según el modelo. El texto de la pantalla ya no promete la llave: habla de un aviso de «VPN activada».
+
+**Sin verificar:** los 15 minutos fueron **con cable (cargando)**; horas sin cable y en reposo profundo; convivencia con la VPN «siempre activa» de otra app; el reinicio sin consentimiento vigente (la rama que deja el firewall apagado); bloquear una app instalada por el usuario (solo se probó una del sistema); y otras marcas.
 
 ---
 

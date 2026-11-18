@@ -108,6 +108,37 @@ public sealed class MainActivity : AvaloniaMainActivity<App>
         RequestPermissions(new[] { "android.permission.POST_NOTIFICATIONS" }, 7);
     }
 
+    private const int CodigoVpn = 8;
+
+    /// <summary>Se dispara si el usuario rechaza el dialogo de VPN de Android: la pantalla del firewall lo explica.</summary>
+    public static event Action? VpnRechazada;
+
+    /// <summary>
+    /// Enciende el firewall (o aplica sus cambios). La primera vez Android muestra su dialogo «Nexo quiere configurar una conexion VPN»;
+    /// el resultado llega a OnActivityResult. Con el consentimiento ya dado, se aplica directo.
+    /// </summary>
+    public void EncenderFirewall()
+    {
+        var consentimiento = Android.Net.VpnService.Prepare(this);
+        if (consentimiento is null) { Firewall.ServicioFirewall.Aplicar(this); return; }
+        Android.Util.Log.Info("NEXO", "FIREWALL pidiendo_consentimiento");
+        StartActivityForResult(consentimiento, CodigoVpn);
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        // Avalonia usa OnActivityResult para el selector de archivos: siempre se llama a la base.
+        base.OnActivityResult(requestCode, resultCode, data);
+        if (requestCode != CodigoVpn) return;
+        Android.Util.Log.Info("NEXO", "FIREWALL consentimiento=" + resultCode);
+        if (resultCode == Result.Ok) { Firewall.ServicioFirewall.Aplicar(this); return; }
+        var ruta = RutasDeNexo.Firewall(this);
+        var reglas = Nexo.Modules.Threats.Apps.ReglasDelFirewall.Cargar(ruta, out _);
+        reglas.Encendido = false;
+        reglas.Guardar(ruta);
+        VpnRechazada?.Invoke();
+    }
+
     /// <summary>
     /// Si Nexo ya pidio el permiso alguna vez. Android no lo dice: «no mostrar la explicacion» vale igual para «nunca se pidio» que para
     /// «se nego dos veces y ya no sale el dialogo». Con esto se distingue, y en el segundo caso se lleva al usuario a los ajustes.

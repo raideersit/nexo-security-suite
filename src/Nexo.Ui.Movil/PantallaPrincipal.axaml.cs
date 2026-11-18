@@ -19,7 +19,8 @@ public sealed partial class PantallaPrincipal : UserControl
             irAvisos: () => Ir("Avisos", new PantallaAvisos()),
             irHistorial: () => Ir("Historial para Obsidian", new PantallaHistorial()),
             irAjustes: () => Ir("Ajustes", new PantallaAjustes(() => Ir("Apps instaladas", new PantallaApps()), () => Ir("Pruebas", new PantallaPruebas()))),
-            irRevisar: () => Ir("Revisar un mensaje", new PantallaRevisar())));
+            irRevisar: () => Ir("Revisar un mensaje", new PantallaRevisar()),
+            irFirewall: () => Ir("Firewall", new PantallaFirewall())));
         AttachedToVisualTree += (_, _) =>
         {
             // «Ver» de una notificacion: en frio llega como pendiente; con la app abierta, por el evento.

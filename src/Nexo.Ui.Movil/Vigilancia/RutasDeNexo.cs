@@ -10,5 +10,6 @@ public static class RutasDeNexo
     public static string Confiadas(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "confiadas.json");
     public static string Vigilancia(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "vigilancia.json");
     public static string Equipo(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "equipo.json");
+    public static string Firewall(Context c) => Path.Combine(c.FilesDir!.AbsolutePath, "firewall.json");
     public static string CarpetaDeListas(Context c) => Path.Combine(c.GetExternalFilesDir(null)?.AbsolutePath ?? c.FilesDir!.AbsolutePath, "listas");
 }
