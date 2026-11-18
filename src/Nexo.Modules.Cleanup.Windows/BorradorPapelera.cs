@@ -29,6 +29,25 @@ namespace Nexo.Modules.Cleanup.Windows
 
         public bool EsReversible => true;
 
+        /// <summary>
+        /// Texto legible para un codigo de SHFileOperation. Conserva el codigo en hexadecimal
+        /// al final para poder diagnosticar. Los codigos 0x71-0x7E son los DE_* historicos del
+        /// shell; los demas son errores Win32.
+        /// </summary>
+        public static string DescribirCodigo(int codigo)
+        {
+            string hex = "0x" + codigo.ToString("X", System.Globalization.CultureInfo.InvariantCulture);
+            string texto = codigo switch
+            {
+                0x78 or 0x5 => "protegido por el sistema (acceso denegado)",
+                0x79 => "ruta demasiado larga",
+                0x20 or 0x21 => "en uso por otro proceso",
+                0x2 or 0x3 => "ya no existe",
+                _ => "no se pudo enviar a la Papelera",
+            };
+            return texto + " [SHFileOperation " + hex + "]";
+        }
+
         public ResultadoBorrado Borrar(IReadOnlyList<(string Ruta, long Bytes)> elementos)
         {
             int eliminados = 0;
@@ -96,8 +115,7 @@ namespace Nexo.Modules.Cleanup.Windows
                     }
                     else
                     {
-                        omitidos.Add(rutas[i] + " — SHFileOperation devolvio 0x" +
-                                     c.ToString("X", System.Globalization.CultureInfo.InvariantCulture));
+                        omitidos.Add(rutas[i] + " — " + DescribirCodigo(c));
                     }
                 }
             }

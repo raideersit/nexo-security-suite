@@ -198,6 +198,16 @@ namespace Nexo.Modules.Cleanup.Junk
                         continue;
                     }
 
+                    // Si ni siquiera se puede abrir con la identidad actual, la limpieza tampoco
+                    // podra moverlo (p. ej. los temporales de Defender: solo SYSTEM y WinDefend).
+                    // No se promete como liberable. Solo UnauthorizedAccess: un archivo en uso
+                    // por otro proceso (IOException) puede liberarse luego y se mantiene.
+                    if (EstaProtegido(v.RutaCanonica))
+                    {
+                        omitidas.Add(v.RutaCanonica + " — protegido por el sistema (acceso denegado)");
+                        continue;
+                    }
+
                     try
                     {
                         var info = new FileInfo(v.RutaCanonica);
@@ -211,6 +221,25 @@ namespace Nexo.Modules.Cleanup.Junk
                         omitidas.Add(archivo + " — " + ex.GetType().Name);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// true si el archivo existe pero la identidad actual no puede abrirlo para leer ni
+        /// para borrar. Cualquier otro fallo (en uso, desaparecio) devuelve false.
+        /// </summary>
+        public static bool EstaProtegido(string archivo)
+        {
+            try
+            {
+                using var fs = new FileStream(archivo, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                return false;
+            }
+            catch (UnauthorizedAccessException) { return true; }
+            catch (Exception ex) when (ex is IOException || ex is NotSupportedException || ex is ArgumentException)
+            {
+                return false;
             }
         }
 

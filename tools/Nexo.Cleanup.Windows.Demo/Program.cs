@@ -327,12 +327,27 @@ namespace Nexo.Cleanup.Windows.Demo
                           "informa 2 eliminados y 1 omitido",
                           $"eliminados {r.Eliminados}, omitidos {r.Omitidos.Count}: " + string.Join(" | ", r.Omitidos));
                     foreach (string o in r.Omitidos) Console.WriteLine("      omitido: " + o);
+                    Check(r.Omitidos.Count == 1 && r.Omitidos[0].Contains("en uso por otro proceso", StringComparison.Ordinal),
+                          "el motivo del archivo bloqueado se explica en palabras, no solo con un codigo",
+                          string.Join(" | ", r.Omitidos));
                 }
 
                 // Una vez liberado el cerrojo, el mismo archivo si se puede enviar.
                 ResultadoBorrado r2 = borrador.Borrar(new[] { (bloqueado, 12L) });
                 Check(r2.Eliminados == 1 && !File.Exists(bloqueado),
                       "liberado el cerrojo, el archivo ya se envia a la Papelera");
+
+                // --- Traduccion de los codigos de SHFileOperation (0x78 fue el hallazgo real) ---
+                string d78 = BorradorPapelera.DescribirCodigo(0x78);
+                Check(d78.Contains("protegido por el sistema", StringComparison.Ordinal) && d78.Contains("0x78", StringComparison.Ordinal),
+                      "0x78 se explica como protegido por el sistema y conserva el codigo", d78);
+                Check(BorradorPapelera.DescribirCodigo(0x79).Contains("demasiado larga", StringComparison.Ordinal),
+                      "0x79 = ruta demasiado larga");
+                Check(BorradorPapelera.DescribirCodigo(0x20).Contains("en uso", StringComparison.Ordinal),
+                      "0x20 = en uso por otro proceso");
+                string raro = BorradorPapelera.DescribirCodigo(0x1234);
+                Check(raro.Contains("0x1234", StringComparison.Ordinal) && !raro.Contains("protegido", StringComparison.Ordinal),
+                      "un codigo desconocido no se disfraza de otra cosa y conserva el hexadecimal", raro);
 
                 Console.WriteLine($"      (quedan 3 archivos 'nexo-demo-{sufijo}-*' en la Papelera; son sinteticos)");
             }

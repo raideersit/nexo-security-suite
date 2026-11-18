@@ -62,6 +62,7 @@ namespace Nexo.Cleanup.Demo
             await ProbarGuardia(corpus).ConfigureAwait(false);
             await ProbarLimpieza(corpus, reportes).ConfigureAwait(false);
             await ProbarCarpetaInaccesible(corpus, reportes).ConfigureAwait(false);
+            await ProbarArchivoProtegido(corpus, reportes).ConfigureAwait(false);
             await ProbarDuplicados(corpus, reportes).ConfigureAwait(false);
             await ProbarTrituracion(corpus, reportes).ConfigureAwait(false);
             await ProbarInicio().ConfigureAwait(false);
@@ -417,6 +418,83 @@ namespace Nexo.Cleanup.Demo
             finally
             {
                 EjecutarIcacls($"\"{bloqueada}\" /remove:d \"{usuario}\"");
+            }
+
+            Console.WriteLine();
+        }
+
+        // ============================================================
+        //  2c. UN ARCHIVO PROTEGIDO NO SE PROMETE COMO LIBERABLE
+        // ============================================================
+        // Hallazgo real (HP, 2026-11-17): los temporales de Defender en C:\Windows\Temp
+        // solo dan acceso a SYSTEM y WinDefend; la vista previa prometia 126,9 MB y se
+        // liberaron 1,0 MB (SHFileOperation 0x78 en cada uno).
+        private static async Task ProbarArchivoProtegido(string corpus, IReportWriter reportes)
+        {
+            Console.WriteLine("2c. Limpieza: un archivo protegido por el sistema no cuenta como liberable");
+
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine("  [AVISO] Prueba de ACL solo en Windows; no ejecutada.");
+                Console.WriteLine();
+                return;
+            }
+
+            string temp = Path.Combine(corpus, "temp");
+            string protegido = Path.Combine(temp, "protegido-2c.tmp");
+            string enUso = Path.Combine(temp, "en-uso-2c.tmp");
+            string libre = Path.Combine(temp, "libre-2c.tmp");
+            string usuario = Environment.UserDomainName + "\\" + Environment.UserName;
+
+            Escribir(temp, "protegido-2c.tmp", Patron('P', 2048));
+            Escribir(temp, "en-uso-2c.tmp", Patron('U', 2048));
+            Escribir(temp, "libre-2c.tmp", Patron('L', 2048));
+
+            FileStream? cerrojo = null;
+            try
+            {
+                if (!EjecutarIcacls($"\"{protegido}\" /deny \"{usuario}\":(RD,RC,DE)"))
+                {
+                    Console.WriteLine("  [AVISO] No se pudo aplicar el ACL de denegacion; prueba no ejecutada.");
+                    return;
+                }
+                bool inaccesible = false;   // comprobacion INDEPENDIENTE del codigo que se prueba
+                try { File.OpenRead(protegido).Dispose(); }
+                catch (UnauthorizedAccessException) { inaccesible = true; }
+                if (!inaccesible)
+                {
+                    Console.WriteLine("  [AVISO] El archivo sigue siendo legible con este token; prueba no ejecutada.");
+                    return;
+                }
+                Check(LimpiadorDeBasura.EstaProtegido(protegido), "un archivo que Windows niega abrir se detecta como protegido");
+
+                cerrojo = new FileStream(enUso, FileMode.Open, FileAccess.Read, FileShare.None);
+
+                Check(!LimpiadorDeBasura.EstaProtegido(libre), "un archivo normal no se considera protegido");
+                Check(!LimpiadorDeBasura.EstaProtegido(enUso),
+                      "un archivo en uso por otro proceso NO es «protegido» (puede liberarse luego)");
+                Check(!LimpiadorDeBasura.EstaProtegido(Path.Combine(temp, "no-existe-2c.tmp")),
+                      "un archivo que no existe tampoco es «protegido»");
+
+                var limpiador = new LimpiadorDeBasura(
+                    CatalogoDeRutas.Predeterminado(), ResolutorDeBases.DeCorpus(corpus),
+                    new BorradorReal(), reportes, esAdministrador: false);
+                VistaPreviaLimpieza vista = await limpiador.PrepararVistaPreviaAsync().ConfigureAwait(false);
+
+                Check(vista.Elementos.Any(e => e.Ruta.EndsWith("libre-2c.tmp", StringComparison.Ordinal)),
+                      "el archivo normal sigue en la vista previa");
+                Check(vista.Elementos.Any(e => e.Ruta.EndsWith("en-uso-2c.tmp", StringComparison.Ordinal)),
+                      "el archivo en uso sigue en la vista previa");
+                Check(vista.Elementos.All(e => !e.Ruta.EndsWith("protegido-2c.tmp", StringComparison.Ordinal)),
+                      "el archivo protegido NO entra en lo que se promete liberar");
+                Check(vista.RutasOmitidas.Any(r => r.Contains("protegido-2c.tmp", StringComparison.Ordinal)
+                                                   && r.Contains("protegido por el sistema", StringComparison.Ordinal)),
+                      "el archivo protegido queda anotado con un motivo legible");
+            }
+            finally
+            {
+                cerrojo?.Dispose();
+                EjecutarIcacls($"\"{protegido}\" /remove:d \"{usuario}\"");
             }
 
             Console.WriteLine();
