@@ -18,8 +18,8 @@ public sealed partial class PantallaPrincipal : UserControl
             irApps: () => Ir("Apps instaladas", new PantallaApps()),
             irAvisos: () => Ir("Avisos", new PantallaAvisos()),
             irHistorial: () => Ir("Historial para Obsidian", new PantallaHistorial()),
-            irAjustes: () => Ir("Ajustes", new PantallaAjustes(() => Ir("Apps instaladas", new PantallaApps()))),
-            irPruebas: () => Ir("Pruebas", new PantallaPruebas())));
+            irAjustes: () => Ir("Ajustes", new PantallaAjustes(() => Ir("Apps instaladas", new PantallaApps()), () => Ir("Pruebas", new PantallaPruebas()))),
+            irRevisar: () => Ir("Revisar un mensaje", new PantallaRevisar())));
         AttachedToVisualTree += (_, _) =>
         {
             // «Ver» de una notificacion: en frio llega como pendiente; con la app abierta, por el evento.
@@ -47,6 +47,7 @@ public sealed partial class PantallaPrincipal : UserControl
         while (_pila.Count > 1) _pila.Pop();
         if (Vigilancia.Destino.PaqueteDe(destino) is { } paquete) Ir("Apps instaladas", new PantallaApps(destacar: paquete));
         else if (destino == Vigilancia.Destino.Estado) Ir("Estado del equipo", new PantallaEstado());
+        else if (destino == Vigilancia.Destino.Revisar) Ir("Revisar un mensaje", new PantallaRevisar(Revisar.Compartido.Tomar()));
         else Mostrar();
     }
 

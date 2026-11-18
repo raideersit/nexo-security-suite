@@ -26,7 +26,7 @@ public sealed class PantallaInicio : UserControl
     private readonly Retro.MosaicoEnPantalla _estado, _apps, _avisos, _historial;
     private readonly Action _irEstado;
 
-    public PantallaInicio(Action irEstado, Action irApps, Action irAvisos, Action irHistorial, Action irAjustes, Action irPruebas)
+    public PantallaInicio(Action irEstado, Action irApps, Action irAvisos, Action irHistorial, Action irAjustes, Action irRevisar)
     {
         _irEstado = irEstado;
         _botonPrincipal = Retro.BotonGrande("Ver los avisos", irEstado, destacado: true);
@@ -50,11 +50,12 @@ public sealed class PantallaInicio : UserControl
         _avisos = Retro.Mosaico(Retro.IconoCampana, "Avisos", "", irAvisos);
         _historial = Retro.Mosaico(Retro.IconoNotas, "Historial", "", irHistorial);
         var ajustes = Retro.Mosaico(Retro.IconoEngranaje, "Ajustes", "Apps de confianza", irAjustes);
-        var pruebas = Retro.Mosaico(Retro.IconoMatraz, "Pruebas", "Solo desarrollo", irPruebas);
+        // «Revisar» ocupa el lugar de «Pruebas» (que paso a Ajustes): enlaces, SMS y QR, tambien desde «Compartir».
+        var revisar = Retro.Mosaico(Retro.IconoLupa, "Revisar", "Enlaces, SMS y QR", irRevisar);
 
         var rejilla = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), ColumnSpacing = 12, RowSpacing = 12 };
         void Poner(Retro.MosaicoEnPantalla m, int fila, int col) { Grid.SetRow(m.Boton, fila); Grid.SetColumn(m.Boton, col); rejilla.Children.Add(m.Boton); }
-        Poner(_estado, 0, 0); Poner(_apps, 0, 1); Poner(_avisos, 1, 0); Poner(_historial, 1, 1); Poner(ajustes, 2, 0); Poner(pruebas, 2, 1);
+        Poner(_estado, 0, 0); Poner(_apps, 0, 1); Poner(_avisos, 1, 0); Poner(_historial, 1, 1); Poner(revisar, 2, 0); Poner(ajustes, 2, 1);
 
         var raiz = new StackPanel { Margin = new Avalonia.Thickness(12), Spacing = 12 };
         raiz.Children.Add(Retro.Hundido(interior, 14));

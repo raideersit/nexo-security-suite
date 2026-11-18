@@ -29,6 +29,7 @@ public static class Retro
     public const string IconoCampana = "M8 22 V14 C8 9 11 6 16 6 C21 6 24 9 24 14 V22 L27 25 H5 Z M13 28 H19";
     public const string IconoNotas = "M6 4 H26 V28 H6 Z M10 10 H22 M10 15 H22 M10 20 H17";
     public const string IconoEngranaje = "M10 16 A6 6 0 1 0 22 16 A6 6 0 1 0 10 16 Z M16 3 V8 M16 24 V29 M3 16 H8 M24 16 H29 M7 7 L10 10 M22 22 L25 25 M25 7 L22 10 M10 22 L7 25";
+    public const string IconoLupa = "M5 13 A8 8 0 1 0 21 13 A8 8 0 1 0 5 13 Z M19 19 L27 27";
     public const string IconoMatraz = "M12 4 H20 M13 4 V13 L6 26 H26 L19 13 V4";
 
     public static TextBlock Texto(string texto, double tam = Cuerpo, bool negrita = false, IBrush? color = null) => new()

@@ -550,6 +550,26 @@ La puntuación responde al estado real del sistema, y Nexo mismo (firmado con la
 
 **Rendimiento:** la lectura bajó de 4,2 s a 0,9 s al dejar de cargar las etiquetas (nombres) de las 417 apps de sistema, que no se muestran. Las firmas de depuración cuestan 0,13 s.
 
+### Avance de la fase 2 (2026-11-17)
+
+**§3.5 Enlaces, mensajes y QR: hecho y probado en el S20 FE.** Plan aprobado por el dueño, con dos decisiones: **INTERNET solo para las listas**, con un botón manual «Actualizar listas» y sin descarga automática; y el mosaico **«Revisar»** en lugar de «Pruebas», que pasó a una fila de Ajustes.
+
+- **Reutiliza sin cambios** `AnalizadorDeMensajes`, `LectorDeQr`, `AlmacenDeListas` y `DescargaDeListasHttp` (`Nexo.Modules.Threats/Enlaces`). Las 160 verificaciones de `Nexo.Enlaces.Demo` siguen pasando. Los textos del veredicto son una **copia** de `ResumirEnlaces` del escritorio (`Revisar/TextosDeEnlaces.cs`): no se movieron para no chocar con el trabajo de escritorio del otro equipo.
+- **«Compartir»:** una actividad intermedia e invisible (`ActividadCompartir`, `text/plain` e `image/*`) copia lo compartido y abre Nexo en su propia tarea. Si el intent fuera directo a `MainActivity`, Android abriría una segunda copia de Nexo dentro de la app que comparte. La imagen se copia a la caché mientras dura el permiso de lectura que da el intent (tope de 25 MB). El texto se recorta a 20 000 caracteres.
+- **QR en Android:** `BitmapFactory` mira el tamaño antes de decodificar y reduce con `InSampleSize` hasta quedar bajo el tope del lector. Los píxeles ARGB en memoria *little-endian* ya son el BGRA que espera ZXing.
+- **Pantalla «Revisar»:** titular rojo (peligroso), ámbar (sospechoso) o negro (sin señales), **nunca verde**; una tarjeta por enlace con el motivo más grave a la vista y el resto plegado; «En el mensaje»; «No se pudo comprobar»; el estado de las listas. Los botones son Revisar, Pegar, Borrar y «Elegir una imagen con QR» (selector de archivos de Avalonia).
+- **Privacidad:** al registro solo van cantidades y el veredicto, nunca el texto ni los enlaces. Las listas se guardan en el almacenamiento privado de la app (`files/listas-phishing`). «Acerca de» dice exactamente cuándo se conecta Nexo a internet.
+
+| Prueba en el S20 FE | Resultado |
+|---|---|
+| «Actualizar listas» | ✅ Phishing Army (3,1 MB) y OpenPhish (15 KB) descargadas y guardadas |
+| «Elegir una imagen con QR»: un BMP de 600×600 generado en el PC con ZXing, con el texto «Tu cuenta fue bloqueada. Verifica tus datos en https://bancoestado-verifica.xyz/login» (dominio inventado) | ✅ 1 código leído; **Peligroso**, 1 enlace, 4 motivos, revisión completa |
+| Compartir un texto desde Samsung Notes → «Revisar con Nexo» | ✅ Nexo recibió el texto (239 caracteres), se abrió en «Revisar» y lo revisó. Era un texto sin enlaces: «Sin señales, no se encontró ningún enlace», correcto |
+
+**Sin verificar:** compartir una **imagen** desde la Galería (sí el selector), compartir desde **WhatsApp** o la app de Mensajes, «Pegar», el campo «Remitente», un enlace real de las listas descargadas, y cómo se ven las tarjetas de resultado (el dueño dijo «funcionó todo»; el registro confirma lo de la tabla).
+
+**§3.6 Firewall por app:** sin empezar; va en un plan aparte.
+
 ---
 
 ## 9. Riesgos

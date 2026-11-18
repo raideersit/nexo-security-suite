@@ -22,7 +22,7 @@ public sealed class PantallaAjustes : UserControl
     private readonly TextBlock _confianza = Retro.Texto("Contando...", Retro.Secundario, false, Retro.Gris);
     private readonly TextBlock _listas = Retro.Texto("Leyendo...", Retro.Secundario, false, Retro.Gris);
 
-    public PantallaAjustes(Action irApps)
+    public PantallaAjustes(Action irApps, Action irPruebas)
     {
         var contexto = Android.App.Application.Context;
         var raiz = new StackPanel { Margin = new Thickness(12), Spacing = 12 };
@@ -54,8 +54,9 @@ public sealed class PantallaAjustes : UserControl
         info.Children.Add(Retro.Texto("Acerca de Nexo", Retro.Cuerpo, true));
         info.Children.Add(Retro.Texto($"Nexo móvil {Version(contexto)} · Android {Android.OS.Build.VERSION.Release} (API {(int)Android.OS.Build.VERSION.SdkInt})", Retro.Secundario, false, Retro.Gris));
         info.Children.Add(Retro.Texto("Revisa apps y ajustes y avisa de lo que se ve mal; no bloquea nada antes de que ocurra. Complementa a Google Play Protect, no lo reemplaza.", Retro.Secundario, false, Retro.Gris));
-        info.Children.Add(Retro.Texto("Todo se calcula en el teléfono: Nexo no envía tus apps ni tus datos a ningún servidor.", Retro.Secundario, false, Retro.Gris));
+        info.Children.Add(Retro.Texto("Todo se calcula en el teléfono: Nexo no envía tus apps, tus mensajes ni tus enlaces a ningún servidor. Solo se conecta a internet para bajar las listas públicas de phishing cuando pulsas «Actualizar listas» en «Revisar».", Retro.Secundario, false, Retro.Gris));
         raiz.Children.Add(Retro.Hundido(info, 12));
+        raiz.Children.Add(Retro.FilaQueNavega("Pruebas (solo desarrollo)", "Sondas de las APIs de Android de la fase 0.", irPruebas));
 
         Content = new ScrollViewer { Content = raiz };
         _ = Task.Run(Contar);

@@ -107,6 +107,8 @@ public static class Destino
 {
     public const string Estado = "estado";
     public const string Inicio = "inicio";
+    /// <summary>Pantalla «Revisar» con lo que llego por «Compartir» (ver Revisar/Compartido.cs).</summary>
+    public const string Revisar = "revisar";
     private const string PrefijoApp = "app:";
 
     public static string App(string paquete) => PrefijoApp + paquete;
