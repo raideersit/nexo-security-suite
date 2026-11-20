@@ -1,6 +1,6 @@
 # Nexo Security Suite
 
-**Suite de higiene y monitoreo de seguridad para Windows 10/11.** Complementa a Microsoft Defender; **no lo reemplaza y no debe usarse como única protección.**
+**Suite de higiene y monitoreo de seguridad para Windows 10/11.** Complementa a Microsoft Defender; **no lo reemplaza y no debe usarse como única protección.Tambien se encuentra disponible como aplicación de celular disponible para sistemas operativos android (aún se encuentra en desarrollo esta)*
 
 Proyecto personal de raideersit, en desarrollo aún. No quiero que sea un producto comercial.
 
