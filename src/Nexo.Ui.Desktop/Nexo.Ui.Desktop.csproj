@@ -16,7 +16,13 @@
     <AssemblyName>nexo-desktop</AssemblyName>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <!-- Logo: fuente unica en assets/brand (no se modifica, solo se referencia). -->
+    <ApplicationIcon>../../assets/brand/png/windows/nexo.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="../../assets/brand/png/windows/nexo.ico" Link="Assets/nexo.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="nexo-desktop-demo" />

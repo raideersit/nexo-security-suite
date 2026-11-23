@@ -349,16 +349,25 @@ namespace Nexo.Ui.Tray
         }
 
         // ------------------------------------------------------------
+        /// <summary>El logo de Nexo con un punto de color en la esquina: el logo identifica la app, el punto sigue diciendo el estado.</summary>
         private static Icon Circulo(Color color)
         {
-            using var bmp = new Bitmap(16, 16);
+            const int lado = 32;
+            using var bmp = new Bitmap(lado, lado);
             using (Graphics g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                using System.IO.Stream? flujo = typeof(Bandeja).Assembly.GetManifestResourceStream("nexo.ico");
+                if (flujo != null)
+                {
+                    using var logo = new Icon(flujo, new Size(lado, lado));
+                    g.DrawIcon(logo, new Rectangle(0, 0, lado, lado));
+                }
                 using var pincel = new SolidBrush(color);
-                using var borde = new Pen(Color.FromArgb(220, Color.White), 1.5f);
-                g.FillEllipse(pincel, 1, 1, 13, 13);
-                g.DrawEllipse(borde, 1, 1, 13, 13);
+                using var borde = new Pen(Color.White, 2f);
+                g.FillEllipse(pincel, 17, 17, 14, 14);
+                g.DrawEllipse(borde, 17, 17, 14, 14);
             }
             // Son 4 iconos que viven lo que vive el proceso: no se libera el manejador (y asi no hace falta P/Invoke aqui;
             // todo el P/Invoke del proyecto va en Nexo.Native).

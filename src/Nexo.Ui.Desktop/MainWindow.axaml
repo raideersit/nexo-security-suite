@@ -6,6 +6,7 @@
                        x:Class="Nexo.Ui.Desktop.MainWindow"
                        x:DataType="local:VentanaPrincipalModelo"
                        Title="Nexo Security Suite"
+                       Icon="avares://nexo-desktop/Assets/nexo.ico"
                        Width="900" Height="620" MinWidth="640" MinHeight="460"
                        WindowStartupLocation="CenterScreen">
 

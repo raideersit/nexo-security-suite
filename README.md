@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/png/nexo-logo-256.png" alt="Logo de Nexo Security Suite" width="160">
+</p>
+
 # Nexo Security Suite
 
 **Suite de higiene y monitoreo de seguridad para Windows 10/11.** Complementa a Microsoft Defender; **no lo reemplaza y no debe usarse como única protección.Tambien se encuentra disponible como aplicación de celular disponible para sistemas operativos android (aún se encuentra en desarrollo esta)*

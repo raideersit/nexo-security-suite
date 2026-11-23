@@ -12,7 +12,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Nexo.Ui.Tray</RootNamespace>
     <AssemblyName>nexo-tray</AssemblyName>
+    <ApplicationIcon>../../assets/brand/png/windows/nexo.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- El logo va dentro del ejecutable; la bandeja le dibuja encima el punto de estado. -->
+    <EmbeddedResource Include="../../assets/brand/png/windows/nexo.ico" LogicalName="nexo.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="nexo-tray-demo" />
