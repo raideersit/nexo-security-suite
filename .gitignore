@@ -25,3 +25,6 @@ corpus/
 # conflictos constantes al sincronizar entre maquinas.
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# Estado local de Claude Code (worktrees, ajustes): no es parte del proyecto.
+.claude/
