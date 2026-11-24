@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes de AMSI REAL (el proveedor que tenga Windows, normalmente Defender). No escribe nada a disco: la cadena de
          prueba de AMSI solo existe en memoria. No necesita administrador. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Amsi.Windows.Demo</RootNamespace>

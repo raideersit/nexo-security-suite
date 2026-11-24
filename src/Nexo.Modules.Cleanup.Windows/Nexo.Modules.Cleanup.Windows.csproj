@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- Lo especifico de Windows del modulo de limpieza vive aparte para que
          Nexo.Modules.Cleanup siga compilando y probandose fuera de Windows. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -13,9 +13,9 @@
   <ItemGroup>
     <!-- WMI (S.M.A.R.T.). Es codigo administrado, no P/Invoke, asi que puede
          vivir aqui y no en Nexo.Native. -->
-    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.0" />
     <!-- EventLogReader (impacto de arranque, Diagnostics-Performance) no viene en el framework base. -->
-    <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.1" />
+    <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

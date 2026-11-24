@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes de la bandeja: prueba el modelo (sin pantalla), lo consulta contra el servicio levantado en el mismo
          proceso y comprueba el cableado del ejecutable en modo de una sola consulta. No muestra ventanas ni avisos de UAC. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Tray.Demo</RootNamespace>

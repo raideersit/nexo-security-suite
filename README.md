@@ -156,8 +156,8 @@ dotnet run --project tools/Nexo.Desktop.Demo
 ### La ventana principal: `nexo-desktop`
 
 ```
-dotnet run --project src/Nexo.Ui.Desktop --framework net8.0-windows   # Windows: habla con el servicio por el pipe
-dotnet run --project src/Nexo.Ui.Desktop --framework net8.0           # Linux: misma ventana, dice que no hay servicio
+dotnet run --project src/Nexo.Ui.Desktop --framework net10.0-windows   # Windows: habla con el servicio por el pipe
+dotnet run --project src/Nexo.Ui.Desktop --framework net10.0           # Linux: misma ventana, dice que no hay servicio
 ```
 
 Usa Avalonia con el tema [Classic.Avalonia](https://github.com/BAndysc/Classic.Avalonia) (aspecto Windows 9x, sin animaciones ni transparencias):

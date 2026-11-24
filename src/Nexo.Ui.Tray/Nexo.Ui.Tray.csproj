@@ -4,7 +4,7 @@
     <!-- Bandeja del sistema (Salida 0). WinForms y no WPF: NotifyIcon es lo unico que hace falta y no
          trae dependencias; la logica vive en Nucleo/ (sin interfaz) para poder probarla. -->
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes de la lectura REAL de cuentas, politica de contrasenas e inicio automatico. Solo lee metadatos, sin administrador
          y sin red. NO imprime contrasenas ni hashes (no se leen). -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Vuln.Windows.Demo</RootNamespace>

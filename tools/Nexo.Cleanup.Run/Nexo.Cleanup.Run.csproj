@@ -6,7 +6,7 @@
          equipo REAL (catalogo de rutas verdadero). Es el paso 4 de la Salida 6:
          primero BorradorSimulado, despues Papelera, y el borrado permanente
          solo dentro de una VM. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Cleanup.Run</RootNamespace>

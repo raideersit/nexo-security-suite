@@ -3,11 +3,11 @@
   <PropertyGroup>
     <!-- Ventana principal. Avalonia + tema Classic (aspecto Windows 9x, liviano) para que la misma
          interfaz corra en Windows 10, Windows 11 y Linux.
-         - net8.0-windows: habla con Nexo.Service por el named pipe (Nexo.Ipc es solo Windows).
-         - net8.0: la misma ventana para Linux. El servicio aun no existe alli, y la ventana lo dice:
+         - net10.0-windows: habla con Nexo.Service por el named pipe (Nexo.Ipc es solo Windows).
+         - net10.0: la misma ventana para Linux. El servicio aun no existe alli, y la ventana lo dice:
            nunca muestra «todo en orden» si no lo sabe. -->
     <OutputType>WinExe</OutputType>
-    <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -50,11 +50,11 @@
     <ProjectReference Include="..\Nexo.Modules.Identity\Nexo.Modules.Identity.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <ProjectReference Include="..\Nexo.Modules.Threats.Windows\Nexo.Modules.Threats.Windows.csproj" />
     <ProjectReference Include="..\Nexo.Ipc\Nexo.Ipc.csproj" />
     <!-- Eventos de sesion de Windows (bloqueo, suspension) para bloquear la boveda; paquete oficial de Microsoft, gratuito. -->
-    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.0" />
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\Instantanea.cs" Link="Compartido\Instantanea.cs" />
     <!-- Las acciones que cambian algo van por el mismo codigo que la bandeja: vista previa, token y aprobacion (UAC). -->
     <Compile Include="..\Nexo.Ui.Tray\Nucleo\AccionesDelServicio.cs" Link="Compartido\AccionesDelServicio.cs" />
