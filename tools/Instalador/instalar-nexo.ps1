@@ -54,7 +54,7 @@ function Test-Admin {
 $Piezas = @(
     @{ Sub = 'service';        Proyecto = 'src\Nexo.Service\Nexo.Service.csproj';                       Marco = $null },
     @{ Sub = 'tray';           Proyecto = 'src\Nexo.Ui.Tray\Nexo.Ui.Tray.csproj';                       Marco = $null },
-    @{ Sub = 'desktop';        Proyecto = 'src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj';                 Marco = 'net8.0-windows' },
+    @{ Sub = 'desktop';        Proyecto = 'src\Nexo.Ui.Desktop\Nexo.Ui.Desktop.csproj';                 Marco = 'net10.0-windows' },
     @{ Sub = 'autocompletado'; Proyecto = 'src\Nexo.Autocompletado.Host\Nexo.Autocompletado.Host.csproj'; Marco = $null }
 )
 

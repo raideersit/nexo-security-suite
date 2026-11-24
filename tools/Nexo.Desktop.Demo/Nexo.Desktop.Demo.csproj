@@ -5,7 +5,7 @@
     <!-- Arnes de la ventana principal: el resumen de estado (sin pantalla), el modelo de la ventana con fuentes falsas,
          y la ventana de verdad cargada sin pantalla (Avalonia.Headless). Corre en Linux y en Windows; no habla con el
          servicio. Con la opcion captura (archivo.png) guarda una imagen de la ventana. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>

@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes portable del escaner y la cuarentena. Habla con un clamd FALSO que
          implementa el protocolo real por TCP (loopback). No requiere ClamAV. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Scan.Demo</RootNamespace>

@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Protocolo UI <-> servicio por named pipe (Salida 0, §2). Es net8.0-windows
+    <!-- Protocolo UI <-> servicio por named pipe (Salida 0, §2). Es net10.0-windows
          porque la ACL del pipe (PipeSecurity) es una API de Windows. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

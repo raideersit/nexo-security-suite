@@ -156,11 +156,16 @@ namespace Nexo.Identity.Demo
             Directory.CreateDirectory(Path.GetDirectoryName(bloqueadoPorOtro)!);
             File.Copy(existente, bloqueadoPorOtro);
             string huellaEnUso = Huella(bloqueadoPorOtro);
-            ResultadoDeRestauracion fallo;
-            using (new FileStream(bloqueadoPorOtro, FileMode.Open, FileAccess.Read, FileShare.None))
-                fallo = await Boveda.RestaurarAsync(copia, Maestra, bloqueadoPorOtro).ConfigureAwait(false);
-            Check(fallo.Estado == EstadoDeRestauracion.ErrorDeEscritura && fallo.Detalle!.Contains("se dejó todo como estaba"), "si otro programa tiene el destino abierto: ErrorDeEscritura y lo dice", fallo.Estado + " " + fallo.Detalle);
-            Check(Huella(bloqueadoPorOtro) == huellaEnUso && Directory.GetFiles(Path.GetDirectoryName(bloqueadoPorOtro)!).Length == 1, "y el destino sigue intacto, sin temporales ni archivos apartados");
+            // FileShare.None solo impide reemplazar el archivo en Windows; en Linux el bloqueo es consultivo y no lo respeta el reemplazo.
+            if (OperatingSystem.IsWindows())
+            {
+                ResultadoDeRestauracion fallo;
+                using (new FileStream(bloqueadoPorOtro, FileMode.Open, FileAccess.Read, FileShare.None))
+                    fallo = await Boveda.RestaurarAsync(copia, Maestra, bloqueadoPorOtro).ConfigureAwait(false);
+                Check(fallo.Estado == EstadoDeRestauracion.ErrorDeEscritura && fallo.Detalle!.Contains("se dejó todo como estaba"), "si otro programa tiene el destino abierto: ErrorDeEscritura y lo dice", fallo.Estado + " " + fallo.Detalle);
+                Check(Huella(bloqueadoPorOtro) == huellaEnUso && Directory.GetFiles(Path.GetDirectoryName(bloqueadoPorOtro)!).Length == 1, "y el destino sigue intacto, sin temporales ni archivos apartados");
+            }
+            else Console.WriteLine("  [OMITIDA] destino abierto por otro programa (el bloqueo de archivos solo se aplica en Windows)");
 
             bool relativaR = false;
             try { await Boveda.RestaurarAsync("copia.nxv", Maestra, existente).ConfigureAwait(false); } catch (ArgumentException) { relativaR = true; }

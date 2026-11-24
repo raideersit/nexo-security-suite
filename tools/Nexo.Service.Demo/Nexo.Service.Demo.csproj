@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes del servicio: levanta el NexoWorker en el mismo proceso (sin instalarlo, sin
          LocalSystem), con un vault temporal y un pipe de nombre unico. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Service.Demo</RootNamespace>

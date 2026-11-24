@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net8.0 a proposito, como Cleanup y Threats: la boveda (cifrado, formato, generador) se prueba fuera de Windows.
+    <!-- net10.0 a proposito, como Cleanup y Threats: la boveda (cifrado, formato, generador) se prueba fuera de Windows.
          Lo propio de Windows (Windows Hello, portapapeles) ira en un proyecto aparte. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

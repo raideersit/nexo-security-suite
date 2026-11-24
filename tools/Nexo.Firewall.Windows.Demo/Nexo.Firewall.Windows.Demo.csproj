@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Arnes de las comprobaciones contra el Firewall de Windows REAL. Las de
          escritura exigen administrador y dejan el firewall como estaba. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Firewall.Windows.Demo</RootNamespace>

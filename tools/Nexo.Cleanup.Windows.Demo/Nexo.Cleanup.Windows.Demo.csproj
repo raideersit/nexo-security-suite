@@ -5,7 +5,7 @@
     <!-- Arnes de las comprobaciones que SOLO tienen sentido en Windows: registro,
          Papelera, archivos bloqueados, tipo de disco. El arnes portable
          (Nexo.Cleanup.Demo) sigue corriendo en cualquier sistema. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Cleanup.Windows.Demo</RootNamespace>

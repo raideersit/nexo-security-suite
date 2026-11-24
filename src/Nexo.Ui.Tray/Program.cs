@@ -12,6 +12,9 @@ namespace Nexo.Ui.Tray
         {
             string pipe = Argumento(args, "--pipe") ?? "NexoIpc";
 
+            // Con el pipe por omision (uso real, no pruebas que indican otro nombre) se comprueba quien lo atiende antes de hablarle.
+            Nexo.Ipc.ClienteDePipe.ExigirServidorDeConfianza = Argumento(args, "--pipe") is null;
+
             // Modo auxiliar: aplica UN plan ya aprobado. Lo abre la bandeja elevada (aviso de UAC) y termina.
             int i = Array.IndexOf(args, "--aplicar");
             if (i >= 0) return Auxiliar.Aplicar(args, i, pipe);

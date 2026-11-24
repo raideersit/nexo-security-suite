@@ -312,7 +312,7 @@ namespace Nexo.Vuln.Demo
             Console.WriteLine("28. Señuelos: qué carpetas de cada perfil");
             var sinAbrir = new PerfilParaSenuelos("S-1-5-21-1", @"C:\Users\ana", null);
             IReadOnlyList<string> c = CarpetasParaSenuelos.Elegir(new[] { sinAbrir }, out var fuera);
-            Check(c.SequenceEqual(new[] { @"C:\Users\ana\Documents", @"C:\Users\ana\Desktop", @"C:\Users\ana\Pictures" }) && fuera.Count == 0,
+            Check(c.SequenceEqual(new[] { Path.Combine(@"C:\Users\ana", "Documents"), Path.Combine(@"C:\Users\ana", "Desktop"), Path.Combine(@"C:\Users\ana", "Pictures") }) && fuera.Count == 0,
                 "perfil sin abrir: Documentos, Escritorio e Imágenes por omisión", string.Join(" | ", c));
 
             var movido = new PerfilParaSenuelos("S-1-5-21-2", @"C:\Users\beto", new Dictionary<string, string>

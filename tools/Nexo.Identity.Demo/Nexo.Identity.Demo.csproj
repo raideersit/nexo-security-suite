@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <!-- Arnes de la boveda de contrasenas (portable): cifrado, formato, manipulacion del archivo, generador y eventos. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>Nexo.Identity.Demo</RootNamespace>

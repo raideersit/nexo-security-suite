@@ -10,6 +10,11 @@ namespace Nexo.Ui.Desktop
         public static int Main(string[] args)
         {
             string pipe = Argumento(args, "--pipe") ?? "NexoIpc";
+
+#if WINDOWS
+            // Con el pipe por omision (uso real, no pruebas que indican otro nombre) se comprueba quien lo atiende antes de hablarle.
+            Nexo.Ipc.ClienteDePipe.ExigirServidorDeConfianza = Argumento(args, "--pipe") is null;
+#endif
             App.Fuente = Fuentes.PorDefecto(pipe);
             App.Escaneo = Fuentes.EscaneoPorDefecto(pipe);
             App.Cuarentena = Fuentes.CuarentenaPorDefecto(pipe);

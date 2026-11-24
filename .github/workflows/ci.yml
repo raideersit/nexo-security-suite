@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  windows:
+    name: Windows (compilar + arneses)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Compilar la solucion
+        run: dotnet build NexoAntivirus.sln -c Release
+
+      # Arneses que no necesitan administrador ni una VM: deben terminar con codigo 0.
+      - name: Nexo.Reports.Demo
+        run: dotnet run --no-build -c Release --project tools/Nexo.Reports.Demo -- ./vault-demo
+      - name: Nexo.Cleanup.Demo
+        run: dotnet run --no-build -c Release --project tools/Nexo.Cleanup.Demo
+      - name: Nexo.Firewall.Demo
+        run: dotnet run --no-build -c Release --project tools/Nexo.Firewall.Demo
+      - name: Nexo.Scan.Demo
+        run: dotnet run --no-build -c Release --project tools/Nexo.Scan.Demo
+      - name: Nexo.Ipc.Demo (protocolo, ACL, limites)
+        run: dotnet run --no-build -c Release --project tools/Nexo.Ipc.Demo
+
+      # Estos pueden depender del entorno (administrador, UAC, sesion interactiva). Se ejecutan y se informan,
+      # pero no tumban el flujo hasta confirmar que pasan en el runner. Cuando pasen, quita continue-on-error.
+      - name: Nexo.Service.Demo (informativo)
+        continue-on-error: true
+        run: dotnet run --no-build -c Release --project tools/Nexo.Service.Demo
+      - name: Nexo.RealTime.Demo (informativo)
+        continue-on-error: true
+        run: dotnet run --no-build -c Release --project tools/Nexo.RealTime.Demo
+      - name: Nexo.Tray.Demo (informativo)
+        continue-on-error: true
+        run: dotnet run --no-build -c Release --project tools/Nexo.Tray.Demo
+      - name: Nexo.Desktop.Demo (informativo)
+        continue-on-error: true
+        run: dotnet run --no-build -c Release --project tools/Nexo.Desktop.Demo
+
+  linux:
+    name: Linux (partes portables)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Compilar los arneses portables
+        run: |
+          for p in Nexo.Reports.Demo Nexo.Cleanup.Demo Nexo.Firewall.Demo Nexo.Scan.Demo; do
+            dotnet build "tools/$p" -c Release -p:EnableWindowsTargeting=true
+          done
+      - name: Ejecutar
+        run: |
+          dotnet run --no-build -c Release --project tools/Nexo.Reports.Demo -- ./vault-demo
+          dotnet run --no-build -c Release --project tools/Nexo.Cleanup.Demo
+          dotnet run --no-build -c Release --project tools/Nexo.Firewall.Demo
+          dotnet run --no-build -c Release --project tools/Nexo.Scan.Demo
+
+  paquetes:
+    name: Paquetes con vulnerabilidades conocidas
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: dotnet list package --vulnerable
+        shell: pwsh
+        run: |
+          dotnet restore NexoAntivirus.sln
+          $salida = dotnet list NexoAntivirus.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $salida
+          if ($salida -match 'has the following vulnerable packages') {
+            throw 'Hay paquetes con vulnerabilidades conocidas (ver arriba).'
+          }
