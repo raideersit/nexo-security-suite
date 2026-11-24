@@ -19,6 +19,18 @@ namespace Nexo.Ipc
         /// <summary>Un cliente que conecta y no manda nada ocupa un hueco; pasado esto se le cierra.</summary>
         public TimeSpan TiempoInactivo { get; init; } = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// Plazo para que un cliente recien conectado mande su primer mensaje. Es mas corto que <see cref="TiempoInactivo"/>:
+        /// hasta que no manda nada no se sabe quien es, asi que no se le deja ocupar un hueco mucho rato.
+        /// </summary>
+        public TimeSpan TiempoAntesDelPrimerMensaje { get; init; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Conexiones simultaneas por usuario (SID), una vez identificado. Evita que un solo proceso ocupe los
+        /// <see cref="MaxConexiones"/> huecos y deje sin servicio a la bandeja y la ventana. 0 = sin limite.
+        /// </summary>
+        public int MaxConexionesPorUsuario { get; init; } = 4;
+
         /// <summary>Limite para que el manejador conteste una peticion.</summary>
         public TimeSpan TiempoPorPeticion { get; init; } = TimeSpan.FromSeconds(30);
 
@@ -47,6 +59,7 @@ namespace Nexo.Ipc
         private readonly SemaphoreSlim _huecos;
         private readonly CancellationTokenSource _parar = new CancellationTokenSource();
         private readonly List<Task> _conexiones = new List<Task>();
+        private readonly Dictionary<string, int> _porUsuario = new Dictionary<string, int>(StringComparer.Ordinal);
         private Task? _aceptador;
         private int _atendidas;
         private Exception? _falloDelAceptador;
@@ -73,14 +86,27 @@ namespace Nexo.Ipc
         public void Iniciar()
         {
             if (_aceptador is not null) throw new InvalidOperationException("Ya iniciado.");
-            NamedPipeServerStream primera = Crear();
+            NamedPipeServerStream primera;
+            try { primera = Crear(primeraInstancia: true); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                // Con FirstPipeInstance, Windows rechaza crear el pipe si el nombre ya existe: otro proceso (o una copia
+                // anterior) lo tiene. No se sirve nada: un cliente podria acabar hablando con quien lo ocupo primero.
+                throw new InvalidOperationException(
+                    "El nombre de pipe '" + _nombre + "' ya esta en uso por otro proceso; el servicio no arranca.", ex);
+            }
             _aceptador = Task.Run(() => AceptarAsync(primera));
         }
 
-        private NamedPipeServerStream Crear()
+        /// <param name="primeraInstancia">
+        /// true solo para la primera instancia: exige que el nombre NO exista ya (<see cref="PipeOptions.FirstPipeInstance"/>), asi
+        /// otro proceso no puede haberse adelantado y quedarse con el pipe. Las siguientes son instancias del mismo pipe ya creado.
+        /// </param>
+        private NamedPipeServerStream Crear(bool primeraInstancia = false)
             => NamedPipeServerStreamAcl.Create(_nombre, PipeDirection.InOut, _opciones.MaxConexiones + 1,
-                PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0,
-                (_opciones.Seguridad ?? SeguridadDePipe.Crear)());
+                PipeTransmissionMode.Byte,
+                primeraInstancia ? PipeOptions.Asynchronous | PipeOptions.FirstPipeInstance : PipeOptions.Asynchronous,
+                0, 0, (_opciones.Seguridad ?? SeguridadDePipe.Crear)());
 
         private async Task AceptarAsync(NamedPipeServerStream actual)
         {
@@ -94,7 +120,8 @@ namespace Nexo.Ipc
 
                     // Si ya hay el maximo atendiendo, no se abre otra instancia: se espera un hueco.
                     await _huecos.WaitAsync(ct).ConfigureAwait(false);
-                    actual = Crear();
+                    try { actual = Crear(); }
+                    catch { _huecos.Release(); throw; }   // sin esto, el hueco ya tomado no se devolveria nunca
 
                     Task t = Task.Run(() => AtenderAsync(conectado, ct));
                     lock (_conexiones)
@@ -116,6 +143,7 @@ namespace Nexo.Ipc
         private async Task AtenderAsync(NamedPipeServerStream pipe, CancellationToken parar)
         {
             ContextoDeLlamada? contexto = null;
+            string? usuarioContado = null;
             try
             {
                 await using (pipe.ConfigureAwait(false))
@@ -125,13 +153,19 @@ namespace Nexo.Ipc
                         byte[]? cuerpo;
                         using (var inactivo = CancellationTokenSource.CreateLinkedTokenSource(parar))
                         {
-                            inactivo.CancelAfter(_opciones.TiempoInactivo);
+                            // Antes del primer mensaje no se sabe quien es: plazo corto.
+                            inactivo.CancelAfter(contexto is null ? _opciones.TiempoAntesDelPrimerMensaje : _opciones.TiempoInactivo);
                             cuerpo = await Tramas.LeerAsync(pipe, inactivo.Token).ConfigureAwait(false);
                         }
                         if (cuerpo is null) return;                      // el cliente cerro
 
                         // Solo tras leer el primer mensaje se puede identificar al cliente.
-                        contexto ??= Capturar(pipe);
+                        if (contexto is null)
+                        {
+                            contexto = Capturar(pipe);
+                            usuarioContado = ContarUsuario(contexto);
+                            if (usuarioContado is null) return;          // ya tiene el maximo de conexiones: se cierra
+                        }
 
                         Respuesta r = await ResponderAsync(cuerpo, contexto, parar).ConfigureAwait(false);
                         Interlocked.Increment(ref _atendidas);
@@ -146,8 +180,39 @@ namespace Nexo.Ipc
             catch (Exception ex) when (ex is OperationCanceledException || ex is IOException || ex is ObjectDisposedException) { }
             finally
             {
+                if (usuarioContado is not null) DescontarUsuario(usuarioContado);
                 contexto?.Dispose();
                 _huecos.Release();
+            }
+        }
+
+        private const string UsuarioDesconocido = "?";
+
+        /// <summary>
+        /// Cuenta esta conexion para su usuario. Devuelve la clave con la que se contó (para descontarla despues) o null si
+        /// ese usuario ya tiene <see cref="OpcionesDeServidor.MaxConexionesPorUsuario"/> y esta no se admite. Si no se pudo
+        /// identificar al cliente, todas esas conexiones comparten una misma cuenta.
+        /// </summary>
+        private string? ContarUsuario(ContextoDeLlamada contexto)
+        {
+            int max = _opciones.MaxConexionesPorUsuario;
+            string clave = contexto.Usuario?.Value ?? UsuarioDesconocido;
+            lock (_porUsuario)
+            {
+                _porUsuario.TryGetValue(clave, out int actuales);
+                if (max > 0 && actuales >= max) return null;
+                _porUsuario[clave] = actuales + 1;
+            }
+            return clave;
+        }
+
+        private void DescontarUsuario(string clave)
+        {
+            lock (_porUsuario)
+            {
+                if (!_porUsuario.TryGetValue(clave, out int n)) return;
+                if (n <= 1) _porUsuario.Remove(clave);
+                else _porUsuario[clave] = n - 1;
             }
         }
 

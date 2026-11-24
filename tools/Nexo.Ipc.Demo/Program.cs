@@ -198,11 +198,41 @@ namespace Nexo.Ipc.Demo
             // Inactividad
             string n1 = NombreUnico();
             await using (var s1 = new ServidorDePipe(n1, new ManejadorDePrueba(),
-                             new OpcionesDeServidor { TiempoInactivo = TimeSpan.FromMilliseconds(400) }))
+                             new OpcionesDeServidor { TiempoInactivo = TimeSpan.FromMilliseconds(400), TiempoAntesDelPrimerMensaje = TimeSpan.FromMilliseconds(400) }))
             {
                 s1.Iniciar();
                 await using ClienteDePipe callado = await ClienteDePipe.ConectarAsync(n1, Espera).ConfigureAwait(false);
                 Check(await SeCierra(callado.Flujo).ConfigureAwait(false), "un cliente que no dice nada es desconectado por inactividad");
+            }
+
+            // El nombre del pipe ya esta ocupado: el servicio NO arranca (FirstPipeInstance), en vez de compartir el nombre.
+            string n4 = NombreUnico();
+            await using (var ocupante = new ServidorDePipe(n4, new ManejadorDePrueba()))
+            {
+                ocupante.Iniciar();
+                await using var segundo = new ServidorDePipe(n4, new ManejadorDePrueba());
+                bool rechazado = false;
+                try { segundo.Iniciar(); }
+                catch (InvalidOperationException) { rechazado = true; }
+                Check(rechazado, "si el nombre del pipe ya esta ocupado, el servidor se niega a arrancar");
+            }
+
+            // Un solo usuario no puede acaparar los huecos: pasado su tope, la conexion de mas se cierra.
+            string n5 = NombreUnico();
+            await using (var s5 = new ServidorDePipe(n5, new ManejadorDePrueba(), new OpcionesDeServidor { MaxConexionesPorUsuario = 2 }))
+            {
+                s5.Iniciar();
+                await using ClienteDePipe c1 = await ClienteDePipe.ConectarAsync(n5, Espera).ConfigureAwait(false);
+                await using ClienteDePipe c2 = await ClienteDePipe.ConectarAsync(n5, Espera).ConfigureAwait(false);
+                await using ClienteDePipe c3 = await ClienteDePipe.ConectarAsync(n5, Espera).ConfigureAwait(false);
+                _ = await c1.LlamarAsync("ping").ConfigureAwait(false);
+                _ = await c2.LlamarAsync("ping").ConfigureAwait(false);
+                bool tercerCerrado;
+                try { _ = await c3.LlamarAsync("ping").ConfigureAwait(false); tercerCerrado = false; }
+                catch (IOException) { tercerCerrado = true; }
+                Check(tercerCerrado, "la conexion que pasa del tope por usuario se cierra");
+                Respuesta aun = await c1.LlamarAsync("ping").ConfigureAwait(false);
+                Check(aun.Error is null, "y las que estaban dentro del tope siguen atendidas");
             }
 
             // Mas clientes que huecos: todos acaban atendidos, sin abrir instancias sin limite.
