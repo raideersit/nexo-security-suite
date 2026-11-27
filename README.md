@@ -251,9 +251,7 @@ tools/
 
 ---
 
-## Privacidad y datos
 
-Nexo **no envía nada a ningún servidor**. No hay telemetría.
 
 El vault de reportes que genera contiene información sensible en texto plano: nombres de archivos personales, dominios visitados, aplicaciones instaladas. Se genera fuera del repositorio y está en `.gitignore`. El propio vault incluye una nota `99 Sistema/ADVERTENCIA DE SEGURIDAD.md` con las medidas concretas (BitLocker, ACL con `icacls`, no sincronizar con OneDrive).
 
